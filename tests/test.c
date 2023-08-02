@@ -3915,6 +3915,82 @@ int test_bignum_kmul_specific
   return 0;
 }
 
+int test_bignum_kmul_16_16_neon()
+{ const char *name = "bignum_kmul_16_16_neon";
+  uint64_t i, j;
+  printf("Testing %s with %d cases\n",name,tests);
+  int c;
+  for (i = 0; i < tests; ++i)
+   { random_bignum(16,b0);
+     random_bignum(16,b1);
+     random_bignum(16,b2);
+     for (j = 0; j < 16; ++j) b3[j] = b2[j] + 1;
+     bignum_kmul_16_16_neon(b2, b0, b1, b5);
+     reference_mul(32,b3,16,b0,16,b1);
+     c = reference_compare(16,b2,16,b3);
+     if (c != 0)
+      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
+               16ul,16ul,16ul,b0[0],b1[0],b2[0],b3[0]);
+        printf("output: ");
+        for (int i = 0; i < 16; ++i) {
+          printf("%lu ", b2[i]);
+        }
+        printf("\nanswer: ");
+        for (int i = 0; i < 16; ++i) {
+          printf("%lu ", b3[i]);
+        }
+        printf("\n");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
+                    16ul,16ul,16ul,b0[0],b1[0],b2[0]);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
+int test_bignum_kmul_32_32_neon()
+{ const char *name = "bignum_kmul_32_32_neon";
+  uint64_t i, j;
+  printf("Testing %s with %d cases\n",name,tests);
+  int c;
+  for (i = 0; i < tests; ++i)
+   { random_bignum(32,b0);
+     random_bignum(32,b1);
+     random_bignum(32,b2);
+     for (j = 0; j < 32; ++j) b3[j] = b2[j] + 1;
+     bignum_kmul_32_32_neon(b2, b0, b1, b5);
+     reference_mul(64,b3,32,b0,32,b1);
+     c = reference_compare(32,b2,32,b3);
+     if (c != 0)
+      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
+               32ul,32ul,32ul,b0[0],b1[0],b2[0],b3[0]);
+        printf("output: ");
+        for (int i = 0; i < 16; ++i) {
+          printf("%lu ", b2[i]);
+        }
+        printf("\nanswer: ");
+        for (int i = 0; i < 16; ++i) {
+          printf("%lu ", b3[i]);
+        }
+        printf("\n");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
+                    32ul,32ul,32ul,b0[0],b1[0],b2[0]);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
 int test_bignum_kmul_16_32(void)
 { return test_bignum_kmul_specific(32,16,16,"bignum_kmul_16_32",bignum_kmul_16_32);
 }
@@ -5939,6 +6015,62 @@ int test_bignum_mul(void)
       { if (k0 == 0 || k1 == 0 || k2 == 0) printf("OK: [sizes %4"PRIu64" := %4"PRIu64" * %4"PRIu64"]\n",k2,k0,k1);
         else printf("OK: [sizes %4"PRIu64" := %4"PRIu64" * %4"PRIu64"] ...0x%016"PRIx64" * ...0x%016"PRIx64" = ...0x%016"PRIx64"\n",
                     k2,k0,k1,b0[0],b1[0],b2[0]);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
+int test_bignum_mul_4_4()
+{ uint64_t i, j;
+  printf("Testing bignum_mul_4_4 with %d cases\n",tests);
+  int c;
+  for (i = 0; i < tests; ++i)
+   { random_bignum(4,b0);
+     random_bignum(4,b1);
+     random_bignum(4,b2);
+     for (j = 0; j < 4; ++j) b3[j] = b2[j] + 1;
+     bignum_mul_4_4(b2,b0,b1);
+     reference_mul(8,b3,4,b0,4,b1);
+     c = reference_compare(4,b2,4,b3);
+     if (c != 0)
+      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
+               4ul,4ul,4ul,b0[0],b1[0],b2[0],b3[0]);
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
+                    4ul,4ul,4ul,b0[0],b1[0],b2[0]);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
+int test_bignum_mul_8_8()
+{ uint64_t i, j;
+  printf("Testing bignum_mul_8_8 with %d cases\n",tests);
+  int c;
+  for (i = 0; i < tests; ++i)
+   { random_bignum(8,b0);
+     random_bignum(8,b1);
+     random_bignum(8,b2);
+     for (j = 0; j < 8; ++j) b3[j] = b2[j] + 1;
+     bignum_mul_8_8(b2,b0,b1);
+     reference_mul(16,b3,8,b0,8,b1);
+     c = reference_compare(8,b2,8,b3);
+     if (c != 0)
+      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
+               8ul,8ul,8ul,b0[0],b1[0],b2[0],b3[0]);
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
+                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
+                    8ul,8ul,8ul,b0[0],b1[0],b2[0]);
       }
    }
   printf("All OK\n");
@@ -10806,10 +10938,12 @@ int main(int argc, char *argv[])
   functionaltest(bmi,"bignum_montsqr_sm2",test_bignum_montsqr_sm2);
   functionaltest(all,"bignum_montsqr_sm2_alt",test_bignum_montsqr_sm2_alt);
   functionaltest(all,"bignum_mul",test_bignum_mul);
+  functionaltest(bmi,"bignum_mul_4_4",test_bignum_mul_4_4);
   functionaltest(bmi,"bignum_mul_4_8",test_bignum_mul_4_8);
   functionaltest(all,"bignum_mul_4_8_alt",test_bignum_mul_4_8_alt);
   functionaltest(bmi,"bignum_mul_6_12",test_bignum_mul_6_12);
   functionaltest(all,"bignum_mul_6_12_alt",test_bignum_mul_6_12_alt);
+  functionaltest(all,"bignum_mul_8_8",test_bignum_mul_8_8);
   functionaltest(bmi,"bignum_mul_8_16",test_bignum_mul_8_16);
   functionaltest(all,"bignum_mul_8_16_alt",test_bignum_mul_8_16_alt);
   functionaltest(bmi,"bignum_mul_p25519",test_bignum_mul_p25519);
@@ -10941,7 +11075,9 @@ int main(int argc, char *argv[])
   if (get_arch_name() == ARCH_AARCH64) {
     int neon = supports_neon();
     functionaltest(neon,"bignum_emontredc_8n_neon",test_bignum_emontredc_8n_neon);
+    functionaltest(neon,"bignum_kmul_16_16_neon", test_bignum_kmul_16_16_neon);
     functionaltest(neon,"bignum_kmul_16_32_neon", test_bignum_kmul_16_32_neon);
+    functionaltest(neon,"bignum_kmul_32_32_neon", test_bignum_kmul_32_32_neon);
     functionaltest(neon,"bignum_kmul_32_64_neon", test_bignum_kmul_32_64_neon);
     functionaltest(neon,"bignum_ksqr_16_32_neon",test_bignum_ksqr_16_32_neon);
     functionaltest(neon,"bignum_ksqr_32_64_neon",test_bignum_ksqr_32_64_neon);

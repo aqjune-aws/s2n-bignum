@@ -322,11 +322,17 @@ extern void bignum_kmul_16_32 (uint64_t z[static 32], uint64_t x[static 16], uin
 extern void bignum_kmul_16_32_neon (uint64_t z[static 32], uint64_t x[static 16],
                                     uint64_t y[static 16], uint64_t t[static 32]);
 
+extern void bignum_kmul_16_16_neon (uint64_t z[static 16], uint64_t x[static 16],
+                                    uint64_t y[static 16], uint64_t t[static 16]);
+
 // Multiply z := x * y
 // Inputs x[32], y[32]; output z[64]; temporary buffer t[>=96]
 extern void bignum_kmul_32_64 (uint64_t z[static 64], uint64_t x[static 32], uint64_t y[static 32], uint64_t t[static 96]);
 extern void bignum_kmul_32_64_neon (uint64_t z[static 64], uint64_t x[static 32],
                                     uint64_t y[static 32], uint64_t t[static 96]);
+
+extern void bignum_kmul_32_32_neon (uint64_t z[static 32], uint64_t x[static 32],
+                                    uint64_t y[static 32], uint64_t t[static 32]);
 
 // Square, z := x^2
 // Input x[16]; output z[32]; temporary buffer t[>=24]
@@ -536,6 +542,7 @@ extern void bignum_mul (uint64_t k, uint64_t *z, uint64_t m, uint64_t *x, uint64
 // Inputs x[4], y[4]; output z[8]
 extern void bignum_mul_4_8 (uint64_t z[static 8], uint64_t x[static 4], uint64_t y[static 4]);
 extern void bignum_mul_4_8_alt (uint64_t z[static 8], uint64_t x[static 4], uint64_t y[static 4]);
+extern void bignum_mul_4_4 (uint64_t z[static 4], uint64_t x[static 4], uint64_t y[static 4]);
 
 // Multiply z := x * y
 // Inputs x[6], y[6]; output z[12]
@@ -548,6 +555,7 @@ extern void bignum_mul_8_16 (uint64_t z[static 16], uint64_t x[static 8], uint64
 extern void bignum_mul_8_16_alt (uint64_t z[static 16], uint64_t x[static 8], uint64_t y[static 8]);
 extern void bignum_mul_8_16_neon (uint64_t z[static 16], uint64_t x[static 8],
                                   uint64_t y[static 8]);
+extern void bignum_mul_8_8 (uint64_t z[static 8], uint64_t x[static 8], uint64_t y[static 8]);
 
 // Multiply modulo p_25519, z := (x * y) mod p_25519
 // Inputs x[4], y[4]; output z[4]
