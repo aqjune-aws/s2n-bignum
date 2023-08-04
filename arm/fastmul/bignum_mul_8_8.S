@@ -95,14 +95,30 @@
 #define d  x2
 
 // ---------------------------------------------------------------------------
-// Core 4x4->8 ADK multiplication macro
-// Does [s7,s6,s5,s4,s3,s2,s1,s0] = [a3,a2,a1,a0] * [b3,b2,b1,b0]
-//
-// If the input parameter is 1, it also adds in [z+32,z+40,z+48,z+56]
-// existing contents; if the parameter is 0 it just does the pure multiply
+// The main code
 // ---------------------------------------------------------------------------
 
-.macro  mul4 afl
+S2N_BN_SYMBOL(bignum_mul_8_8):
+
+// Save registers
+
+        stp     x19, x20, [sp, #-16]!
+        stp     x21, x22, [sp, #-16]!
+        stp     x23, x24, [sp, #-16]!
+
+// Multiply the low halves and then the high halves using ADK 4x4->8.
+// For the second one add the top of the low part (Q1) already into
+// the bottom of the high part (Q2) so that is already dealt with.
+//
+// Write back the first one but defer the second till a bit later while
+// we get on with the absolute difference computations
+
+        ldp     a0, a1, [x]
+        ldp     b0, b1, [y]
+        ldp     a2, a3, [x, #16]
+        ldp     b2, b3, [y, #16]
+
+// Does [s7,s6,s5,s4,s3,s2,s1,s0] = [a3,a2,a1,a0] * [b3,b2,b1,b0]
 
 // First accumulate all the "simple" products as [s7,s6,s5,s4,s0]
 
@@ -137,21 +153,6 @@
         adcs    s6, xzr, s6
         adc     s7, xzr, s7
 
-// Optionally add the existing z contents
-
-.rep \afl
-        ldp     l, h, [z,#32]
-        adds    s0, s0, l
-        adcs    s1, s1, h
-        ldp     l, h, [z,#48]
-        adcs    s2, s2, l
-        adcs    s3, s3, h
-        adcs    s4, s4, xzr
-        adcs    s5, s5, xzr
-        adcs    s6, s6, xzr
-        adc     s7, s7, xzr
-.endr
-
 // Now add in all the "complicated" terms.
 
         muldiffnadd s6,s5, c,h,l,t, a2,a3, b3,b2
@@ -182,33 +183,6 @@
         adcs    s5, s5, c
         adcs    s6, s6, c
         adc     s7, s7, c
-.endm
-
-// ---------------------------------------------------------------------------
-// The main code
-// ---------------------------------------------------------------------------
-
-S2N_BN_SYMBOL(bignum_mul_8_8):
-
-// Save registers
-
-        stp     x19, x20, [sp, #-16]!
-        stp     x21, x22, [sp, #-16]!
-        stp     x23, x24, [sp, #-16]!
-
-// Multiply the low halves and then the high halves using ADK 4x4->8.
-// For the second one add the top of the low part (Q1) already into
-// the bottom of the high part (Q2) so that is already dealt with.
-//
-// Write back the first one but defer the second till a bit later while
-// we get on with the absolute difference computations
-
-        ldp     a0, a1, [x]
-        ldp     b0, b1, [y]
-        ldp     a2, a3, [x, #16]
-        ldp     b2, b3, [y, #16]
-
-        mul4    0
 
         stp     s0, s1, [z]
         stp     s2, s3, [z, #16]

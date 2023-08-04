@@ -3915,80 +3915,15 @@ int test_bignum_kmul_specific
   return 0;
 }
 
-int test_bignum_kmul_16_16_neon()
-{ const char *name = "bignum_kmul_16_16_neon";
-  uint64_t i, j;
-  printf("Testing %s with %d cases\n",name,tests);
-  int c;
-  for (i = 0; i < tests; ++i)
-   { random_bignum(16,b0);
-     random_bignum(16,b1);
-     random_bignum(16,b2);
-     for (j = 0; j < 16; ++j) b3[j] = b2[j] + 1;
-     bignum_kmul_16_16_neon(b2, b0, b1, b5);
-     reference_mul(32,b3,16,b0,16,b1);
-     c = reference_compare(16,b2,16,b3);
-     if (c != 0)
-      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
-               16ul,16ul,16ul,b0[0],b1[0],b2[0],b3[0]);
-        printf("output: ");
-        for (int i = 0; i < 16; ++i) {
-          printf("%lu ", b2[i]);
-        }
-        printf("\nanswer: ");
-        for (int i = 0; i < 16; ++i) {
-          printf("%lu ", b3[i]);
-        }
-        printf("\n");
-        return 1;
-      }
-     else if (VERBOSE)
-      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
-                    16ul,16ul,16ul,b0[0],b1[0],b2[0]);
-      }
-   }
-  printf("All OK\n");
-  return 0;
-}
-
-int test_bignum_kmul_32_32_neon()
-{ const char *name = "bignum_kmul_32_32_neon";
-  uint64_t i, j;
-  printf("Testing %s with %d cases\n",name,tests);
-  int c;
-  for (i = 0; i < tests; ++i)
-   { random_bignum(32,b0);
-     random_bignum(32,b1);
-     random_bignum(32,b2);
-     for (j = 0; j < 32; ++j) b3[j] = b2[j] + 1;
-     bignum_kmul_32_32_neon(b2, b0, b1, b5);
-     reference_mul(64,b3,32,b0,32,b1);
-     c = reference_compare(32,b2,32,b3);
-     if (c != 0)
-      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
-               32ul,32ul,32ul,b0[0],b1[0],b2[0],b3[0]);
-        printf("output: ");
-        for (int i = 0; i < 16; ++i) {
-          printf("%lu ", b2[i]);
-        }
-        printf("\nanswer: ");
-        for (int i = 0; i < 16; ++i) {
-          printf("%lu ", b3[i]);
-        }
-        printf("\n");
-        return 1;
-      }
-     else if (VERBOSE)
-      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
-                    32ul,32ul,32ul,b0[0],b1[0],b2[0]);
-      }
-   }
-  printf("All OK\n");
-  return 0;
+int test_bignum_kmul_16_16_neon(void)
+{
+#ifdef __ARM_NEON
+  return test_bignum_kmul_specific(16,16,16,"bignum_kmul_16_16_neon",
+                                   bignum_kmul_16_16_neon);
+#else
+  // Do not call the neon function to avoid a linking failure error.
+  return 1;
+#endif
 }
 
 int test_bignum_kmul_16_32(void)
@@ -4000,6 +3935,17 @@ int test_bignum_kmul_16_32_neon(void)
 #ifdef __ARM_NEON
   return test_bignum_kmul_specific(32,16,16,"bignum_kmul_16_32_neon",
                                    bignum_kmul_16_32_neon);
+#else
+  // Do not call the neon function to avoid a linking failure error.
+  return 1;
+#endif
+}
+
+int test_bignum_kmul_32_32_neon(void)
+{
+#ifdef __ARM_NEON
+  return test_bignum_kmul_specific(32,32,32,"bignum_kmul_32_32_neon",
+                                   bignum_kmul_32_32_neon);
 #else
   // Do not call the neon function to avoid a linking failure error.
   return 1;
@@ -6021,62 +5967,6 @@ int test_bignum_mul(void)
   return 0;
 }
 
-int test_bignum_mul_4_4()
-{ uint64_t i, j;
-  printf("Testing bignum_mul_4_4 with %d cases\n",tests);
-  int c;
-  for (i = 0; i < tests; ++i)
-   { random_bignum(4,b0);
-     random_bignum(4,b1);
-     random_bignum(4,b2);
-     for (j = 0; j < 4; ++j) b3[j] = b2[j] + 1;
-     bignum_mul_4_4(b2,b0,b1);
-     reference_mul(8,b3,4,b0,4,b1);
-     c = reference_compare(4,b2,4,b3);
-     if (c != 0)
-      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
-               4ul,4ul,4ul,b0[0],b1[0],b2[0],b3[0]);
-        return 1;
-      }
-     else if (VERBOSE)
-      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
-                    4ul,4ul,4ul,b0[0],b1[0],b2[0]);
-      }
-   }
-  printf("All OK\n");
-  return 0;
-}
-
-int test_bignum_mul_8_8()
-{ uint64_t i, j;
-  printf("Testing bignum_mul_8_8 with %d cases\n",tests);
-  int c;
-  for (i = 0; i < tests; ++i)
-   { random_bignum(8,b0);
-     random_bignum(8,b1);
-     random_bignum(8,b2);
-     for (j = 0; j < 8; ++j) b3[j] = b2[j] + 1;
-     bignum_mul_8_8(b2,b0,b1);
-     reference_mul(16,b3,8,b0,8,b1);
-     c = reference_compare(8,b2,8,b3);
-     if (c != 0)
-      { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-               "...0x%016"PRIx64" * ...0x%016"PRIx64" = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
-               8ul,8ul,8ul,b0[0],b1[0],b2[0],b3[0]);
-        return 1;
-      }
-     else if (VERBOSE)
-      { printf("OK: [size %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
-                    "...0x%016"PRIx64" * ...0x%016"PRIx64" =..0x%016"PRIx64"\n",
-                    8ul,8ul,8ul,b0[0],b1[0],b2[0]);
-      }
-   }
-  printf("All OK\n");
-  return 0;
-}
-
 int test_bignum_mul_specific
   (uint64_t p,uint64_t m,uint64_t n, char *name,
    void (*f)(uint64_t *,uint64_t *,uint64_t *))
@@ -6089,7 +5979,7 @@ int test_bignum_mul_specific
      random_bignum(p,b2);
      for (j = 0; j < p; ++j) b3[j] = b2[j] + 1;
      (*f)(b2,b0,b1);
-     reference_mul(p,b3,m,b0,n,b1);
+     reference_mul(m+n,b3,m,b0,n,b1); // Do not use p, but instead do the full multiplication
      c = reference_compare(p,b2,p,b3);
      if (c != 0)
       { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
@@ -6108,6 +5998,10 @@ int test_bignum_mul_specific
   return 0;
 }
 
+int test_bignum_mul_4_4(void)
+{ return test_bignum_mul_specific(4,4,4,"bignum_mul_4_4",bignum_mul_4_4);
+}
+
 int test_bignum_mul_4_8(void)
 { return test_bignum_mul_specific(8,4,4,"bignum_mul_4_8",bignum_mul_4_8);
 }
@@ -6122,6 +6016,21 @@ int test_bignum_mul_6_12(void)
 
 int test_bignum_mul_6_12_alt(void)
 { return test_bignum_mul_specific(12,6,6,"bignum_mul_6_12_alt",bignum_mul_6_12_alt);
+}
+
+int test_bignum_mul_8_8(void)
+{ return test_bignum_mul_specific(8,8,8,"bignum_mul_8_8",bignum_mul_8_8);
+}
+
+int test_bignum_mul_8_8_neon(void)
+{
+#ifdef __ARM_NEON
+  return test_bignum_mul_specific(8, 8, 8, "bignum_mul_8_8_neon",
+                                  bignum_mul_8_8_neon);
+#else
+  // Do not call the neon function to avoid a linking failure error.
+  return 1;
+#endif
 }
 
 int test_bignum_mul_8_16(void)
@@ -10944,6 +10853,7 @@ int main(int argc, char *argv[])
   functionaltest(bmi,"bignum_mul_6_12",test_bignum_mul_6_12);
   functionaltest(all,"bignum_mul_6_12_alt",test_bignum_mul_6_12_alt);
   functionaltest(all,"bignum_mul_8_8",test_bignum_mul_8_8);
+  functionaltest(all,"bignum_mul_8_8_neon",test_bignum_mul_8_8_neon);
   functionaltest(bmi,"bignum_mul_8_16",test_bignum_mul_8_16);
   functionaltest(all,"bignum_mul_8_16_alt",test_bignum_mul_8_16_alt);
   functionaltest(bmi,"bignum_mul_p25519",test_bignum_mul_p25519);

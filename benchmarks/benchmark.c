@@ -418,6 +418,8 @@ void call_bignum_mul_6_12_alt(void) repeat(bignum_mul_6_12_alt(b0,b1,b2))
 
 void call_bignum_mul_8_8(void) repeat(bignum_mul_8_8(b0,b1,b2))
 
+void call_bignum_mul_8_8_neon(void) repeat(bignum_mul_8_8_neon(b0,b1,b2))
+
 void call_bignum_mul_8_16(void) repeat(bignum_mul_8_16(b0,b1,b2))
 
 void call_bignum_mul_8_16_alt(void) repeat(bignum_mul_8_16_alt(b0,b1,b2))
@@ -1006,6 +1008,7 @@ int main(int argc, char *argv[])
   timingtest(bmi,"bignum_mul_6_12",call_bignum_mul_6_12);
   timingtest(all,"bignum_mul_6_12_alt",call_bignum_mul_6_12_alt);
   timingtest(bmi,"bignum_mul_8_8",call_bignum_mul_8_8);
+  timingtest(bmi,"bignum_mul_8_8_neon",call_bignum_mul_8_8_neon);
   timingtest(bmi,"bignum_mul_8_16",call_bignum_mul_8_16);
   timingtest(all,"bignum_mul_8_16_alt",call_bignum_mul_8_16_alt);
   timingtest(neon,"bignum_mul_8_16_neon",call_bignum_mul_8_16_neon);

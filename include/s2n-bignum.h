@@ -555,7 +555,9 @@ extern void bignum_mul_8_16 (uint64_t z[static 16], uint64_t x[static 8], uint64
 extern void bignum_mul_8_16_alt (uint64_t z[static 16], uint64_t x[static 8], uint64_t y[static 8]);
 extern void bignum_mul_8_16_neon (uint64_t z[static 16], uint64_t x[static 8],
                                   uint64_t y[static 8]);
+
 extern void bignum_mul_8_8 (uint64_t z[static 8], uint64_t x[static 8], uint64_t y[static 8]);
+extern void bignum_mul_8_8_neon (uint64_t z[static 8], uint64_t x[static 8], uint64_t y[static 8]);
 
 // Multiply modulo p_25519, z := (x * y) mod p_25519
 // Inputs x[4], y[4]; output z[4]

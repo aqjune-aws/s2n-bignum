@@ -131,6 +131,7 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              fastmul/bignum_mul_6_12.o \
              fastmul/bignum_mul_6_12_alt.o \
              fastmul/bignum_mul_8_8.o \
+             fastmul/bignum_mul_8_8_neon.o \
              fastmul/bignum_mul_8_16.o \
              fastmul/bignum_mul_8_16_alt.o \
              fastmul/bignum_mul_8_16_neon.o \
