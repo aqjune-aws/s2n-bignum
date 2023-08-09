@@ -9,6 +9,7 @@
 // against disparities between the formal model and the real world.
 // ***************************************************************************
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -1321,6 +1322,300 @@ void reference_modexp(uint64_t k,uint64_t *res,
 
   bignum_demont(k,res,z,m);
 }
+
+
+static inline uint64_t addcarry64_overflows(uint64_t x, uint64_t y, uint64_t carry) {
+  assert(carry <= 1);
+  uint64_t m = -1ull - carry;
+  return (m < x) | (m - x < y);
+}
+
+static inline uint64_t add64_overflows(uint64_t x, uint64_t y) {
+  uint64_t m = -1ull;
+  return m - x < y;
+}
+
+// x - y - carry underflows?
+static inline uint64_t subcarry64_underflows(uint64_t x, uint64_t y, uint64_t carry) {
+  return ((y == -1ull) & (carry == 1)) | (x < y + carry);
+}
+
+static inline uint64_t sub64_underflows(uint64_t x, uint64_t y) {
+  return x < y;
+}
+
+static inline uint64_t lt_u65(uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl) {
+  return (xh < yh) | ((xh == yh) & (xl < yl));
+}
+
+// Adds two 65-bit integers x and y.
+// Actually, this is simply 128 bit int add.
+static inline void add_u65(
+    uint64_t *zh, uint64_t *zl,
+    uint64_t xh, uint64_t xl,
+    uint64_t yh, uint64_t yl) {
+  *zl = xl + yl;
+  *zh = xh + yh + add64_overflows(xl, yl);
+}
+
+// Adds two 130-bit integers.
+// Actually, this is simply 192 bit int add.
+static inline void add_u130(
+    uint64_t *z2, uint64_t *z1, uint64_t *z0,
+    uint64_t x2, uint64_t x1, uint64_t x0,
+    uint64_t y2, uint64_t y1, uint64_t y0) {
+  uint64_t carry1 = add64_overflows(x0, y0);
+  *z0 = x0 + y0;
+  uint64_t carry2 = addcarry64_overflows(x1, y1, carry1);
+  *z1 = x1 + y1 + carry1;
+  *z2 = x2 + y2 + carry2;
+}
+
+// Performs u65 - u65 -> u65(!)
+// Assumes that xh:xl >= yh:yl.
+static inline void sub_u65(uint64_t *zh, uint64_t *zl, uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl) {
+  *zl = xl - yl;
+  *zh = xh - yh - (xl < yl ? 1 : 0);
+}
+
+// Performs 130 bit x - y, and returns carry.
+// Actually, this is simply 192 bit int sub.
+static inline uint64_t sub_u130(
+    uint64_t *z2, uint64_t *z1, uint64_t *z0,
+    uint64_t x2, uint64_t x1, uint64_t x0,
+    uint64_t y2, uint64_t y1, uint64_t y0) {
+  uint64_t carry1 = sub64_underflows(x0, y0);
+  *z0 = x0 - y0;
+  uint64_t carry2 = subcarry64_underflows(x1, y1, carry1);
+  *z1 = x1 - y1 - carry1;
+  uint64_t carry3 = subcarry64_underflows(x2, y2, carry2);
+  *z2 = x2 - y2 - carry2;
+  return carry3;
+}
+
+static inline uint64_t umulh_u64(uint64_t a, uint64_t b) {
+  __uint128_t a128 = a, b128 = b;
+  return (uint64_t)((a128 * b128) >> 64);
+}
+
+// If x_u65 is true, xh::xl is considered as 65-bit int. If false, it is 66-bit int.
+static inline void mul_u66_u66_general(uint64_t *z2, uint64_t *z1, uint64_t *z0,
+      uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl,
+      int x_u65, int y_u65) {
+  *z0 = xl * yl;
+  *z1 = umulh_u64(xl, yl);
+  *z2 = 0;
+  // xl * yh
+  if (y_u65) {
+    if (yh) {
+      *z2 += add64_overflows(*z1, xl);
+      *z1 += xl;
+    }
+  } else {
+    if (yh & 1) {
+      *z2 += add64_overflows(*z1, xl);
+      *z1 += xl;
+    }
+    if (yh & 2) {
+      uint64_t xl2 = xl << 1;
+      *z2 += add64_overflows(*z1, xl2);
+      *z1 += xl2;
+      *z2 += (xl >> 63);
+    }
+  }
+  // xh * yl
+  if (x_u65) {
+    if (xh) {
+      *z2 += add64_overflows(*z1, yl);
+      *z1 += yl;
+    }
+  } else {
+    if (xh & 1) {
+      *z2 += add64_overflows(*z1, yl);
+      *z1 += yl;
+    }
+    if (xh & 2) {
+      uint64_t yl2 = yl << 1;
+      *z2 += add64_overflows(*z1, yl2);
+      *z1 += yl2;
+      *z2 += (yl >> 63);
+    }
+  }
+  // xh * yh
+  if (y_u65)
+    *z2 += yh ? xh : 0;
+  else {
+    *z2 += (yh & 1) ? xh : 0;
+    *z2 += (yh & 2) ? (xh << 1) : 0;
+  }
+}
+
+static inline void mul_u66_u66(uint64_t *z2, uint64_t *z1, uint64_t *z0,
+      uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl) {
+  assert(xh < 4);
+  assert(yh < 4);
+  mul_u66_u66_general(z2, z1, z0, xh, xl, yh, yl, 0, 0);
+}
+
+static inline void mul_u65_u65(uint64_t *z2, uint64_t *z1, uint64_t *z0,
+      uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl) {
+  assert(xh < 2);
+  assert(yh < 2);
+  mul_u66_u66_general(z2, z1, z0, xh, xl, yh, yl, 1, 1);
+}
+
+// Given x, y < 2^130-1, evaluate (x*y) % (2^130-1).
+int bignum_mul_mod_2to130minus1(uint64_t z[3], const uint64_t x[3], const uint64_t y[3]) {
+  // l = 128
+  // x = 2^65 xh + xl
+  // y = 2^65 yh + yl
+  // x * y =    ((xh+xl)(yh+yl) + (xh-xl)(yh-yl))/2      // (xhyh+xlyl)
+  //          + ((xh+xl)(yh+yl) - (xh-xl)(yh-yl))/2*2^65 // (xhyl+xlyh)
+  //          + (2^130-1)xhyh
+  //       \equiv
+  //          ((xh+xl)(yh+yl) + (xh-xl)(yh-yl))/2 + ((xh+xl)(yh+yl) - (xh-xl)(yh-yl))/2*2^65
+  //            mod 2^130 - 1
+  uint64_t xh1 = x[2] >> 1, xh0 = (x[2] << 63) | (x[1] >> 1);
+  uint64_t xl1 = x[1] & 1,  xl0 = x[0];
+  uint64_t yh1 = y[2] >> 1, yh0 = (y[2] << 63) | (y[1] >> 1);
+  uint64_t yl1 = y[1] & 1,  yl0 = y[0];
+
+  // xhpl = xh+xl
+  // yhpl = yh+yl
+  uint64_t xhpl_h, xhpl_l, yhpl_h, yhpl_l;
+  add_u65(&xhpl_h, &xhpl_l, xh1, xh0, xl1, xl0);
+  add_u65(&yhpl_h, &yhpl_l, yh1, yh0, yl1, yl0);
+
+  // xhml = |xh-xl|, xhml_sgn = xh < xl
+  // yhml = |yh-yl|, yhml_sgn = yh < yl
+  uint64_t xhml_sgn = lt_u65(xh1, xh0, xl1, xl0);
+  uint64_t xhml_h, xhml_l;
+  if (xhml_sgn) sub_u65(&xhml_h, &xhml_l, xl1, xl0, xh1, xh0);
+  else          sub_u65(&xhml_h, &xhml_l, xh1, xh0, xl1, xl0);
+  uint64_t yhml_sgn = lt_u65(yh1, yh0, yl1, yl0);
+  uint64_t yhml_h, yhml_l;
+  if (yhml_sgn) sub_u65(&yhml_h, &yhml_l, yl1, yl0, yh1, yh0);
+  else          sub_u65(&yhml_h, &yhml_l, yh1, yh0, yl1, yl0);
+
+  uint64_t t0, t1, t2, s0, s1, s2;
+  // (xh+xl)(yh+yl)
+  mul_u66_u66(&t2, &t1, &t0, xhpl_h, xhpl_l, yhpl_h, yhpl_l);
+  // |xh-xl||yh-yl|
+  mul_u65_u65(&s2, &s1, &s0, xhml_h, xhml_l, yhml_h, yhml_l);
+  // sign of (xh-xl)(yh-yl)
+  uint64_t sgn = xhml_sgn ^ yhml_sgn;
+
+  // temp stores (2^130-1)^2 ~= 2^260, requiring 5 words
+  uint64_t mulres[5] = {0,0,0,0,0};
+
+  if (!sgn) {
+    // ((xh+xl)(yh+yl) + |xh-xl||yh-yl|)/2
+    uint64_t p0, p1, p2;
+    add_u130(&p2, &p1, &p0, t2, t1, t0, s2, s1, s0);
+    assert((p0 & 1) == 0);
+    mulres[0] = (p0 >> 1) | (p1 << 63);
+    mulres[1] = (p1 >> 1) | (p2 << 63);
+    mulres[2] = p2 >> 1;
+
+    // ((xh+xl)(yh+yl) - |xh-xl||yh-yl|)/2*2^65
+    // = ((xh+xl)(yh+yl) - |xh-xl||yh-yl|)*2^64
+    uint64_t q0, q1, q2, q3;
+    uint64_t carry3 = sub_u130(&q2, &q1, &q0, t2, t1, t0, s2, s1, s0);
+    assert((q0 & 1) == 0);
+    q3 = -carry3;
+
+    // Now do p + q * 2^64
+    uint64_t carry1 = add64_overflows(mulres[1], q0);
+    mulres[1] += q0;
+    uint64_t carry2 = addcarry64_overflows(mulres[2], q1, carry1);
+    mulres[2] += q1 + carry1;
+    carry3 = add64_overflows(q2, carry2);
+    mulres[3] = q2 + carry2;
+    mulres[4] = q3 + carry3;
+
+  } else {
+    // ((xh+xl)(yh+yl) - |xh-xl||yh-yl|)/2
+    uint64_t p0, p1, p2;
+    uint64_t carry = sub_u130(&p2, &p1, &p0, t2, t1, t0, s2, s1, s0);
+    assert((p0 & 1) == 0);
+    mulres[0] = (p0 >> 1) | (p1 << 63);
+    mulres[1] = (p1 >> 1) | (p2 << 63);
+    mulres[2] = (p2 >> 1) | (carry << 63);
+    mulres[3] = -carry;
+    mulres[4] = -carry;
+
+    // ((xh+xl)(yh+yl) + |xh-xl||yh-yl|)/2*2^65
+    // = ((xh+xl)(yh+yl) + |xh-xl||yh-yl|)*2^64
+    uint64_t q0, q1, q2;
+    add_u130(&q2, &q1, &q0, t2, t1, t0, s2, s1, s0);
+    assert((q0 & 1) == 0);
+
+    // Now do p + q * 2^64
+    uint64_t carry1 = add64_overflows(mulres[1], q0);
+    mulres[1] += q0;
+    uint64_t carry2 = addcarry64_overflows(mulres[2], q1, carry1);
+    mulres[2] += q1 + carry1;
+    uint64_t carry3 = addcarry64_overflows(mulres[3], q2, carry2);
+    mulres[3] += q2 + carry2;
+    mulres[4] += carry3;
+  }
+
+  uint64_t prime[5] = {-1ull, -1ull, 3, 0, 0};
+
+  // Calculate mulres mod 2^130 - 1.
+  // if mulres = k0 + k1*2^130,
+  // mulres mod 2^130 - 1 = k0 + k1 mod 2^130-1
+  s0 = mulres[0];
+  s1 = mulres[1];
+  s2 = mulres[2] & 3;
+  t0 = (mulres[2] >> 2) | (mulres[3] << 62);
+  t1 = (mulres[3] >> 2) | (mulres[4] << 62);
+  t2 = mulres[4] >> 2;
+  add_u130(&z[2], &z[1], &z[0], s2, s1, s0, t2, t1, t0);
+  
+  // Conditionally subtract 2^130 - 1
+  uint64_t cond = bignum_ge(3, z, 3, prime);
+  bignum_optsub(3, z, z, cond, prime);
+
+  return 1;
+}
+
+int test_bignum_mul_mod_2to130minus1(void)
+{ int64_t t;
+  printf("Testing bignum_add with %d cases\n",tests);
+  // 2^130 - 1
+  uint64_t modulus[6] = {-1ull, -1ull, 3, 0, 0, 0};
+  for (t = 0; t < (int64_t)tests; ++t)
+   { // random mod 2^130 - 1
+     random_bignum(3,b0);
+     random_bignum(3,b1);
+     b0[2] &= 3;
+     b1[2] &= 3;
+     if (b0[0] == -1ull && b0[1] == -1ull && b0[2] == 3) b0[0]--;
+     if (b1[0] == -1ull && b1[1] == -1ull && b1[2] == 3) b1[0]--;
+
+     if (!bignum_mul_mod_2to130minus1(b2, b0, b1))
+       continue;
+
+     reference_mul(6, b3, 3, b0, 3, b1);
+     reference_mod(6, b4, b3, modulus);
+
+     if (!reference_eq_samelen(3, b4, b2))
+      { printf("### Disparity\n");
+        printf("input1: %lu %lu %lu\n", b0[0], b0[1], b0[2]);
+        printf("input2: %lu %lu %lu\n", b1[0], b1[1], b1[2]);
+        printf("output: %lu %lu %lu\n", b2[0], b2[1], b2[2]);
+        printf("answer: %lu %lu %lu\n", b4[0], b4[1], b4[2]);
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK\n");
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
 
 // ****************************************************************************
 // Testing functions
@@ -10703,6 +10998,7 @@ int main(int argc, char *argv[])
 
   if (tests == 0) tests = TESTS;
 
+  functionaltest(all,"bignum_mul_mod_2to130minus1",test_bignum_mul_mod_2to130minus1);
   functionaltest(all,"bignum_add",test_bignum_add);
   functionaltest(all,"bignum_add_p25519",test_bignum_add_p25519);
   functionaltest(all,"bignum_add_p256",test_bignum_add_p256);
