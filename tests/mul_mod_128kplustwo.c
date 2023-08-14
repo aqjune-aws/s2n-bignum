@@ -1,11 +1,15 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <inttypes.h>
 
 #include "../include/s2n-bignum.h"
 
+//#define ASSERT(x) assert(x)
+#define ASSERT(x)
+
 static inline uint64_t addcarry64_overflows(uint64_t x, uint64_t y, uint64_t carry) {
-  assert(carry <= 1);
+  ASSERT(carry <= 1);
   uint64_t m = -1ull - carry;
   return (m < x) | (m - x < y);
 }
@@ -191,15 +195,15 @@ static inline void mul_u66_u66_general(uint64_t *z2, uint64_t *z1, uint64_t *z0,
 
 static inline void mul_u66_u66(uint64_t *z2, uint64_t *z1, uint64_t *z0,
       uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl) {
-  assert(xh < 4);
-  assert(yh < 4);
+  ASSERT(xh < 4);
+  ASSERT(yh < 4);
   mul_u66_u66_general(z2, z1, z0, xh, xl, yh, yl, 0, 0);
 }
 
 static inline void mul_u65_u65(uint64_t *z2, uint64_t *z1, uint64_t *z0,
       uint64_t xh, uint64_t xl, uint64_t yh, uint64_t yl) {
-  assert(xh < 2);
-  assert(yh < 2);
+  ASSERT(xh < 2);
+  ASSERT(yh < 2);
   mul_u66_u66_general(z2, z1, z0, xh, xl, yh, yl, 1, 1);
 }
 
@@ -262,7 +266,7 @@ void bignum_mul_mod_2to130minus1(uint64_t z[3], const uint64_t x[3], const uint6
   add_u256(&mulres[4], &mulres[3], &mulres[2], &mulres[1], &mulres[0],
            0, 0, t2, t1, t0, sgn_mask, sgn_mask, ss2, ss1, ss0);
   addcarry_u256(mulres, sgn);
-  assert((mulres[0] & 1) == 0);
+  ASSERT((mulres[0] & 1) == 0);
   mulres[0] = (mulres[0] >> 1) | (mulres[1] << 63);
   mulres[1] = (mulres[1] >> 1) | (mulres[2] << 63);
   mulres[2] = (mulres[2] >> 1) | (mulres[3] << 63);
@@ -311,10 +315,19 @@ void print_bignum(int k, uint64_t *p, const char *c) {
 }
 
 static inline void mul_64kplusone(int k, uint64_t *z, uint64_t *x, uint64_t *y) {
-  bignum_mul(2*k, z, k, x, k, y);
+  uint64_t buf[96];
+  if (k == 8)
+    bignum_mul_8_16_neon(z, x, y);
+  else if (k == 16)
+    bignum_kmul_16_32_neon(z, x, y, buf);
+  else if (k == 32)
+    bignum_kmul_32_64_neon(z, x, y, buf);
+  else
+    bignum_mul(2*k, z, k, x, k, y);
+
   uint64_t xmsb = x[k], ymsb = y[k];
-  assert(xmsb < 2);
-  assert(ymsb < 2);
+  ASSERT(xmsb < 2);
+  ASSERT(ymsb < 2);
   uint64_t c = bignum_optadd(k, z+k, z+k, xmsb, y);
   z[2 * k] = c;
   c = bignum_optadd(k, z+k, z+k, ymsb, x);
@@ -326,10 +339,19 @@ static inline void mul_64kplusone(int k, uint64_t *z, uint64_t *x, uint64_t *y) 
 // z: uint64_t[2k+1]
 // tempbuf: uint64_t[k+1]
 static inline void mul_64kplustwo(int k, uint64_t *z, uint64_t *x, uint64_t *y, uint64_t *_x) {
-  bignum_mul(2*k, z, k, x, k, y);
+  uint64_t buf[96];
+  if (k == 8)
+    bignum_mul_8_16_neon(z, x, y);
+  else if (k == 16)
+    bignum_kmul_16_32_neon(z, x, y, buf);
+  else if (k == 32)
+    bignum_kmul_32_64_neon(z, x, y, buf);
+  else
+    bignum_mul(2*k, z, k, x, k, y);
+
   uint64_t xmsb = x[k], ymsb = y[k];
-  assert(xmsb < 4);
-  assert(ymsb < 4);
+  ASSERT(xmsb < 4);
+  ASSERT(ymsb < 4);
   uint64_t c = bignum_optadd(k, z+k, z+k, xmsb&1, y);
   z[2 * k] = c;
   c = bignum_optadd(k, z+k, z+k, ymsb&1, x);
@@ -425,7 +447,7 @@ void bignum_mul_mod_2_to_128kplus2_minus1(
   // ((xh+xl)(yh+yl) + sgn * |xh-xl||yh-yl|)/2
   bignum_optneg(4 * k + 1, q, sgn, s);
   bignum_add(4 * k + 1, mulres, 4 * k + 1, t, 4 * k + 1, q);
-  assert((mulres[0] & 1) == 0);
+  ASSERT((mulres[0] & 1) == 0);
   // divide by two
   for (int i = 0; i < 2 * k + 1; ++i)
     mulres[i] = (mulres[i] >> 1) | (mulres[i + 1] << 63);

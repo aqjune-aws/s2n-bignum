@@ -28,11 +28,6 @@
 #define y x27
 #define t x28
 
-// More variables for sign masks, with s also necessarily subroutine-safe
-
-#define s x29
-#define m x19
-
 S2N_BN_SYMBOL(bignum_kmul_16_16_neon):
 
 // Save registers, including return address
@@ -53,14 +48,14 @@ S2N_BN_SYMBOL(bignum_kmul_16_16_neon):
 
 // Compute L = x_lo * y_lo in bottom half of z (size 8 x 8 -> 16)
 
-        bl      bignum_kmul_16_32_neon_local_mul_8_16
+        bl      bignum_kmul_16_16_neon_local_mul_8_16
 
 // Compute H = x_hi * y_lo in t (size 8 x 8 -> 16)
 
         mov     x0, t
         add     x1, x, #64
         mov     x2, y
-        bl      bignum_kmul_16_32_neon_local_mul_8_8
+        bl      bignum_kmul_16_16_neon_local_mul_8_8
 
         ldp     x10, x11, [t]
         ldp     x12, x13, [z, #64]
@@ -91,7 +86,7 @@ S2N_BN_SYMBOL(bignum_kmul_16_16_neon):
         mov     x0, t
         mov     x1, x
         add     x2, y, #64
-        bl      bignum_kmul_16_32_neon_local_mul_8_8
+        bl      bignum_kmul_16_16_neon_local_mul_8_8
 
         ldp     x10, x11, [t]
         ldp     x12, x13, [z, #64]
@@ -132,7 +127,7 @@ S2N_BN_SYMBOL(bignum_kmul_16_16_neon):
 // Local copy of bignum_mul_8_16_neon without the scratch register save/restore
 // ----------------------------------------------------------------------------
 
-bignum_kmul_16_32_neon_local_mul_8_16:
+bignum_kmul_16_16_neon_local_mul_8_16:
         stp	x25, x26, [sp, #-16]!
         stp	x27, x28, [sp, #-16]!
         stp	x29, x30, [sp, #-16]!
@@ -699,7 +694,7 @@ bignum_kmul_16_32_neon_local_mul_8_16:
         ret
 
 
-bignum_kmul_16_32_neon_local_mul_8_8:
+bignum_kmul_16_16_neon_local_mul_8_8:
         stp	x25, x26, [sp, #-16]!
         stp	x27, x28, [sp, #-16]!
         stp	x29, x30, [sp, #-16]!

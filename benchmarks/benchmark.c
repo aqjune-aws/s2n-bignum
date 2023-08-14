@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "../include/s2n-bignum.h"
+#include "../tests/mul_mod_128kplustwo.h"
 #include "../tests/arch.h"
 
 // Controls whether an explanatory header goes on the output
@@ -43,6 +44,12 @@ static uint64_t b3[BUFFERSIZE];
 static uint64_t b4[BUFFERSIZE];
 
 static uint64_t bb[16][BUFFERSIZE];
+
+static uint64_t two_to_1026_minus1[17] = {
+  -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull,
+  -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull,
+  3
+};
 
 // Source of random 64-bit numbers with bit density
 // 0 = all zeros, 32 = "average", 64 = all ones
@@ -453,6 +460,9 @@ void call_bignum_mul__8_16(void) repeat(bignum_mul(16,b0,8,b1,8,b2))
 void call_bignum_mul__16_32(void) repeat(bignum_mul(32,b0,16,b1,16,b2))
 
 void call_bignum_mul__32_64(void) repeat(bignum_mul(64,b0,32,b1,32,b2))
+
+void call_bignum_mul_mod_2_to_128kplus2_minus1__8(void) \
+    repeat(bignum_mul_mod_2_to_128kplus2_minus1(8,b0,b1,b2,b3,two_to_1026_minus1))
 
 void call_bignum_madd__4_8(void) repeat(bignum_madd(8,b0,4,b1,4,b2))
 
@@ -1003,6 +1013,8 @@ int main(int argc, char *argv[])
   timingtest(all,"bignum_mul (8x8 -> 16)",call_bignum_mul__8_16);
   timingtest(all,"bignum_mul (16x16 -> 32)",call_bignum_mul__16_32);
   timingtest(all,"bignum_mul (32x32 -> 64)",call_bignum_mul__32_64);
+  timingtest(all,"bignum_mul_mod_2_to_128kplus2_minus1 (k=8)",
+             call_bignum_mul_mod_2_to_128kplus2_minus1__8);
   timingtest(bmi,"bignum_mul_4_8",call_bignum_mul_4_8);
   timingtest(all,"bignum_mul_4_8_alt",call_bignum_mul_4_8_alt);
   timingtest(bmi,"bignum_mul_6_12",call_bignum_mul_6_12);
