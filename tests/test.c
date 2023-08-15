@@ -1363,15 +1363,28 @@ int test_bignum_mul_mod_2to130minus1(void)
 int test_bignum_mul_mod_2_to_128kplus2_minus1(void)
 { int64_t t;
   printf("Testing bignum_mul_mod_2_to_128kplus2_minus1 with %d cases\n",tests);
-  uint64_t k = 8; // simulate 2^(1024+2)-1!
+  uint64_t k = 2; // simulate 2^(1024+2)-1!
   // modulus len: 4k+2
-  // uint64_t modulus[6] = {-1ull, -1ull, 3, 0, 0, 0};
+  // 2^{128k+2}+1
   uint64_t modulus[128];
   for (int i = 0; i < k; ++i)
     modulus[2*i] = modulus[2*i+1] = -1ull;
   modulus[2*k] = 3;
   for (int i = 2*k+1; i < 128; ++i)
     modulus[i] = 0;
+
+  // 2^{64k+1}+1
+  uint64_t modulus_half_plusone[128];
+  for (int i = 0; i <= k; ++i)
+    modulus_half_plusone[i] = 0;
+  modulus_half_plusone[0] = 1;
+  modulus_half_plusone[k] = 2;
+
+  // 2^{64k+1}-1
+  uint64_t modulus_half_minusone[128];
+  for (int i = 0; i < k; ++i)
+    modulus_half_minusone[i] = -1ull;
+  modulus_half_minusone[k] = 1;
 
   for (t = 0; t < (int64_t)tests; ++t)
    { // random mod 2^130 - 1
@@ -1382,7 +1395,8 @@ int test_bignum_mul_mod_2_to_128kplus2_minus1(void)
      if (reference_eq_samelen(2 * k + 1, b0, modulus)) b0[0]--;
      if (reference_eq_samelen(2 * k + 1, b1, modulus)) b1[0]--;
 
-     bignum_mul_mod_2_to_128kplus2_minus1(k, b2, b0, b1, b3, modulus);
+     bignum_mul_mod_2_to_128kplus2_minus1(k, b2, b0, b1, b3,
+        modulus, modulus_half_plusone, modulus_half_minusone);
 
      reference_mul(4 * k + 2, b3, 2 * k + 1, b0, 2 * k + 1, b1);
      reference_mod(4 * k + 2, b4, b3, modulus);

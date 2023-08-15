@@ -50,6 +50,13 @@ static uint64_t two_to_1026_minus1[17] = {
   -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull,
   3
 };
+static uint64_t two_to_513_plus1[17] = {
+  1, 0, 0, 0, 0, 0, 0, 0, 2
+};
+static uint64_t two_to_513_minus1[17] = {
+  -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, 1
+};
+
 
 // Source of random 64-bit numbers with bit density
 // 0 = all zeros, 32 = "average", 64 = all ones
@@ -462,7 +469,8 @@ void call_bignum_mul__16_32(void) repeat(bignum_mul(32,b0,16,b1,16,b2))
 void call_bignum_mul__32_64(void) repeat(bignum_mul(64,b0,32,b1,32,b2))
 
 void call_bignum_mul_mod_2_to_128kplus2_minus1__8(void) \
-    repeat(bignum_mul_mod_2_to_128kplus2_minus1(8,b0,b1,b2,b3,two_to_1026_minus1))
+    repeat(bignum_mul_mod_2_to_128kplus2_minus1(8,b0,b1,b2,b3,\
+      two_to_1026_minus1,two_to_513_plus1,two_to_513_minus1))
 
 void call_bignum_madd__4_8(void) repeat(bignum_madd(8,b0,4,b1,4,b2))
 
