@@ -28,8 +28,8 @@ endif
 
 # Benchmarking progfram
 
-benchmark: benchmark.c ../include/s2n-bignum.h ../tests/mul_mod_128kplustwo.c ../tests/mul_mod_128kplustwo.h ../$(ARCH)/libs2nbignum.a
-	gcc -O3 -o benchmark benchmark.c ../tests/mul_mod_128kplustwo.c -L../$(ARCH) -ls2nbignum -lm
+benchmark: benchmark.c ../include/s2n-bignum.h ../tests/mul_mod_128kplustwo.c ../tests/mul_mod_128kplustwo.h ../tests/bignum_9words.S ../$(ARCH)/libs2nbignum.a
+	gcc -O3 -o benchmark benchmark.c ../tests/mul_mod_128kplustwo.c ../tests/bignum_9words.S -L../$(ARCH) -ls2nbignum -lm -I../include
 
 go: benchmark ; ./benchmark
 

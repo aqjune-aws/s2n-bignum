@@ -472,6 +472,9 @@ void call_bignum_mul_mod_2_to_128kplus2_minus1__8(void) \
     repeat(bignum_mul_mod_2_to_128kplus2_minus1(8,b0,b1,b2,b3,\
       two_to_1026_minus1,two_to_513_plus1,two_to_513_minus1))
 
+void call_bignum_mul_mod_2_to_1026_minus1(void) \
+    repeat(bignum_mul_mod_2_to_1026_minus1(b0,b1,b2,b3))
+
 void call_bignum_madd__4_8(void) repeat(bignum_madd(8,b0,4,b1,4,b2))
 
 void call_bignum_madd__6_12(void) repeat(bignum_madd(12,b0,6,b1,6,b2))
@@ -1023,6 +1026,8 @@ int main(int argc, char *argv[])
   timingtest(all,"bignum_mul (32x32 -> 64)",call_bignum_mul__32_64);
   timingtest(all,"bignum_mul_mod_2_to_128kplus2_minus1 (k=8)",
              call_bignum_mul_mod_2_to_128kplus2_minus1__8);
+  timingtest(all,"bignum_mul_mod_2_to_1026_minus1",
+             call_bignum_mul_mod_2_to_1026_minus1);
   timingtest(bmi,"bignum_mul_4_8",call_bignum_mul_4_8);
   timingtest(all,"bignum_mul_4_8_alt",call_bignum_mul_4_8_alt);
   timingtest(bmi,"bignum_mul_6_12",call_bignum_mul_6_12);

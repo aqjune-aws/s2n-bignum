@@ -638,3 +638,199 @@ void bignum_mul_mod_2_to_128kplus2_minus1(
   bignum_add(2*k+1, t, 2*k+1, t, k+1, smt);
   //print_bignum(2*k+1, t, "output");
 }
+
+
+
+
+
+
+static void copy_hilo_513bits(uint64_t *xh, uint64_t *xl, const uint64_t *x) {
+  for (int i = 0; i < 8; ++i) {
+    xl[i] = x[i];
+    xh[i] = (x[8 + i] >> 1) | (x[8 + i + 1] << 63);
+  }
+  xl[8] = x[8] & 1;
+  xh[8] = x[16] >> 1;
+}
+
+void bignum_add_9words(uint64_t *z, uint64_t *x, uint64_t *y);
+uint64_t bignum_sub_9words(uint64_t *z, uint64_t *x, uint64_t *y);
+void bignum_optadd_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
+
+// Given t: 17 words, calculate t mod 2^513+1 and store at t.
+// temp must be 18 words.
+static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_plus1) {
+  uint64_t *t_hi = temp;
+  uint64_t *t_lo = temp + 9;
+  copy_hilo_513bits(t_hi, t_lo, t);
+
+  uint64_t overflow = bignum_sub_9words(t, t_lo, t_hi);
+  bignum_optadd_9words(t, t, overflow, two_to_64kplus1_plus1);
+}
+
+// Given t: 17 words, calculate t mod 2^513-1 and store at t.
+// temp must be 18 words.
+static void mod_2_to_513_minus1(
+    uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_minus1) {
+  uint64_t *t_hi = temp;
+  uint64_t *t_lo = temp + 9;
+  copy_hilo_513bits(t_hi, t_lo, t);
+
+  int k = 8;
+  bignum_add_9words(t, t_lo, t_hi);
+  uint64_t cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
+  bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
+  cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
+  bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
+}
+
+// Given t: k+1 words and t < 2*2^{64k+1}, calculate t mod 2^{64k+1}-1 and store at t.
+// If t = t_h * 2^{64k+1} + t_l,
+//    t mod (2^{64k+1}-1) = (t_h + t_l) mod (2^{64k+1}-1)
+static void mod_2_to_513_minus1_short(
+    uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_minus1) {
+  uint64_t t_hi = t[8] >> 1;
+  t[8] &= 1;
+
+  int k = 8;
+  bignum_add(k+1, t, k+1, t, 1, &t_hi);
+  uint64_t cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
+  bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
+}
+
+static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
+  bignum_mul_8_16_neon(z, x, y);
+
+  int k = 8;
+  uint64_t xmsb = x[k], ymsb = y[k];
+  ASSERT(xmsb < 2);
+  ASSERT(ymsb < 2);
+  uint64_t c = bignum_optadd(k, z+k, z+k, xmsb, y);
+  z[2 * k] = c;
+  c = bignum_optadd(k, z+k, z+k, ymsb, x);
+  z[2 * k] += c;
+  z[2 * k] += xmsb & ymsb;
+}
+
+void bignum_mul_mod_2_to_1026_minus1(
+    uint64_t *z, uint64_t *x, uint64_t *y, uint64_t *temp) {
+  //print_bignum(2*k+1, x, "x");
+  //print_bignum(2*k+1, y, "y");
+  //print_bignum(2*k+1, two_to_128kplus2_minus1, "modulus");
+  //print_bignum(k+1, two_to_64kplus1_plus1, "modulus_half_plusone");
+  //print_bignum(k+1, two_to_64kplus1_minus1, "modulus_half_minusone");
+
+  // 2^1026-1
+  uint64_t two_to_1026_minus1[17];
+  for (int i = 0; i < 16; ++i)
+    two_to_1026_minus1[i] = -1ull;
+  two_to_1026_minus1[16] = 3;
+
+  // 2^513+1
+  uint64_t two_to_513_plus1[9];
+  for (int i = 0; i <= 8; ++i)
+    two_to_513_plus1[i] = 0;
+  two_to_513_plus1[0] = 1;
+  two_to_513_plus1[8] = 2;
+
+  // 2^513-1
+  uint64_t two_to_513_minus1[9];
+  for (int i = 0; i < 8; ++i)
+    two_to_513_minus1[i] = -1ull;
+  two_to_513_minus1[8] = 1;
+
+
+  int k = 8;
+  // x = 2^(64k+1) xh + xl
+  // y = 2^(64k+1) yh + yl
+  uint64_t *xl = temp;
+  uint64_t *xh = temp + (k + 1);
+  uint64_t *yl = temp + 2 * (k + 1);
+  uint64_t *yh = temp + 3 * (k + 1);
+  copy_hilo_513bits(xh, xl, x);
+  copy_hilo_513bits(yh, yl, y);
+
+  //print_bignum(k+1, xh, "xh");
+  //print_bignum(k+1, xl, "xl");
+  //print_bignum(k+1, yh, "yh");
+  //print_bignum(k+1, yl, "yl");
+
+  // xhpl = xh+xl
+  // yhpl = yh+yl
+  uint64_t *xhpl = temp + 4 * (k + 1);
+  uint64_t *yhpl = temp + 5 * (k + 1);
+  bignum_add_9words(xhpl, xh, xl);
+  bignum_add_9words(yhpl, yh, yl);
+
+  // xhml = |xh-xl|, xhml_sgn = xh < xl
+  // yhml = |yh-yl|, yhml_sgn = yh < yl
+  uint64_t *xhml = temp + 6 * (k + 1);
+  uint64_t xhml_sgn = bignum_sub_9words(xhml, xh, xl);
+  // If xhml_sgn is true, negate the subtraction to make it an absolute value.
+  bignum_optneg(k + 1, xhml, xhml_sgn, xhml);
+  //print_bignum(k+1, xhml, "|xh-xl|");
+
+  uint64_t *yhml = temp + 7 * (k + 1);
+  uint64_t yhml_sgn = bignum_sub_9words(yhml, yh, yl);
+  // If yhml_sgn is true, negate the subtraction to make it an absolute value.
+  bignum_optneg(k + 1, yhml, yhml_sgn, yhml);
+  //print_bignum(k+1, yhml, "|yh-yl|");
+  //printf("xhml_sgn: %lu, yhml_sgn: %lu\n", xhml_sgn, yhml_sgn);
+
+  // 1. |xh-xl|*|yh-yl| mod (2^(64k+1)+1)
+  //    First, do |xh-xl|*|yh-yl|
+  uint64_t *t = z;
+  mul_513(t, xhml, yhml);
+  //print_bignum(2*k+1, t, "|xh-xl|*|yh-yl|");
+
+  //    Second, do .. mod (2^(64k+1)+1).
+  mod_2_to_513_plus1(t, temp + 8 * (k+1), two_to_513_plus1);
+  //print_bignum(k+1, t, "|t|=|xh-xl|*|yh-yl| mod (2^(64k+1)+1)");
+  bignum_modoptneg(k+1, t, yhml_sgn^xhml_sgn, t, two_to_513_plus1);
+  //print_bignum(k+1, t, "t=(xh-xl)*(yh-yl) mod (2^(64k+1)+1)");
+
+  // 2. (xh+xl)(yh+yl) mod (2^(64k+1)-1)
+  //    First, do xh+xl mod (2^(64k+1)-1) and yh+yl mod (2^(64k+1)-1)
+  //print_bignum(k+1, xhpl, "xh+xl");
+  mod_2_to_513_minus1_short(xhpl, temp + 8 * (k+1), two_to_513_minus1);
+  //print_bignum(k+1, xhpl, "(xh+xl) mod R1");
+  //print_bignum(k+1, yhpl, "yh+yl");
+  mod_2_to_513_minus1_short(yhpl, temp + 8 * (k+1), two_to_513_minus1);
+  //print_bignum(k+1, yhpl, "(yh+yl) mod R1");
+
+  //    Second, do ((xh+xl) mod (2^(64k+1)-1)) * ((yh+yl) mod (2^(64k+1)-1))
+  uint64_t *s = temp + 2 * (k + 1);
+  mul_513(s, xhpl, yhpl);
+  //print_bignum(2*k+1, s, "(yh+yl) mod R1 * (xh+xl) mod R1");
+
+  //    Finally, do .. mod (2^(64k+1)-1)
+  mod_2_to_513_minus1(s, temp + 8 * (k+1), two_to_513_minus1);
+  //print_bignum(k+1, s, "s");
+
+  // Now, from s and t, reconstruct the answer.
+  // t + (2^{64k+1}+1) * (2^{64k} * (s-t) mod (2^{64k+1}-1))
+  // (s-t) mod (2^{64k+1}-1)
+  uint64_t *smt = temp + 9 * (k+1);
+  uint64_t carry = bignum_sub_9words(smt, s, t);
+  bignum_optadd(k+1, smt, smt, carry, two_to_513_minus1);
+  //print_bignum(k+1,smt,"(s-t) mod (2^{64k+1}-1)");
+
+  // (2^{64k} * (s-t) mod (2^{64k+1}-1))
+  uint64_t smt_lsb = smt[0] & 1;
+  for (int i = 0; i < k; ++i)
+    smt[i] = (smt[i] >> 1) | (smt[i+1] << 63);
+  smt[k] = (smt[k] >> 1) + smt_lsb;
+  //print_bignum(k+1,smt,"(2^64k * (s-t)) mod (2^{64k+1}-1)");
+
+  // (2^{64k+1}+1) * (2^{64k} * (s-t) mod (2^{64k+1}-1))
+  // = 2^{64k+1} * (smt[0~k]) + smt[0~k]
+  for (int i = 1; i <= k; ++i)
+    t[k+i] = 0;
+  uint64_t *smt_shifted = temp + 8 * (k+1);
+  smt_shifted[0] = smt[0] << 1;
+  for (int i = 1; i <= k; ++i)
+    smt_shifted[i] = (smt[i] << 1) | (smt[i-1] >> 63);
+  bignum_add_9words(t+k, t+k, smt_shifted);
+  bignum_add(2*k+1, t, 2*k+1, t, k+1, smt);
+  //print_bignum(2*k+1, t, "output");
+}

@@ -1325,45 +1325,10 @@ void reference_modexp(uint64_t k,uint64_t *res,
   bignum_demont(k,res,z,m);
 }
 
-int test_bignum_mul_mod_2to130minus1(void)
-{ int64_t t;
-  printf("Testing bignum_mul_mod_2to130minus1 with %d cases\n",tests);
-  // 2^130 - 1
-  uint64_t modulus[6] = {-1ull, -1ull, 3, 0, 0, 0};
-  for (t = 0; t < (int64_t)tests; ++t)
-   { // random mod 2^130 - 1
-     random_bignum(3,b0);
-     random_bignum(3,b1);
-     b0[2] &= 3;
-     b1[2] &= 3;
-     if (b0[0] == -1ull && b0[1] == -1ull && b0[2] == 3) b0[0]--;
-     if (b1[0] == -1ull && b1[1] == -1ull && b1[2] == 3) b1[0]--;
-
-     bignum_mul_mod_2to130minus1(b2, b0, b1);
-
-     reference_mul(6, b3, 3, b0, 3, b1);
-     reference_mod(6, b4, b3, modulus);
-
-     if (!reference_eq_samelen(3, b4, b2))
-      { printf("### Disparity\n");
-        printf("input1: %lu %lu %lu\n", b0[0], b0[1], b0[2]);
-        printf("input2: %lu %lu %lu\n", b1[0], b1[1], b1[2]);
-        printf("output: %lu %lu %lu\n", b2[0], b2[1], b2[2]);
-        printf("answer: %lu %lu %lu\n", b4[0], b4[1], b4[2]);
-        return 1;
-      }
-     else if (VERBOSE)
-      { printf("OK\n");
-      }
-   }
-  printf("All OK\n");
-  return 0;
-}
-
 int test_bignum_mul_mod_2_to_128kplus2_minus1(void)
 { int64_t t;
   printf("Testing bignum_mul_mod_2_to_128kplus2_minus1 with %d cases\n",tests);
-  uint64_t k = 2; // simulate 2^(1024+2)-1!
+  uint64_t k = 8; // simulate 2^(1024+2)-1!
   // modulus len: 4k+2
   // 2^{128k+2}+1
   uint64_t modulus[128];
@@ -1387,8 +1352,7 @@ int test_bignum_mul_mod_2_to_128kplus2_minus1(void)
   modulus_half_minusone[k] = 1;
 
   for (t = 0; t < (int64_t)tests; ++t)
-   { // random mod 2^130 - 1
-     random_bignum(2 * k + 1,b0);
+   { random_bignum(2 * k + 1,b0);
      random_bignum(2 * k + 1,b1);
      b0[2 * k] &= 3;
      b1[2 * k] &= 3;
@@ -1417,6 +1381,45 @@ int test_bignum_mul_mod_2_to_128kplus2_minus1(void)
   return 0;
 }
 
+int test_bignum_mul_mod_2_to_1026_minus1(void)
+{ int64_t t;
+  printf("Testing bignum_mul_mod_2_to_1026_minus1 with %d cases\n",tests);
+
+  uint64_t modulus[128];
+  for (int i = 0; i < 16; ++i)
+    modulus[i] = -1ull;
+  modulus[16] = 3;
+  for (int i = 17; i < 128; ++i)
+    modulus[i] = 0;
+
+  for (t = 0; t < (int64_t)tests; ++t)
+   { random_bignum(17,b0);
+     random_bignum(17,b1);
+     b0[16] &= 3;
+     b1[16] &= 3;
+     if (reference_eq_samelen(17, b0, modulus)) b0[0]--;
+     if (reference_eq_samelen(17, b1, modulus)) b1[0]--;
+
+     bignum_mul_mod_2_to_1026_minus1(b2, b0, b1, b3);
+
+     reference_mul(34, b3, 17, b0, 17, b1);
+     reference_mod(34, b4, b3, modulus);
+
+     if (!reference_eq_samelen(17, b4, b2))
+      { printf("### Disparity\n");
+        print_bignum(17, b0, "input1");
+        print_bignum(17, b1, "input2");
+        print_bignum(17, b2, "output");
+        print_bignum(17, b4, "answer");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK\n");
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
 
 
 // ****************************************************************************
@@ -10800,8 +10803,10 @@ int main(int argc, char *argv[])
 
   if (tests == 0) tests = TESTS;
 
-  functionaltest(all,"bignum_mul_mod_2to130minus1",test_bignum_mul_mod_2to130minus1);
-  functionaltest(all,"bignum_mul_mod_2_to_128kplus2_minus1",test_bignum_mul_mod_2_to_128kplus2_minus1);
+  functionaltest(all,"bignum_mul_mod_2_to_128kplus2_minus1",
+      test_bignum_mul_mod_2_to_128kplus2_minus1);
+  functionaltest(all,"bignum_mul_mod_2_to_1026_minus1",
+      test_bignum_mul_mod_2_to_1026_minus1);
   functionaltest(all,"bignum_add",test_bignum_add);
   functionaltest(all,"bignum_add_p25519",test_bignum_add_p25519);
   functionaltest(all,"bignum_add_p256",test_bignum_add_p256);

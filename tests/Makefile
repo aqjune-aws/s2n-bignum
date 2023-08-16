@@ -44,8 +44,8 @@ go: test; ./test +100 | grep -v OK
 
 complete: test ctCheck; ./test +500
 
-test: test.c known_value_tests_p384.h tweetnacl_excerpt.c mul_mod_128kplustwo.c mul_mod_128kplustwo.h ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a
-	gcc -Wall -std=gnu99 -o test test.c mul_mod_128kplustwo.c -L../$(ARCH) -ls2nbignum
+test: test.c known_value_tests_p384.h tweetnacl_excerpt.c mul_mod_128kplustwo.c mul_mod_128kplustwo.h bignum_9words.S ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a
+	gcc -Wall -std=gnu99 -o test test.c mul_mod_128kplustwo.c bignum_9words.S -L../$(ARCH) -ls2nbignum -I../include
 
 clean: ;
 	rm -f test

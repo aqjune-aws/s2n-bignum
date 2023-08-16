@@ -8,4 +8,7 @@ void bignum_mul_mod_2_to_128kplus2_minus1(
     uint64_t *two_to_128kplus2_minus1, uint64_t *two_to_64kplus1_plus1,
     uint64_t *two_to_64kplus1_minus1);
 
+void bignum_mul_mod_2_to_1026_minus1(
+    uint64_t *z, uint64_t *x, uint64_t *y, uint64_t *temp);
+
 void print_bignum(int k, uint64_t *p, const char *c);
