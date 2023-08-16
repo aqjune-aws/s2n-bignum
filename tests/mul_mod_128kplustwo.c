@@ -663,6 +663,7 @@ void bignum_optsub_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
 void bignum_optneg_9words(uint64_t *z, uint64_t cond, uint64_t *x);
 
 void bignum_add_mod_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
+uint64_t bignum_absdiff_9words(uint64_t *z, uint64_t *x, uint64_t *y);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
@@ -683,7 +684,6 @@ static void mod_2_to_513_minus1(
   uint64_t *t_lo = temp + 9;
   copy_hilo_513bits(t_hi, t_lo, t);
 
-  int k = 8;
   bignum_add_9words(t, t_lo, t_hi);
   uint64_t cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
   bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
@@ -770,16 +770,12 @@ void bignum_mul_mod_2_to_1026_minus1(
 
   // xhml = |xh-xl|, xhml_sgn = xh < xl
   // yhml = |yh-yl|, yhml_sgn = yh < yl
-  uint64_t *xhml = temp + 6 * (k + 1);
-  uint64_t xhml_sgn = bignum_sub_9words(xhml, xh, xl);
-  // If xhml_sgn is true, negate the subtraction to make it an absolute value.
-  bignum_optneg_9words(xhml, xhml_sgn, xhml);
+  uint64_t *xhml = temp + 4 * (k + 1);
+  uint64_t xhml_sgn = bignum_absdiff_9words(xhml, xh, xl);
   //print_bignum(k+1, xhml, "|xh-xl|");
 
-  uint64_t *yhml = temp + 7 * (k + 1);
-  uint64_t yhml_sgn = bignum_sub_9words(yhml, yh, yl);
-  // If yhml_sgn is true, negate the subtraction to make it an absolute value.
-  bignum_optneg_9words(yhml, yhml_sgn, yhml);
+  uint64_t *yhml = temp + 5 * (k + 1);
+  uint64_t yhml_sgn = bignum_absdiff_9words(yhml, yh, yl);
   //print_bignum(k+1, yhml, "|yh-yl|");
   //printf("xhml_sgn: %lu, yhml_sgn: %lu\n", xhml_sgn, yhml_sgn);
 
@@ -800,17 +796,11 @@ void bignum_mul_mod_2_to_1026_minus1(
 
   // xhpl = xh+xl
   // yhpl = yh+yl
-  uint64_t *xhpl = temp + 4 * (k + 1);
-  uint64_t *yhpl = temp + 5 * (k + 1);
-  //bignum_add_9words(yhpl, yh, yl);
-  //bignum_add_9words(xhpl, xh, xl);
-  //print_bignum(k+1, xhpl, "xh+xl");
-  //mod_2_to_513_minus1_short(xhpl, temp + 8 * (k+1), two_to_513_minus1);
+  uint64_t *xhpl = temp + 6 * (k + 1);
+  uint64_t *yhpl = temp + 7 * (k + 1);
   bignum_add_mod_2_to_513_minus1(xhpl, xh, xl);
   //print_bignum(k+1, xhpl, "(xh+xl) mod R1");
-  //print_bignum(k+1, yhpl, "yh+yl");
   bignum_add_mod_2_to_513_minus1(yhpl, yh, yl);
-  //mod_2_to_513_minus1_short(yhpl, temp + 8 * (k+1), two_to_513_minus1);
   //print_bignum(k+1, yhpl, "(yh+yl) mod R1");
 
   //    Second, do ((xh+xl) mod (2^(64k+1)-1)) * ((yh+yl) mod (2^(64k+1)-1))
