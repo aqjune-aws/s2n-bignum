@@ -683,11 +683,10 @@ static void mod_2_to_513_minus1(
     uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_minus1) {
   uint64_t *t_hi = temp;
   uint64_t *t_lo = temp + 9;
+  uint64_t cmp;
   copy_hilo_513bits(t_hi, t_lo, t);
 
-  bignum_add_9words(t, t_lo, t_hi);
-  uint64_t cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
-  bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
+  bignum_add_mod_2_to_513_minus1(t, t_lo, t_hi);
   cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
   bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
 }
@@ -695,19 +694,6 @@ static void mod_2_to_513_minus1(
 // Given t: k+1 words and t < 2*2^{64k+1}, calculate t mod 2^{64k+1}-1 and store at t.
 // If t = t_h * 2^{64k+1} + t_l,
 //    t mod (2^{64k+1}-1) = (t_h + t_l) mod (2^{64k+1}-1)
-/*
-static void mod_2_to_513_minus1_short(
-    uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_minus1) {
-  // 2*2^{64k+1}
-  uint64_t t_hi = t[8] >> 1;
-  t[8] &= 1;
-
-  int k = 8;
-  bignum_add_9words_1word(t, t, t_hi);
-  uint64_t cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
-  bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
-}
-*/
 
 // add_mod_2_to_513_minus1_short(x,y)
 // 
@@ -787,7 +773,6 @@ void bignum_mul_mod_2_to_1026_minus1(
   //    Second, do .. mod (2^(64k+1)+1).
   mod_2_to_513_plus1(t, temp + 8 * (k+1), two_to_513_plus1);
   //print_bignum(k+1, t, "|t|=|xh-xl|*|yh-yl| mod (2^(64k+1)+1)");
-  //bignum_modoptneg(k+1, t, yhml_sgn^xhml_sgn, t, two_to_513_plus1);
   bignum_modoptneg_mod_2_to_513_plus1(t, yhml_sgn^xhml_sgn, t);
   //print_bignum(k+1, t, "t=(xh-xl)*(yh-yl) mod (2^(64k+1)+1)");
 
@@ -798,9 +783,11 @@ void bignum_mul_mod_2_to_1026_minus1(
   // yhpl = yh+yl
   uint64_t *xhpl = temp + 6 * (k + 1);
   uint64_t *yhpl = temp + 7 * (k + 1);
-  bignum_add_mod_2_to_513_minus1(xhpl, xh, xl); // WARNING: this can return 2^513-1 as well
+  // NOTE: this can return 2^513-1 as well. This will be reduced by mod_2_to_513_minus1
+  bignum_add_mod_2_to_513_minus1(xhpl, xh, xl);
   //print_bignum(k+1, xhpl, "(xh+xl) mod R1");
-  bignum_add_mod_2_to_513_minus1(yhpl, yh, yl); // WARNING: this can return 2^513-1 as well
+  // NOTE: this can return 2^513-1 as well. This will be reduced by mod_2_to_513_minus1
+  bignum_add_mod_2_to_513_minus1(yhpl, yh, yl);
   //print_bignum(k+1, yhpl, "(yh+yl) mod R1");
 
   //    Second, do ((xh+xl) mod (2^(64k+1)-1)) * ((yh+yl) mod (2^(64k+1)-1))

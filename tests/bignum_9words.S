@@ -61,6 +61,8 @@ S2N_BN_SYMBOL(bignum_add_9words):
 
         ret
 
+// bignum_add_9words_1word(z, x, y)
+// x: uint64_t[9], y: uint64_t
 S2N_BN_SYMBOL(bignum_add_9words_1word):
         ldp x3, x4, [x1]
         adds x3, x3, x2
@@ -196,6 +198,7 @@ S2N_BN_SYMBOL(bignum_optadd_9words):
 
         ret
 
+// uint64_t bignum_optadd_8words(z, x, cond, y)
 S2N_BN_SYMBOL(bignum_optadd_8words):
         cmp x2, xzr
         csetm x2, ne
@@ -235,7 +238,8 @@ S2N_BN_SYMBOL(bignum_optadd_8words):
         adc x0, xzr, xzr
         ret
 
-// z, x, cond, y
+// bignum_optsub_9words(z, x, cond, y)
+// z = cond ? x - y : x
 S2N_BN_SYMBOL(bignum_optsub_9words):
         cmp x2, xzr
         csetm x2, ne
@@ -280,7 +284,8 @@ S2N_BN_SYMBOL(bignum_optsub_9words):
 
         ret
 
-// z, x, cond, y
+// bignum_optneg_9words(z, x, cond, y)
+// z = cond ? -y : y
 S2N_BN_SYMBOL(bignum_optneg_9words):
         cmp x1, xzr
         csetm x1, ne
@@ -322,7 +327,10 @@ S2N_BN_SYMBOL(bignum_optneg_9words):
 
         ret
 
-// can be <= 2_to_513_minus1
+// bignum_add_mod_2_to_513_minus1(z, x, y)
+// Given x, y <= 2^513-1 (note '<=')
+// Return z s.t. 0 <= z <= (2^513-1) /\
+//                z mod (2^513-1) = (x+y) mod (2^513-1).
 S2N_BN_SYMBOL(bignum_add_mod_2_to_513_minus1):
         // x1[0..8] + x2[0..8]
         // x0[0..8]: output
@@ -502,3 +510,23 @@ S2N_BN_SYMBOL(bignum_modoptneg_mod_2_to_513_plus1):
         str x11, [x0, #64]
 
         ret
+
+
+/*
+S2N_BN_SYMBOL(bignum_ge_optsub_mod_2_to_513_minus1):
+        // If x0 is all 111..11 or MSB is one, subtract 2^513-1.
+        mov x12, xzr
+        ldp x3, x4, [x0]
+        ldp x5, x6, [x0, #16]
+        ldp x7, x8, [x0, #32]
+        ldp x9, x10, [x0, #48]
+        ldr x11, [x0, #64]
+        or x12, x3, x4
+        or x12, x12, x5
+        or x12, x12, x6
+        or x12, x12, x7
+        or x12, x12, x8
+        or x12, x12, x9
+        or x12, x12, x10
+        cmp 
+*/
