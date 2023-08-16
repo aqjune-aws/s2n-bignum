@@ -662,6 +662,8 @@ uint64_t bignum_optadd_8words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t 
 void bignum_optsub_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
 void bignum_optneg_9words(uint64_t *z, uint64_t cond, uint64_t *x);
 
+void bignum_add_mod_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
+
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
 static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_plus1) {
@@ -692,8 +694,10 @@ static void mod_2_to_513_minus1(
 // Given t: k+1 words and t < 2*2^{64k+1}, calculate t mod 2^{64k+1}-1 and store at t.
 // If t = t_h * 2^{64k+1} + t_l,
 //    t mod (2^{64k+1}-1) = (t_h + t_l) mod (2^{64k+1}-1)
+/*
 static void mod_2_to_513_minus1_short(
     uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_minus1) {
+  // 2*2^{64k+1}
   uint64_t t_hi = t[8] >> 1;
   t[8] &= 1;
 
@@ -702,6 +706,10 @@ static void mod_2_to_513_minus1_short(
   uint64_t cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
   bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
 }
+*/
+
+// add_mod_2_to_513_minus1_short(x,y)
+// 
 
 static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
   bignum_mul_8_16_neon(z, x, y);
@@ -760,13 +768,6 @@ void bignum_mul_mod_2_to_1026_minus1(
   //print_bignum(k+1, yh, "yh");
   //print_bignum(k+1, yl, "yl");
 
-  // xhpl = xh+xl
-  // yhpl = yh+yl
-  uint64_t *xhpl = temp + 4 * (k + 1);
-  uint64_t *yhpl = temp + 5 * (k + 1);
-  bignum_add_9words(xhpl, xh, xl);
-  bignum_add_9words(yhpl, yh, yl);
-
   // xhml = |xh-xl|, xhml_sgn = xh < xl
   // yhml = |yh-yl|, yhml_sgn = yh < yl
   uint64_t *xhml = temp + 6 * (k + 1);
@@ -796,11 +797,20 @@ void bignum_mul_mod_2_to_1026_minus1(
 
   // 2. (xh+xl)(yh+yl) mod (2^(64k+1)-1)
   //    First, do xh+xl mod (2^(64k+1)-1) and yh+yl mod (2^(64k+1)-1)
+
+  // xhpl = xh+xl
+  // yhpl = yh+yl
+  uint64_t *xhpl = temp + 4 * (k + 1);
+  uint64_t *yhpl = temp + 5 * (k + 1);
+  //bignum_add_9words(yhpl, yh, yl);
+  //bignum_add_9words(xhpl, xh, xl);
   //print_bignum(k+1, xhpl, "xh+xl");
-  mod_2_to_513_minus1_short(xhpl, temp + 8 * (k+1), two_to_513_minus1);
+  //mod_2_to_513_minus1_short(xhpl, temp + 8 * (k+1), two_to_513_minus1);
+  bignum_add_mod_2_to_513_minus1(xhpl, xh, xl);
   //print_bignum(k+1, xhpl, "(xh+xl) mod R1");
   //print_bignum(k+1, yhpl, "yh+yl");
-  mod_2_to_513_minus1_short(yhpl, temp + 8 * (k+1), two_to_513_minus1);
+  bignum_add_mod_2_to_513_minus1(yhpl, yh, yl);
+  //mod_2_to_513_minus1_short(yhpl, temp + 8 * (k+1), two_to_513_minus1);
   //print_bignum(k+1, yhpl, "(yh+yl) mod R1");
 
   //    Second, do ((xh+xl) mod (2^(64k+1)-1)) * ((yh+yl) mod (2^(64k+1)-1))

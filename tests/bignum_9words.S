@@ -16,6 +16,10 @@
         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optsub_9words)
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_9words)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_9words)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_mod_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_mod_2_to_513_minus1)
+
         .text
         .balign 4
 
@@ -312,3 +316,49 @@ S2N_BN_SYMBOL(bignum_optneg_9words):
 
         ret
 
+// can be <= 2_to_513_minus1
+S2N_BN_SYMBOL(bignum_add_mod_2_to_513_minus1):
+        // x1[0..8] + x2[0..8]
+        // x0[0..8]: output
+        ldp x3, x4, [x1]
+        ldp x14, x15, [x2]
+        adds x3, x3, x14
+        adcs x4, x4, x15
+
+        ldp x5, x6, [x1,#16]
+        ldp x14, x15, [x2,#16]
+        adcs x5, x5, x14
+        adcs x6, x6, x15
+
+        ldp x7, x8, [x1,#32]
+        ldp x14, x15, [x2,#32]
+        adcs x7, x7, x14
+        adcs x8, x8, x15
+
+        ldp x9, x10, [x1,#48]
+        ldp x14, x15, [x2,#48]
+        adcs x9, x9, x14
+        adcs x10, x10, x15
+
+        ldr x11, [x1,#64]
+        ldr x14, [x2,#64]
+        adc x11, x11, x14
+        lsr x12, x11, 1
+        and x11, x11, 1
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        adc x11, x11, xzr
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
