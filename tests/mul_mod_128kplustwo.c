@@ -655,7 +655,8 @@ static void copy_hilo_513bits(uint64_t *xh, uint64_t *xl, const uint64_t *x) {
 
 void bignum_add_9words(uint64_t *z, uint64_t *x, uint64_t *y);
 uint64_t bignum_sub_9words(uint64_t *z, uint64_t *x, uint64_t *y);
-void bignum_optadd_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
+uint64_t bignum_optadd_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
+uint64_t bignum_optadd_8words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
@@ -705,9 +706,9 @@ static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
   uint64_t xmsb = x[k], ymsb = y[k];
   ASSERT(xmsb < 2);
   ASSERT(ymsb < 2);
-  uint64_t c = bignum_optadd(k, z+k, z+k, xmsb, y);
+  uint64_t c = bignum_optadd_8words(z+k, z+k, xmsb, y);
   z[2 * k] = c;
-  c = bignum_optadd(k, z+k, z+k, ymsb, x);
+  c = bignum_optadd_8words(z+k, z+k, ymsb, x);
   z[2 * k] += c;
   z[2 * k] += xmsb & ymsb;
 }
@@ -812,7 +813,7 @@ void bignum_mul_mod_2_to_1026_minus1(
   // (s-t) mod (2^{64k+1}-1)
   uint64_t *smt = temp + 9 * (k+1);
   uint64_t carry = bignum_sub_9words(smt, s, t);
-  bignum_optadd(k+1, smt, smt, carry, two_to_513_minus1);
+  bignum_optadd_9words(smt, smt, carry, two_to_513_minus1);
   //print_bignum(k+1,smt,"(s-t) mod (2^{64k+1}-1)");
 
   // (2^{64k} * (s-t) mod (2^{64k+1}-1))
