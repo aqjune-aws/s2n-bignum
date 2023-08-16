@@ -23,6 +23,9 @@
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_absdiff_9words)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_absdiff_9words)
 
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_modoptneg_mod_2_to_513_plus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_modoptneg_mod_2_to_513_plus1)
+
         .text
         .balign 4
 
@@ -430,5 +433,72 @@ S2N_BN_SYMBOL(bignum_absdiff_9words):
         str x11, [x0, #64]
 
         sub x0, xzr, x12
+
+        ret
+
+// bignum_modoptneg(z, cond, x)
+S2N_BN_SYMBOL(bignum_modoptneg_mod_2_to_513_plus1):
+        // x12: is x zero?
+        ldp x3, x4, [x2]
+        orr x12, x3, x4
+
+        ldp x5, x6, [x2, #16]
+        orr x12, x12, x5
+        orr x12, x12, x6
+
+        ldp x7, x8, [x2, #32]
+        orr x12, x12, x7
+        orr x12, x12, x8
+
+        ldp x9, x10, [x2, #48]
+        orr x12, x12, x9
+        orr x12, x12, x10
+
+        ldr x11, [x2, #64]
+        orr x12, x12, x11
+
+        cmp x12, xzr
+        csel x1, x1, xzr, ne
+
+        cmp x1, xzr
+        csetm x1, ne
+        // now x2 is a bitmask
+
+        adds xzr, x1, x1
+        
+        and x12, x1, #1
+        eor x3, x3, x1
+        adcs x3, x3, x12
+
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+
+        eor x5, x5, x1
+        adcs x5, x5, xzr
+
+        eor x6, x6, x1
+        adcs x6, x6, xzr
+
+        eor x7, x7, x1
+        adcs x7, x7, xzr
+
+        eor x8, x8, x1
+        adcs x8, x8, xzr
+
+        eor x9, x9, x1
+        adcs x9, x9, xzr
+
+        eor x10, x10, x1
+        adcs x10, x10, xzr
+
+        and x12, x1, #2
+        eor x11, x11, x1
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
 
         ret

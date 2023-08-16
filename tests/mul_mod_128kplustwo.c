@@ -664,6 +664,7 @@ void bignum_optneg_9words(uint64_t *z, uint64_t cond, uint64_t *x);
 
 void bignum_add_mod_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
 uint64_t bignum_absdiff_9words(uint64_t *z, uint64_t *x, uint64_t *y);
+void bignum_modoptneg_mod_2_to_513_plus1(uint64_t *z, uint64_t cond, uint64_t *x);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
@@ -718,11 +719,9 @@ static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
   uint64_t xmsb = x[k], ymsb = y[k];
   ASSERT(xmsb < 2);
   ASSERT(ymsb < 2);
-  uint64_t c = bignum_optadd_8words(z+k, z+k, xmsb, y);
-  z[2 * k] = c;
-  c = bignum_optadd_8words(z+k, z+k, ymsb, x);
-  z[2 * k] += c;
-  z[2 * k] += xmsb & ymsb;
+  uint64_t c1 = bignum_optadd_8words(z+k, z+k, xmsb, y);
+  uint64_t c2 = bignum_optadd_8words(z+k, z+k, ymsb, x);
+  z[2 * k] = c1 + c2 + (xmsb & ymsb);
 }
 
 void bignum_mul_mod_2_to_1026_minus1(
@@ -788,7 +787,8 @@ void bignum_mul_mod_2_to_1026_minus1(
   //    Second, do .. mod (2^(64k+1)+1).
   mod_2_to_513_plus1(t, temp + 8 * (k+1), two_to_513_plus1);
   //print_bignum(k+1, t, "|t|=|xh-xl|*|yh-yl| mod (2^(64k+1)+1)");
-  bignum_modoptneg(k+1, t, yhml_sgn^xhml_sgn, t, two_to_513_plus1);
+  //bignum_modoptneg(k+1, t, yhml_sgn^xhml_sgn, t, two_to_513_plus1);
+  bignum_modoptneg_mod_2_to_513_plus1(t, yhml_sgn^xhml_sgn, t);
   //print_bignum(k+1, t, "t=(xh-xl)*(yh-yl) mod (2^(64k+1)+1)");
 
   // 2. (xh+xl)(yh+yl) mod (2^(64k+1)-1)
@@ -798,9 +798,9 @@ void bignum_mul_mod_2_to_1026_minus1(
   // yhpl = yh+yl
   uint64_t *xhpl = temp + 6 * (k + 1);
   uint64_t *yhpl = temp + 7 * (k + 1);
-  bignum_add_mod_2_to_513_minus1(xhpl, xh, xl);
+  bignum_add_mod_2_to_513_minus1(xhpl, xh, xl); // WARNING: this can return 2^513-1 as well
   //print_bignum(k+1, xhpl, "(xh+xl) mod R1");
-  bignum_add_mod_2_to_513_minus1(yhpl, yh, yl);
+  bignum_add_mod_2_to_513_minus1(yhpl, yh, yl); // WARNING: this can return 2^513-1 as well
   //print_bignum(k+1, yhpl, "(yh+yl) mod R1");
 
   //    Second, do ((xh+xl) mod (2^(64k+1)-1)) * ((yh+yl) mod (2^(64k+1)-1))
