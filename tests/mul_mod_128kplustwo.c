@@ -656,8 +656,11 @@ static void copy_hilo_513bits(uint64_t *xh, uint64_t *xl, const uint64_t *x) {
 void bignum_add_9words(uint64_t *z, uint64_t *x, uint64_t *y);
 void bignum_add_9words_1word(uint64_t *z, uint64_t *x, uint64_t y);
 uint64_t bignum_sub_9words(uint64_t *z, uint64_t *x, uint64_t *y);
-uint64_t bignum_optadd_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
+uint64_t bignum_ge_9words(uint64_t *x, uint64_t *y);
+void bignum_optadd_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
 uint64_t bignum_optadd_8words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
+void bignum_optsub_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
+void bignum_optneg_9words(uint64_t *z, uint64_t cond, uint64_t *x);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
@@ -680,10 +683,10 @@ static void mod_2_to_513_minus1(
 
   int k = 8;
   bignum_add_9words(t, t_lo, t_hi);
-  uint64_t cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
-  bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
-  cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
-  bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
+  uint64_t cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
+  bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
+  cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
+  bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
 }
 
 // Given t: k+1 words and t < 2*2^{64k+1}, calculate t mod 2^{64k+1}-1 and store at t.
@@ -696,8 +699,8 @@ static void mod_2_to_513_minus1_short(
 
   int k = 8;
   bignum_add_9words_1word(t, t, t_hi);
-  uint64_t cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
-  bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
+  uint64_t cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
+  bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
 }
 
 static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
@@ -769,13 +772,13 @@ void bignum_mul_mod_2_to_1026_minus1(
   uint64_t *xhml = temp + 6 * (k + 1);
   uint64_t xhml_sgn = bignum_sub_9words(xhml, xh, xl);
   // If xhml_sgn is true, negate the subtraction to make it an absolute value.
-  bignum_optneg(k + 1, xhml, xhml_sgn, xhml);
+  bignum_optneg_9words(xhml, xhml_sgn, xhml);
   //print_bignum(k+1, xhml, "|xh-xl|");
 
   uint64_t *yhml = temp + 7 * (k + 1);
   uint64_t yhml_sgn = bignum_sub_9words(yhml, yh, yl);
   // If yhml_sgn is true, negate the subtraction to make it an absolute value.
-  bignum_optneg(k + 1, yhml, yhml_sgn, yhml);
+  bignum_optneg_9words(yhml, yhml_sgn, yhml);
   //print_bignum(k+1, yhml, "|yh-yl|");
   //printf("xhml_sgn: %lu, yhml_sgn: %lu\n", xhml_sgn, yhml_sgn);
 
