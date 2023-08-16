@@ -2,6 +2,8 @@
 
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_9words)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_9words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_9words_1word)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_9words_1word)
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_9words)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_9words)
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optadd_8words)
@@ -39,6 +41,33 @@ S2N_BN_SYMBOL(bignum_add_9words):
         ldr x3, [x1, #64]
         ldr x5, [x2, #64]
         adc x3, x3, x5
+        str x3, [x0, #64]
+
+        ret
+
+S2N_BN_SYMBOL(bignum_add_9words_1word):
+        ldp x3, x4, [x1]
+        adds x3, x3, x2
+        adcs x4, x4, xzr
+        stp x3, x4, [x0]
+
+        ldp x3, x4, [x1, #16]
+        adcs x3, x3, xzr
+        adcs x4, x4, xzr
+        stp x3, x4, [x0, #16]
+
+        ldp x3, x4, [x1, #32]
+        adcs x3, x3, xzr
+        adcs x4, x4, xzr
+        stp x3, x4, [x0, #32]
+
+        ldp x3, x4, [x1, #48]
+        adcs x3, x3, xzr
+        adcs x4, x4, xzr
+        stp x3, x4, [x0, #48]
+
+        ldr x3, [x1, #64]
+        adc x3, x3, xzr
         str x3, [x0, #64]
 
         ret

@@ -654,6 +654,7 @@ static void copy_hilo_513bits(uint64_t *xh, uint64_t *xl, const uint64_t *x) {
 }
 
 void bignum_add_9words(uint64_t *z, uint64_t *x, uint64_t *y);
+void bignum_add_9words_1word(uint64_t *z, uint64_t *x, uint64_t y);
 uint64_t bignum_sub_9words(uint64_t *z, uint64_t *x, uint64_t *y);
 uint64_t bignum_optadd_9words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
 uint64_t bignum_optadd_8words(uint64_t *z, uint64_t *x, uint64_t cond, uint64_t *y);
@@ -694,7 +695,7 @@ static void mod_2_to_513_minus1_short(
   t[8] &= 1;
 
   int k = 8;
-  bignum_add(k+1, t, k+1, t, 1, &t_hi);
+  bignum_add_9words_1word(t, t, t_hi);
   uint64_t cmp = bignum_ge(k+1, t, k+1, two_to_64kplus1_minus1);
   bignum_optsub(k+1, t, t, cmp, two_to_64kplus1_minus1);
 }
