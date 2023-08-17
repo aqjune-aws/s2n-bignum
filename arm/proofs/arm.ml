@@ -499,9 +499,17 @@ let ARM_QUICKSIM_TAC execth pats snums =
 (* ------------------------------------------------------------------------- *)
 
 let ARM_SIM_TAC execth snums =
+  t0 := Sys.time();
   REWRITE_TAC(!simulation_precanon_thms) THEN
-  ENSURES_INIT_TAC "s0" THEN ARM_STEPS_TAC execth snums THEN
-  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  (fun (asl,gl) -> print_elapsed_time "  ARM_SIM_TAC-REWRITE_TAC(!simulation_precanon_thms)"; ALL_TAC (asl,gl)) THEN
+  ENSURES_INIT_TAC "s0" THEN
+  (fun (asl,gl) -> print_elapsed_time "  ARM_SIM_TAC-ENSURES_INIT_TAC"; ALL_TAC (asl,gl)) THEN
+  ARM_STEPS_TAC execth snums THEN
+  (fun (asl,gl) -> print_elapsed_time "  ARM_SIM_TAC-ARM_STEPS_TAC"; ALL_TAC (asl,gl)) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  (fun (asl,gl) -> print_elapsed_time "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC"; ALL_TAC (asl,gl)) THEN
+  ASM_REWRITE_TAC[] THEN
+  (fun (asl,gl) -> print_elapsed_time "  ARM_SIM_TAC-ASM_REWRITE_TAC"; ALL_TAC (asl,gl)) THEN
   REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN ASM_REWRITE_TAC[];;
 
 let ARM_ACCSIM_TAC execth anums snums =
