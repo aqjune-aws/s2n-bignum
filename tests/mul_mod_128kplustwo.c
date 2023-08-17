@@ -712,12 +712,6 @@ static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
 
 void bignum_mul_mod_2_to_1026_minus1(
     uint64_t *z, uint64_t *x, uint64_t *y, uint64_t *temp) {
-  //print_bignum(2*k+1, x, "x");
-  //print_bignum(2*k+1, y, "y");
-  //print_bignum(2*k+1, two_to_128kplus2_minus1, "modulus");
-  //print_bignum(k+1, two_to_64kplus1_plus1, "modulus_half_plusone");
-  //print_bignum(k+1, two_to_64kplus1_minus1, "modulus_half_minusone");
-
   // 2^1026-1
   uint64_t two_to_1026_minus1[17];
   for (int i = 0; i < 16; ++i)
@@ -748,33 +742,21 @@ void bignum_mul_mod_2_to_1026_minus1(
   copy_hilo_513bits(xh, xl, x);
   copy_hilo_513bits(yh, yl, y);
 
-  //print_bignum(k+1, xh, "xh");
-  //print_bignum(k+1, xl, "xl");
-  //print_bignum(k+1, yh, "yh");
-  //print_bignum(k+1, yl, "yl");
-
   // xhml = |xh-xl|, xhml_sgn = xh < xl
   // yhml = |yh-yl|, yhml_sgn = yh < yl
   uint64_t *xhml = temp + 4 * (k + 1);
   uint64_t xhml_sgn = bignum_absdiff_9words(xhml, xh, xl);
-  //print_bignum(k+1, xhml, "|xh-xl|");
-
   uint64_t *yhml = temp + 5 * (k + 1);
   uint64_t yhml_sgn = bignum_absdiff_9words(yhml, yh, yl);
-  //print_bignum(k+1, yhml, "|yh-yl|");
-  //printf("xhml_sgn: %lu, yhml_sgn: %lu\n", xhml_sgn, yhml_sgn);
 
   // 1. |xh-xl|*|yh-yl| mod (2^(64k+1)+1)
   //    First, do |xh-xl|*|yh-yl|
   uint64_t *t = z;
   mul_513(t, xhml, yhml);
-  //print_bignum(2*k+1, t, "|xh-xl|*|yh-yl|");
 
   //    Second, do .. mod (2^(64k+1)+1).
   mod_2_to_513_plus1(t, temp + 8 * (k+1), two_to_513_plus1);
-  //print_bignum(k+1, t, "|t|=|xh-xl|*|yh-yl| mod (2^(64k+1)+1)");
   bignum_modoptneg_mod_2_to_513_plus1(t, yhml_sgn^xhml_sgn, t);
-  //print_bignum(k+1, t, "t=(xh-xl)*(yh-yl) mod (2^(64k+1)+1)");
 
   // 2. (xh+xl)(yh+yl) mod (2^(64k+1)-1)
   //    First, do xh+xl mod (2^(64k+1)-1) and yh+yl mod (2^(64k+1)-1)
@@ -785,19 +767,15 @@ void bignum_mul_mod_2_to_1026_minus1(
   uint64_t *yhpl = temp + 7 * (k + 1);
   // NOTE: this can return 2^513-1 as well. This will be reduced by mod_2_to_513_minus1
   bignum_add_mod_2_to_513_minus1(xhpl, xh, xl);
-  //print_bignum(k+1, xhpl, "(xh+xl) mod R1");
   // NOTE: this can return 2^513-1 as well. This will be reduced by mod_2_to_513_minus1
   bignum_add_mod_2_to_513_minus1(yhpl, yh, yl);
-  //print_bignum(k+1, yhpl, "(yh+yl) mod R1");
 
   //    Second, do ((xh+xl) mod (2^(64k+1)-1)) * ((yh+yl) mod (2^(64k+1)-1))
   uint64_t *s = temp + 2 * (k + 1);
   mul_513(s, xhpl, yhpl);
-  //print_bignum(2*k+1, s, "(yh+yl) mod R1 * (xh+xl) mod R1");
 
   //    Finally, do .. mod (2^(64k+1)-1)
   mod_2_to_513_minus1(s, temp + 8 * (k+1), two_to_513_minus1);
-  //print_bignum(k+1, s, "s");
 
   // Now, from s and t, reconstruct the answer.
   // t + (2^{64k+1}+1) * (2^{64k} * (s-t) mod (2^{64k+1}-1))
@@ -805,14 +783,12 @@ void bignum_mul_mod_2_to_1026_minus1(
   uint64_t *smt = temp + 9 * (k+1);
   uint64_t carry = bignum_sub_9words(smt, s, t);
   bignum_optadd_9words(smt, smt, carry, two_to_513_minus1);
-  //print_bignum(k+1,smt,"(s-t) mod (2^{64k+1}-1)");
 
   // (2^{64k} * (s-t) mod (2^{64k+1}-1))
   uint64_t smt_lsb = smt[0] & 1;
   for (int i = 0; i < k; ++i)
     smt[i] = (smt[i] >> 1) | (smt[i+1] << 63);
   smt[k] = (smt[k] >> 1) + smt_lsb;
-  //print_bignum(k+1,smt,"(2^64k * (s-t)) mod (2^{64k+1}-1)");
 
   // (2^{64k+1}+1) * (2^{64k} * (s-t) mod (2^{64k+1}-1))
   // = 2^{64k+1} * (smt[0~k]) + smt[0~k]
@@ -824,5 +800,4 @@ void bignum_mul_mod_2_to_1026_minus1(
     smt_shifted[i] = (smt[i] << 1) | (smt[i-1] >> 63);
   bignum_add_9words(t+k, t+k, smt_shifted);
   bignum_add(2*k+1, t, 2*k+1, t, k+1, smt);
-  //print_bignum(2*k+1, t, "output");
 }
