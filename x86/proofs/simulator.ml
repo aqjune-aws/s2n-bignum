@@ -1269,6 +1269,33 @@ let rec split_first_n (ls: 'a list) (n: int) =
     | h::t -> let l1, l2 = split_first_n t (n-1) in (h::l1, l2)
     | [] -> failwith "n cannot be smaller than the length of ls";;
 
+
+let timestack' = ref [];;
+let stats': ((string * float) list) ref = ref [];;
+let push_timer' () =
+  let t = Sys.time() in
+  timestack' := t::(!timestack');;
+
+let print_elapsed_time' (msg:string) =
+  match !timestack' with
+  | t0::ttail ->
+    let t1 = Sys.time() in
+    let d = t1 -. t0 in
+    let _ = printf "%s: %f\n" msg d in
+    let rec update tail =
+      match tail with
+      | [] -> [(msg, d)]
+      | (k,v)::tail -> if k = msg then (k, v +. d)::tail else (k,v)::(update tail) in
+    stats' := update !stats';
+    timestack' := ttail
+  | [] -> printf "%s: no previous timer available!\n" msg;;
+
+let PUSH_TIMER_TAC' =
+  fun (asl,gl) -> push_timer'(); ALL_TAC (asl,gl);;
+
+let PRINT_ELAPSED_TIME_TAC' msg =
+  fun (asl,gl) -> print_elapsed_time' msg; ALL_TAC (asl,gl);;
+
 let only_undefinedness =
   let zx_tm = `word_zx:int32->int64` in
   let is_undefname s =
@@ -1283,15 +1310,20 @@ let only_undefinedness =
 
 
 let run_random_simulation () =
+  let _ = push_timer'() in
   let ibytes:int list = random_instruction iclasses in
   let icode = itlist (fun h t -> Int h +/ Int 256 */ t) ibytes num_0 in
   let _ = Format.print_string
    ("random inst: decode "^string_of_num icode ^ "\n") in
+  let _ = print_elapsed_time' "1. random inst" in
+  let _ = push_timer'() in
 
   let ibyteterm =
     mk_flist(map (curry mk_comb `word:num->byte` o mk_small_numeral) ibytes) in
 
   let input_state = random_regstate() in
+  let _ = print_elapsed_time' "2. random input state" in
+  let _ = push_timer'() in
 
   let outfile = Filename.temp_file "x86simulator" ".out" in
 
@@ -1303,11 +1335,13 @@ let run_random_simulation () =
     " >" ^ outfile in
 
   let _ = Sys.command command in
+  let _ = print_elapsed_time' "3. command" in
 
   (*** This branch determines whether the actual simulation worked ***)
   (*** In each branch we try to confirm that we likewise do or don't ***)
 
   if strings_of_file outfile <> [] then
+    let _ = push_timer'() in
     let resultstring = string_of_file outfile in
 
     let output_state_raw =
@@ -1316,24 +1350,38 @@ let run_random_simulation () =
 
     (* Synthesize q registers from two 64 ints *)
     let output_state = output_state_raw in
+    let _ = print_elapsed_time' "4. get output state from machine" in
+    let _ = push_timer'() in
 
     let goal = subst
       [ibyteterm,`ibytes:byte list`;
        mk_flist(map mk_numeral input_state),`input_state:num list`;
        mk_flist(map mk_numeral output_state),`output_state:num list`]
       template in
+    let _ = print_elapsed_time' "5. make goal" in
+    let _ = push_timer'() in
 
     let execth = X86_MK_EXEC_RULE(REFL ibyteterm) in
 
     let decoded =
       rand(rand(snd(strip_forall(rand(concl execth))))) in
+    let _ = print_elapsed_time' "6. decode" in
+    let _ = push_timer'() in
 
     let result =
       match
-       (REWRITE_TAC[regfile; CONS_11; FLAGENCODING_11; VAL_WORD_GALOIS] THEN
+       (PUSH_TIMER_TAC' THEN
+        REWRITE_TAC[regfile; CONS_11; FLAGENCODING_11; VAL_WORD_GALOIS] THEN
+        PRINT_ELAPSED_TIME_TAC' "  REWRITE_TAC 1" THEN
+        PUSH_TIMER_TAC' THEN
         REWRITE_TAC[DIMINDEX_64; DIMINDEX_128] THEN
+        PRINT_ELAPSED_TIME_TAC' "  REWRITE_TAC 2" THEN
+        PUSH_TIMER_TAC' THEN
         CONV_TAC (ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
+        PRINT_ELAPSED_TIME_TAC' "  NUM_REDUCE_CONV" THEN
+        PUSH_TIMER_TAC' THEN
         REWRITE_TAC[SOME_FLAGS] THEN
+        PRINT_ELAPSED_TIME_TAC' "  SOME_FLAGS" THEN
         X86_SIM_TAC execth [1] THEN
         (* Deal with the BSWAP instruction *)
         TRY (REWRITE_TAC[WORD_EQ_BITS_ALT] THEN
@@ -1353,6 +1401,8 @@ let run_random_simulation () =
               REWRITE_TAC[SOME_FLAGS]) ([], goal) in
              (print_qterm gsd; Format.print_newline(); false))
      | _,[],_ -> true in
+    let _ = print_elapsed_time' "7. run prove" in
+    count := (!count) + 1;
     (decoded,result)
   else
     let decoded = mk_numeral icode in

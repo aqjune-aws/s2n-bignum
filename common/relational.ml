@@ -662,17 +662,13 @@ let ASSIGNS_SWAP_TAC =
         toptac THEN maintac])) g in
   toptac THEN maintac;;
 
-let my_accml_time = ref 0.0;;
 let ASSIGNS_SWAP_CONV tm =
   match tm with
     Comb(Comb((Const(",,",_) as stm),
               (Comb(Const("ASSIGNS",_),_) as ctm)),
          (Comb(Const("ASSIGNS",_),_) as dtm)) ->
       if ctm = dtm then REFL tm else
-      let t0 = Sys.time() in
       let res = prove(mk_eq(tm,mk_comb(mk_comb(stm,dtm),ctm)),ASSIGNS_SWAP_TAC) in
-      let t1 = Sys.time() in
-      my_accml_time := !my_accml_time +. (t1 -. t0);
       res
   | _ -> failwith "ASSIGNS_SWAP_CONV";;
 
@@ -791,22 +787,43 @@ ASSIGNS_MOVE_BACK_CONV ASSIGNS_IDEMPOT_CONV
 (* are identical. Returns equality with just the a's list.                   *)
 (* ------------------------------------------------------------------------- *)
 
+let timestack = ref [];;
+let stats: ((string * float) list) ref = ref [];;
+let push_timer () =
+  let t = Sys.time() in
+  timestack := t::(!timestack);;
+
+let print_elapsed_time (msg:string) =
+  match !timestack with
+  | t0::ttail ->
+    let t1 = Sys.time() in
+    let d = t1 -. t0 in
+    let _ = printf "%s: %f\n" msg d in
+    let rec update tail =
+      match tail with
+      | [] -> [(msg, d)]
+      | (k,v)::tail -> if k = msg then (k, v +. d)::tail else (k,v)::(update tail) in
+    stats := update !stats;
+    timestack := ttail
+  | [] -> printf "%s: no previous timer available!\n" msg;;
+
+let PUSH_TIMER_TAC =
+  fun (asl,gl) -> push_timer(); ALL_TAC (asl,gl);;
+
+let PRINT_ELAPSED_TIME_TAC msg =
+  fun (asl,gl) -> print_elapsed_time msg; ALL_TAC (asl,gl);;
+
+
 let rec ASSIGNS_SEQ_ABSORB_CONV tm =
-  print_elapsed_time "MAYCHANGE_IDEMPOT_TAC-ASSIGNS_SEQ_ABSORB_CONV-start";
   match tm with
     Comb(Comb(Const(",,",_),_),Comb(Comb(Const(",,",_),_),_)) ->
       let th0 = GEN_REWRITE_CONV I [SEQ_ASSOC] tm in
       let lop,rtm = dest_comb(rand(concl th0)) in
       let op,ltm = dest_comb lop in
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC-ASSIGNS_SEQ_ABSORB_CONV-1";
-      my_accml_time := 0.0;
       let n,th1 = ASSIGNS_MOVE_BACK_CONV ASSIGNS_IDEMPOT_CONV ltm in
-      printf "ASSIGNS_SWAP_CONV time: %f\n" (!my_accml_time);
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC-ASSIGNS_SEQ_ABSORB_CONV-2";
       if n <> 1 then failwith "ASSIGNS_SEQ_ABSORB_CONV" else
       let th2 = TRANS th0 (AP_THM (AP_TERM op th1) rtm) in
       let res = TRANS th2 (ASSIGNS_SEQ_ABSORB_CONV (rand(concl th2))) in
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC-ASSIGNS_SEQ_ABSORB_CONV-end";
       res
   | _ ->
       let n,th = ASSIGNS_MOVE_BACK_CONV ASSIGNS_IDEMPOT_CONV tm in
@@ -823,24 +840,20 @@ let ASSIGNS_SEQ_IDEMPOT_CONV tm =
 (* of ASSIGNS and CHANGES statements.                                        *)
 (* ------------------------------------------------------------------------- *)
 
-let PRINT_ELAPSED_TIME_TAC msg =
-  fun (asl,gl) -> print_elapsed_time msg; ALL_TAC (asl,gl);;
-
 let MAYCHANGE_IDEMPOT_TAC (asl,w as gl) =
-  print_elapsed_time "MAYCHANGE_IDEMPOT_TAC start";
   match w with
     Comb(Comb(Const("=",_) as etm,Comb(Comb(Const(",,",_) as ctm,ltm),rtm)),stm)
         when ltm = stm && rtm = stm ->
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC 1";
+      push_timer();
       let th1 = MAYCHANGE_CANON_CONV stm in
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC 2";
+      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC MAYCHANGE_CANON_CONV";
+      push_timer();
       let th2 = MK_BINOP ctm (th1,th1) in
       let th3 = MK_BINOP etm (th2,th1) in
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC 3";
       let th4 = if is_const(rand(concl th1))
                 then ISPEC (rand(concl th1)) (CONJUNCT1 SEQ_ID)
                 else ASSIGNS_SEQ_IDEMPOT_CONV(lhand(rand(concl th3))) in
-      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC 4";
+      print_elapsed_time "MAYCHANGE_IDEMPOT_TAC ASSIGNS_SEQ_IDEMPOT_CONV";
         ACCEPT_TAC (EQ_MP (SYM th3) th4) gl
   | _ -> failwith "MAYCHANGE_IDEMPOT_TAC";;
 
@@ -1817,23 +1830,22 @@ let SUBSUMED_MAYCHANGE_TAC =
     (MATCH_MP_TAC SUBSUMED_SEQ_RIGHT THEN CONJ_TAC THENL
       [SUBSUMED_ID_MAYCHANGE_TAC; tac]) ORELSE
     SUBSUMED_ASSIGNS_TAC) gl in
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-BEGIN" THEN
+  PUSH_TIMER_TAC THEN
   CONV_TAC(BINOP_CONV MAYCHANGE_CANON_CONV) THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-1" THEN
-  TRY(MATCH_MP_TAC lemma_start THEN
-      PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-1.1" THEN
-      CONJ_TAC THENL
-       [MAYCHANGE_IDEMPOT_TAC THEN NO_TAC;
-        PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-1.2" THEN
-        CONJ_TAC] THEN
-      REPEAT(
-        PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-1.3" THEN
-        MATCH_MP_TAC lemma_step THEN CONJ_TAC) THEN
-      PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-1.4" THEN
-      DISCH_THEN(K ALL_TAC)) THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-2" THEN
-  tac THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-3";;
+  PRINT_ELAPSED_TIME_TAC "  *_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-1" THEN
+  PUSH_TIMER_TAC THEN
+  (fun (asl,gl) ->
+    let res = (TRY(PUSH_TIMER_TAC THEN
+        MATCH_MP_TAC lemma_start THEN
+        CONJ_TAC THENL
+        [MAYCHANGE_IDEMPOT_TAC THEN NO_TAC;
+          CONJ_TAC] THEN
+        REPEAT(
+          MATCH_MP_TAC lemma_step THEN CONJ_TAC) THEN
+        DISCH_THEN(K ALL_TAC)) THEN
+      tac) (asl,gl) in
+    print_elapsed_time "  *_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-SUBSUMED_MAYCHANGE_TAC-2";
+    res);;
 
 (*** Example
 
@@ -1854,48 +1866,40 @@ let MONOTONE_MAYCHANGE_TAC =
   let pth = prove
    (`R s s' ==> R subsumed R' ==> R' s s'`,
     REWRITE_TAC[subsumed] THEN MESON_TAC[]) in
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-BEGIN" THEN
+  PUSH_TIMER_TAC THEN
   FIRST_ASSUM
    (MATCH_MP_TAC o MATCH_MP pth o check (maychange_term o concl)) THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-1" THEN
+  PRINT_ELAPSED_TIME_TAC "  *_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-1" THEN
   REWRITE_TAC[ETA_AX] THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-2" THEN
-  SUBSUMED_MAYCHANGE_TAC THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-MONOTONE_MAYCHANGE_TAC-END";;
+  SUBSUMED_MAYCHANGE_TAC;;
 
 (* ------------------------------------------------------------------------- *)
 (* Finalize the state, reshuffle and eliminate MAYCHANGE goals.              *)
 (* ------------------------------------------------------------------------- *)
 
 let ENSURES_FINAL_STATE_TAC =
+  PUSH_TIMER_TAC THEN
   GEN_REWRITE_TAC I [eventually_CASES] THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-1" THEN
   DISJ1_TAC THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-2" THEN
   GEN_REWRITE_TAC TRY_CONV [BETA_THM] THEN
-  PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-3" THEN
+  PRINT_ELAPSED_TIME_TAC "  *_SIM_TAC-ENSURES_FINAL_STATE_TAC-1" THEN
   W(fun (asl,w) ->
+        push_timer();
         let onlycjs,othercjs = partition maychange_term (conjuncts w) in
-        print_elapsed_time "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-partition";
+        print_elapsed_time "  *_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-partition";
         if othercjs = [] then
           TRY(REPEAT CONJ_TAC THEN MONOTONE_MAYCHANGE_TAC THEN NO_TAC)
         else if onlycjs = [] then
           let w' = list_mk_conj othercjs in
-          print_elapsed_time "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-list_mk_conj";
           GEN_REWRITE_TAC I [CONJ_ACI_RULE(mk_eq(w,w'))]
         else
           let w' = mk_conj(list_mk_conj othercjs,list_mk_conj onlycjs) in
-          print_elapsed_time "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-mk_conj";
           (GEN_REWRITE_TAC I [CONJ_ACI_RULE(mk_eq(w,w'))] THEN
-           PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-GEN_REWRITE_TAC" THEN
            TRY(CONJ_TAC THENL
                 [ALL_TAC;
                  REPEAT CONJ_TAC THEN
-                 PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-BEFORE_MONOTONE_MAYCHANGE_TAC" THEN
                  MONOTONE_MAYCHANGE_TAC THEN
-                 PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-AFTER_MONOTONE_MAYCHANGE_TAC" THEN
-                 NO_TAC]) THEN
-           PRINT_ELAPSED_TIME_TAC "  ARM_SIM_TAC-ENSURES_FINAL_STATE_TAC-W-END"));;
+                 NO_TAC])));;
 
 (* ------------------------------------------------------------------------- *)
 (* Introduce a new ghost variable for a state component in "ensures".        *)

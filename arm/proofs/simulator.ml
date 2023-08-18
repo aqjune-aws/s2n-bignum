@@ -295,25 +295,10 @@ let rec split_first_n (ls: 'a list) (n: int) =
     | h::t -> let l1, l2 = split_first_n t (n-1) in (h::l1, l2)
     | [] -> failwith "n cannot be smaller than the length of ls";;
 
-(*
-let t0 = ref 0.0;;
-let stats: ((string * float) list) ref = ref [];;
-let print_elapsed_time (msg:string) =
-  let t1 = Sys.time() in
-  let d = t1 -. !t0 in
-  let _ = printf "%s: %f\n" msg d in
-  let rec update tail =
-    match tail with
-    | [] -> [(msg, d)]
-    | (k,v)::tail -> if k = msg then (k, v +. d)::tail else (k,v)::(update tail) in
-  stats := update !stats;
-  t0 := t1;;
-*)
-
 let t0' = ref 0.0;;
 let stats': ((string * float) list) ref = ref [];;
 let count = ref 0;;
-let print_elapsed_time (msg:string) =
+let print_elapsed_time' (msg:string) =
   let t1 = Sys.time() in
   let d = t1 -. !t0' in
   let _ = printf "%s: %f\n" msg d in
@@ -324,11 +309,15 @@ let print_elapsed_time (msg:string) =
   stats' := update !stats';
   t0' := t1;;
 
+let PRINT_ELAPSED_TIME_TAC' msg =
+  fun (asl,gl) -> print_elapsed_time' msg; ALL_TAC (asl,gl);;
+
+
 let run_random_simulation () =
   let _ = t0' := Sys.time() in
   let icode:num = random_instruction iclasses in
   let _ = printf "random inst: decode %d\n" (Num.int_of_num icode) in
-  let _ = print_elapsed_time "random inst" in
+  let _ = print_elapsed_time' "random inst" in
 
   let ibytes =
     [mod_num icode (Int 256);
@@ -341,7 +330,7 @@ let run_random_simulation () =
 
 
   let input_state = random_regstate() in
-  let _ = print_elapsed_time "random input state" in
+  let _ = print_elapsed_time' "random input state" in
 
   let outfile = Filename.temp_file "armsimulator" ".out" in
 
@@ -355,7 +344,7 @@ let run_random_simulation () =
     "arm/proofs/armsimulate" ^ " >" ^ outfile in
 
   let _ = Sys.command command in
-  let _ = print_elapsed_time "command" in
+  let _ = print_elapsed_time' "command" in
 
   (*** This branch determines whether the actual simulation worked ***)
   (*** In each branch we try to confirm that we likewise do or don't ***)
@@ -375,17 +364,17 @@ let run_random_simulation () =
         match prev_num with
         | None -> (Some n, ls)
         | Some n' -> (None, ls @ [num_two_to_64 */ n +/ n'])) (None, []) qregs) in
-    let _ = print_elapsed_time "get output state from machine" in
+    let _ = print_elapsed_time' "get output state from machine" in
 
     let goal = subst
       [ibyteterm,`ibytes:byte list`;
        mk_flist(map mk_numeral input_state),`input_state:num list`;
        mk_flist(map mk_numeral output_state),`output_state:num list`]
       template in
-    let _ = print_elapsed_time "make goal" in
+    let _ = print_elapsed_time' "make goal" in
 
     let execth = ARM_MK_EXEC_RULE(REFL ibyteterm) in
-    let _ = print_elapsed_time "ARM_MK_EXEC_RULE" in
+    let _ = print_elapsed_time' "ARM_MK_EXEC_RULE" in
 
     let decoded =
       rand(rand(snd(strip_forall(rand(concl execth)))))
@@ -393,17 +382,17 @@ let run_random_simulation () =
     can prove
      (goal,
       REWRITE_TAC[regfile; CONS_11; FLAGENCODING_11; VAL_WORD_GALOIS] THEN
-      (fun (asl,gl) -> print_elapsed_time "  REWRITE_TAC 1"; ALL_TAC (asl,gl)) THEN
+      PRINT_ELAPSED_TIME_TAC' "  REWRITE_TAC 1" THEN
       REWRITE_TAC[DIMINDEX_64; DIMINDEX_128] THEN
-      (fun (asl,gl) -> print_elapsed_time "  REWRITE_TAC 2"; ALL_TAC (asl,gl)) THEN
+      PRINT_ELAPSED_TIME_TAC' "  REWRITE_TAC 2" THEN
       CONV_TAC NUM_REDUCE_CONV THEN
-      (fun (asl,gl) -> print_elapsed_time "  NUM_REDUCE_CONV"; ALL_TAC (asl,gl)) THEN
+      PRINT_ELAPSED_TIME_TAC' "  NUM_REDUCE_CONV" THEN
       REWRITE_TAC[SOME_FLAGS] THEN
-      (fun (asl,gl) -> print_elapsed_time "  SOME_FLAGS"; ALL_TAC (asl,gl)) THEN
+      PRINT_ELAPSED_TIME_TAC' "  SOME_FLAGS" THEN
       ARM_SIM_TAC execth [1] THEN
       PRINT_GOAL_TAC "result mismatch" THEN
       NO_TAC) in
-    let _ = print_elapsed_time "run prove" in
+    let _ = print_elapsed_time' "run prove" in
     count := (!count) + 1;
     (decoded,result)
   else
