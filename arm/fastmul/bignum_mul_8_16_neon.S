@@ -112,12 +112,13 @@ S2N_BN_SYMBOL(bignum_mul_8_16_neon):
 
         // Save registers
 
-        stp     x19, x20, [sp, #-16]!
-        stp     x21, x22, [sp, #-16]!
-        stp     x23, x24, [sp, #-16]!
-        stp     x25, x26, [sp, #-16]!
-        stp     x27, x28, [sp, #-16]!
-        stp     x29, x30, [sp, #-16]!
+        sub     sp, sp, #(6*16)
+        stp     x19, x20, [sp, #(5*16)]
+        stp     x21, x22, [sp, #(4*16)]
+        stp     x23, x24, [sp, #(3*16)]
+        stp     x25, x26, [sp, #(2*16)]
+        stp     x27, x28, [sp, #(1*16)]
+        stp     x29, x30, [sp]
         sub     sp, sp, #96
 
         // Multiply the low halves and then the high halves using ADK 4x4->8.
@@ -649,12 +650,13 @@ mov s0, v23.d[0] // out_lo.d[0]
 // Restore regs and return
 
         add     sp, sp, #96
-        ldp     x29, x30, [sp], #16
-        ldp     x27, x28, [sp], #16
-        ldp     x25, x26, [sp], #16
-        ldp     x23, x24, [sp], #16
-        ldp     x21, x22, [sp], #16
-        ldp     x19, x20, [sp], #16
+        ldp     x29, x30, [sp]
+        ldp     x27, x28, [sp, #(1*16)]
+        ldp     x25, x26, [sp, #(2*16)]
+        ldp     x23, x24, [sp, #(3*16)]
+        ldp     x21, x22, [sp, #(4*16)]
+        ldp     x19, x20, [sp, #(5*16)]
+        add sp, sp, #(6*16)
 
         ret
 
