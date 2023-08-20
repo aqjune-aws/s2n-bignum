@@ -668,6 +668,7 @@ void bignum_modoptneg_mod_2_to_513_plus1(uint64_t *z, uint64_t cond, uint64_t *x
 void bignum_ge_optsub_2_to_513_minus1(uint64_t *z);
 void bignum_sub_optadd_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
 void bignum_sub_optadd_2_to_513_plus1(uint64_t *z, uint64_t *x, uint64_t *y);
+void bignum_add_hi_lo_mod_2_to_513_minus1(uint64_t *z);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
@@ -681,24 +682,10 @@ static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp) {
 
 // Given t: 17 words, calculate t mod 2^513-1 and store at t.
 // temp must be 18 words.
-static void mod_2_to_513_minus1(uint64_t *t, uint64_t *temp) {
-  uint64_t *t_hi = temp;
-  uint64_t *t_lo = temp + 9;
-  uint64_t cmp;
-  copy_hilo_513bits(t_hi, t_lo, t);
-
-  bignum_add_mod_2_to_513_minus1(t, t_lo, t_hi);
+static void mod_2_to_513_minus1(uint64_t *t) {
+  bignum_add_hi_lo_mod_2_to_513_minus1(t);
   bignum_ge_optsub_2_to_513_minus1(t);
-  //cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
-  //bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
 }
-
-// Given t: k+1 words and t < 2*2^{64k+1}, calculate t mod 2^{64k+1}-1 and store at t.
-// If t = t_h * 2^{64k+1} + t_l,
-//    t mod (2^{64k+1}-1) = (t_h + t_l) mod (2^{64k+1}-1)
-
-// add_mod_2_to_513_minus1_short(x,y)
-// 
 
 static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
   bignum_mul_8_16_neon(z, x, y);
