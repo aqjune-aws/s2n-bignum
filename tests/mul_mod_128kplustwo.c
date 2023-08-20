@@ -670,6 +670,9 @@ void bignum_sub_optadd_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
 void bignum_sub_optadd_2_to_513_plus1(uint64_t *z, uint64_t *x, uint64_t *y);
 void bignum_add_hi_lo_mod_2_to_513_minus1(uint64_t *z);
 
+// Given t: 17 words, calculate t mod 2^513-1 and store at t.
+void mod_2_to_513_minus1(uint64_t *t);
+
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
 static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp) {
@@ -680,12 +683,6 @@ static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp) {
   bignum_sub_optadd_2_to_513_plus1(t, t_lo, t_hi);
 }
 
-// Given t: 17 words, calculate t mod 2^513-1 and store at t.
-// temp must be 18 words.
-static void mod_2_to_513_minus1(uint64_t *t) {
-  bignum_add_hi_lo_mod_2_to_513_minus1(t);
-  bignum_ge_optsub_2_to_513_minus1(t);
-}
 
 static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
   bignum_mul_8_16_neon(z, x, y);
@@ -744,7 +741,7 @@ void bignum_mul_mod_2_to_1026_minus1(
   mul_513(s, xhpl, yhpl);
 
   //    Finally, do .. mod (2^(64k+1)-1)
-  mod_2_to_513_minus1(s, temp + 8 * (k+1));
+  mod_2_to_513_minus1(s);
 
   // Now, from s and t, reconstruct the answer.
   // t + (2^{64k+1}+1) * (2^{64k} * (s-t) mod (2^{64k+1}-1))
