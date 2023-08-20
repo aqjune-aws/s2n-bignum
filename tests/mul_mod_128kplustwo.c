@@ -674,7 +674,8 @@ void bignum_add_hi_lo_mod_2_to_513_minus1(uint64_t *z);
 void mod_2_to_513_minus1(uint64_t *t);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
-// temp must be 18 words.
+void mod_2_to_513_plus1(uint64_t *t);
+/*
 static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp) {
   uint64_t *t_hi = temp;
   uint64_t *t_lo = temp + 9;
@@ -682,6 +683,7 @@ static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp) {
 
   bignum_sub_optadd_2_to_513_plus1(t, t_lo, t_hi);
 }
+*/
 
 
 static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
@@ -721,7 +723,7 @@ void bignum_mul_mod_2_to_1026_minus1(
   mul_513(t, xhml, yhml);
 
   //    Second, do .. mod (2^(64k+1)+1).
-  mod_2_to_513_plus1(t, temp + 8 * (k+1));
+  mod_2_to_513_plus1(t);
   bignum_modoptneg_mod_2_to_513_plus1(t, yhml_sgn^xhml_sgn, t);
 
   // 2. (xh+xl)(yh+yl) mod (2^(64k+1)-1)

@@ -40,6 +40,8 @@
 
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(mod_2_to_513_minus1)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(mod_2_to_513_minus1)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(mod_2_to_513_plus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(mod_2_to_513_plus1)
 
         .text
         .balign 4
@@ -852,3 +854,77 @@ S2N_BN_SYMBOL(mod_2_to_513_minus1):
         ret
 
 
+S2N_BN_SYMBOL(mod_2_to_513_plus1):
+        ldp x3, x4, [x0]
+        ldp x12, x13, [x0, #64]
+        // lo: x0[0], hi: x0[8] >> 1 | x0[9] << 63
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        subs x3, x3, x12
+        ldp x14, x15, [x0, #80]
+        // lo: x0[1], hi: x0[9] >> 1 | x0[10] << 63
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        sbcs x4, x4, x13
+
+        ldp x5, x6, [x0, #16]
+        lsr x14, x14, #1
+        lsl x13, x15, #63
+        orr x14, x14, x13
+        sbcs x5, x5, x14
+        ldp x12, x13, [x0, #96]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        sbcs x6, x6, x15
+
+        ldp x7, x8, [x0, #32]
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        sbcs x7, x7, x12
+        ldp x14, x15, [x0, #112]
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        sbcs x8, x8, x13
+
+        ldp x9, x10, [x0, #48]
+        lsr x14, x14, #1
+        lsl x12, x15, #63
+        orr x14, x14, x12
+        sbcs x9, x9, x14
+        ldr x12, [x0, #128]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        sbcs x10, x10, x15
+
+        ldr x11, [x0, #64]
+        and x11, x11, 1
+        lsr x12, x12, #1
+        sbcs x11, x11, x12
+
+        // If the result is negative, add 2^513+1.
+        cset x12, cc
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        lsl x12, x12, 1
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
