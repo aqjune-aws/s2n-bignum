@@ -26,6 +26,15 @@
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_modoptneg_mod_2_to_513_plus1)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_modoptneg_mod_2_to_513_plus1)
 
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_ge_optsub_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_ge_optsub_2_to_513_minus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_optadd_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_optadd_2_to_513_minus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_optadd_2_to_513_plus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_optadd_2_to_513_plus1)
+
         .text
         .balign 4
 
@@ -512,21 +521,142 @@ S2N_BN_SYMBOL(bignum_modoptneg_mod_2_to_513_plus1):
         ret
 
 
-/*
-S2N_BN_SYMBOL(bignum_ge_optsub_mod_2_to_513_minus1):
-        // If x0 is all 111..11 or MSB is one, subtract 2^513-1.
-        mov x12, xzr
+
+S2N_BN_SYMBOL(bignum_ge_optsub_2_to_513_minus1):
+        // If x >= 2^513-1, subtract 2^513-1.
         ldp x3, x4, [x0]
         ldp x5, x6, [x0, #16]
         ldp x7, x8, [x0, #32]
         ldp x9, x10, [x0, #48]
         ldr x11, [x0, #64]
-        or x12, x3, x4
-        or x12, x12, x5
-        or x12, x12, x6
-        or x12, x12, x7
-        or x12, x12, x8
-        or x12, x12, x9
-        or x12, x12, x10
-        cmp 
-*/
+        // case 1. x == 2^513-1
+        and x12, x3, x4
+        and x13, x5, x6
+        and x14, x7, x8
+        and x15, x9, x10
+        and x12, x12, x13
+        and x14, x14, x15
+        and x12, x12, x14
+        cmp x12, -1
+        csetm x12, eq
+        cmp x11, 1
+        csetm x13, eq
+        and x12, x12, x13
+        // case 2. x >= 2^513
+        cmp x11, 2
+        csetm x13, cs
+        orr x12, x12, x13
+
+        subs x3, x3, x12
+        sbcs x4, x4, x12
+        sbcs x5, x5, x12
+        sbcs x6, x6, x12
+        sbcs x7, x7, x12
+        sbcs x8, x8, x12
+        sbcs x9, x9, x12
+        sbcs x10, x10, x12
+        lsr x12, x12, 63
+        sbc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+
+S2N_BN_SYMBOL(bignum_sub_optadd_2_to_513_minus1):
+        // Do x - y, and if the result is negative, add 2^513-1.
+        ldp x3, x4, [x1]
+        ldp x12, x13, [x2]
+        subs x3, x3, x12
+        sbcs x4, x4, x13
+
+        ldp x5, x6, [x1, #16]
+        ldp x12, x13, [x2, #16]
+        sbcs x5, x5, x12
+        sbcs x6, x6, x13
+
+        ldp x7, x8, [x1, #32]
+        ldp x12, x13, [x2, #32]
+        sbcs x7, x7, x12
+        sbcs x8, x8, x13
+
+        ldp x9, x10, [x1, #48]
+        ldp x12, x13, [x2, #48]
+        sbcs x9, x9, x12
+        sbcs x10, x10, x13
+
+        ldr x11, [x1, #64]
+        ldr x12, [x2, #64]
+        sbcs x11, x11, x12
+
+        csetm x12, cc
+
+        adds x3, x3, x12
+        adcs x4, x4, x12
+        adcs x5, x5, x12
+        adcs x6, x6, x12
+        adcs x7, x7, x12
+        adcs x8, x8, x12
+        adcs x9, x9, x12
+        adcs x10, x10, x12
+        lsr x12, x12, 63
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+S2N_BN_SYMBOL(bignum_sub_optadd_2_to_513_plus1):
+        // Do x - y, and if the result is negative, add 2^513+1.
+        ldp x3, x4, [x1]
+        ldp x12, x13, [x2]
+        subs x3, x3, x12
+        sbcs x4, x4, x13
+
+        ldp x5, x6, [x1, #16]
+        ldp x12, x13, [x2, #16]
+        sbcs x5, x5, x12
+        sbcs x6, x6, x13
+
+        ldp x7, x8, [x1, #32]
+        ldp x12, x13, [x2, #32]
+        sbcs x7, x7, x12
+        sbcs x8, x8, x13
+
+        ldp x9, x10, [x1, #48]
+        ldp x12, x13, [x2, #48]
+        sbcs x9, x9, x12
+        sbcs x10, x10, x13
+
+        ldr x11, [x1, #64]
+        ldr x12, [x2, #64]
+        sbcs x11, x11, x12
+
+        cset x12, cc
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        lsl x12, x12, 1
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret

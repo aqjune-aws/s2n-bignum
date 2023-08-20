@@ -665,30 +665,32 @@ void bignum_optneg_9words(uint64_t *z, uint64_t cond, uint64_t *x);
 void bignum_add_mod_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
 uint64_t bignum_absdiff_9words(uint64_t *z, uint64_t *x, uint64_t *y);
 void bignum_modoptneg_mod_2_to_513_plus1(uint64_t *z, uint64_t cond, uint64_t *x);
+void bignum_ge_optsub_2_to_513_minus1(uint64_t *z);
+void bignum_sub_optadd_2_to_513_minus1(uint64_t *z, uint64_t *x, uint64_t *y);
+void bignum_sub_optadd_2_to_513_plus1(uint64_t *z, uint64_t *x, uint64_t *y);
 
 // Given t: 17 words, calculate t mod 2^513+1 and store at t.
 // temp must be 18 words.
-static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_plus1) {
+static void mod_2_to_513_plus1(uint64_t *t, uint64_t *temp) {
   uint64_t *t_hi = temp;
   uint64_t *t_lo = temp + 9;
   copy_hilo_513bits(t_hi, t_lo, t);
 
-  uint64_t overflow = bignum_sub_9words(t, t_lo, t_hi);
-  bignum_optadd_9words(t, t, overflow, two_to_64kplus1_plus1);
+  bignum_sub_optadd_2_to_513_plus1(t, t_lo, t_hi);
 }
 
 // Given t: 17 words, calculate t mod 2^513-1 and store at t.
 // temp must be 18 words.
-static void mod_2_to_513_minus1(
-    uint64_t *t, uint64_t *temp, uint64_t *two_to_64kplus1_minus1) {
+static void mod_2_to_513_minus1(uint64_t *t, uint64_t *temp) {
   uint64_t *t_hi = temp;
   uint64_t *t_lo = temp + 9;
   uint64_t cmp;
   copy_hilo_513bits(t_hi, t_lo, t);
 
   bignum_add_mod_2_to_513_minus1(t, t_lo, t_hi);
-  cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
-  bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
+  bignum_ge_optsub_2_to_513_minus1(t);
+  //cmp = bignum_ge_9words(t, two_to_64kplus1_minus1);
+  //bignum_optsub_9words(t, t, cmp, two_to_64kplus1_minus1);
 }
 
 // Given t: k+1 words and t < 2*2^{64k+1}, calculate t mod 2^{64k+1}-1 and store at t.
@@ -712,26 +714,6 @@ static inline void mul_513(uint64_t *z, uint64_t *x, uint64_t *y) {
 
 void bignum_mul_mod_2_to_1026_minus1(
     uint64_t *z, uint64_t *x, uint64_t *y, uint64_t *temp) {
-  // 2^1026-1
-  uint64_t two_to_1026_minus1[17];
-  for (int i = 0; i < 16; ++i)
-    two_to_1026_minus1[i] = -1ull;
-  two_to_1026_minus1[16] = 3;
-
-  // 2^513+1
-  uint64_t two_to_513_plus1[9];
-  for (int i = 0; i <= 8; ++i)
-    two_to_513_plus1[i] = 0;
-  two_to_513_plus1[0] = 1;
-  two_to_513_plus1[8] = 2;
-
-  // 2^513-1
-  uint64_t two_to_513_minus1[9];
-  for (int i = 0; i < 8; ++i)
-    two_to_513_minus1[i] = -1ull;
-  two_to_513_minus1[8] = 1;
-
-
   int k = 8;
   // x = 2^(64k+1) xh + xl
   // y = 2^(64k+1) yh + yl
@@ -755,7 +737,7 @@ void bignum_mul_mod_2_to_1026_minus1(
   mul_513(t, xhml, yhml);
 
   //    Second, do .. mod (2^(64k+1)+1).
-  mod_2_to_513_plus1(t, temp + 8 * (k+1), two_to_513_plus1);
+  mod_2_to_513_plus1(t, temp + 8 * (k+1));
   bignum_modoptneg_mod_2_to_513_plus1(t, yhml_sgn^xhml_sgn, t);
 
   // 2. (xh+xl)(yh+yl) mod (2^(64k+1)-1)
@@ -775,14 +757,14 @@ void bignum_mul_mod_2_to_1026_minus1(
   mul_513(s, xhpl, yhpl);
 
   //    Finally, do .. mod (2^(64k+1)-1)
-  mod_2_to_513_minus1(s, temp + 8 * (k+1), two_to_513_minus1);
+  mod_2_to_513_minus1(s, temp + 8 * (k+1));
 
   // Now, from s and t, reconstruct the answer.
   // t + (2^{64k+1}+1) * (2^{64k} * (s-t) mod (2^{64k+1}-1))
   // (s-t) mod (2^{64k+1}-1)
   uint64_t *smt = temp + 9 * (k+1);
-  uint64_t carry = bignum_sub_9words(smt, s, t);
-  bignum_optadd_9words(smt, smt, carry, two_to_513_minus1);
+  // let z = s - t in z >= 0 ? z : (z + 2^513-1)
+  bignum_sub_optadd_2_to_513_minus1(smt, s, t);
 
   // (2^{64k} * (s-t) mod (2^{64k+1}-1))
   uint64_t smt_lsb = smt[0] & 1;
