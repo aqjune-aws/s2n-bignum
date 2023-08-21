@@ -34,8 +34,9 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64_neon):
 
 // Save extra registers and return address, store parameters safely
 
-        stp     x19, x20, [sp, #-16]!
-        stp     x21, x30, [sp, #-16]!
+        sub sp, sp, #32
+        stp     x19, x20, [sp, #16]
+        stp     x21, x30, [sp]
 
         mov     z, x0
         mov     x, x1
@@ -493,8 +494,9 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64_neon):
 
 // Restore
 
-        ldp     x21, x30, [sp], #16
-        ldp     x19, x20, [sp], #16
+        ldp     x21, x30, [sp]
+        ldp     x19, x20, [sp, #16]
+        add sp, sp, #32
 
         ret
 
@@ -502,10 +504,11 @@ S2N_BN_SYMBOL(bignum_ksqr_32_64_neon):
 // This includes in turn a copy of bignum_sqr_8_16.
 
 bignum_ksqr_32_64_neon_local_ksqr_16_32:
-        stp     x19, x20, [sp, #-16]!
-        stp     x21, x22, [sp, #-16]!
-        stp     x23, x24, [sp, #-16]!
-        stp     x25, x30, [sp, #-16]!
+        sub sp, sp, #64
+        stp     x19, x20, [sp, #48]
+        stp     x21, x22, [sp, #32]
+        stp     x23, x24, [sp, #16]
+        stp     x25, x30, [sp]
         mov     x23, x0
         mov     x24, x1
         mov     x25, x2
@@ -673,10 +676,11 @@ bignum_ksqr_32_64_neon_local_ksqr_16_32:
         adcs    x10, x10, x25
         adcs    x11, x11, x25
         stp     x10, x11, [x23, #240]
-        ldp     x25, x30, [sp], #16
-        ldp     x23, x24, [sp], #16
-        ldp     x21, x22, [sp], #16
-        ldp     x19, x20, [sp], #16
+        ldp     x25, x30, [sp]
+        ldp     x23, x24, [sp, #16]
+        ldp     x21, x22, [sp, #32]
+        ldp     x19, x20, [sp, #48]
+        add sp, sp, #64
         ret
 
 bignum_ksqr_32_64_neon_local_sqr_8_16:

@@ -35,12 +35,13 @@ S2N_BN_SYMBOL(bignum_kmul_32_64_neon):
 
 // Save extra registers and return address, store parameters safely
 
-        stp     x19, x20, [sp, -16]!
-        stp     x21, x22, [sp, -16]!
-        stp     x23, x24, [sp, -16]!
-        stp     x25, x26, [sp, -16]!
-        stp     x27, x28, [sp, -16]!
-        stp     x29, x30, [sp, -16]!
+        sub sp, sp, #96
+        stp     x19, x20, [sp, #80]
+        stp     x21, x22, [sp, #64]
+        stp     x23, x24, [sp, #48]
+        stp     x25, x26, [sp, #32]
+        stp     x27, x28, [sp, #16]
+        stp     x29, x30, [sp]
 
         mov     z, x0
         mov     x, x1
@@ -636,12 +637,13 @@ S2N_BN_SYMBOL(bignum_kmul_32_64_neon):
 
 // Restore and return
 
-        ldp     x29, x30, [sp], #16
-        ldp     x27, x28, [sp], #16
-        ldp     x25, x26, [sp], #16
-        ldp     x23, x24, [sp], #16
-        ldp     x21, x22, [sp], #16
-        ldp     x19, x20, [sp], #16
+        ldp     x29, x30, [sp]
+        ldp     x27, x28, [sp, #16]
+        ldp     x25, x26, [sp, #32]
+        ldp     x23, x24, [sp, #48]
+        ldp     x21, x22, [sp, #64]
+        ldp     x19, x20, [sp, #80]
+        add sp, sp, #96
         ret
 
 // Local copy of bignum_kmul_16_32_neon, identical to main one except that it
@@ -649,9 +651,10 @@ S2N_BN_SYMBOL(bignum_kmul_32_64_neon):
 // This includes in turn a copy of bignum_mul_8_16_neon.
 
 bignum_kmul_32_64_neon_local_kmul_16_32:
-        stp     x19, x20, [sp, -16]!
-        stp     x21, x22, [sp, -16]!
-        stp     x23, x30, [sp, -16]!
+        sub sp, sp, #48
+        stp     x19, x20, [sp, #32]
+        stp     x21, x22, [sp, #16]
+        stp     x23, x30, [sp]
         mov     x25, x0
         mov     x26, x1
         mov     x27, x2
@@ -878,15 +881,17 @@ bignum_kmul_32_64_neon_local_kmul_16_32:
         adcs    x10, x10, x28
         adcs    x11, x11, x28
         stp     x10, x11, [x25, #240]
-        ldp     x23, x30, [sp], #16
-        ldp     x21, x22, [sp], #16
-        ldp     x19, x20, [sp], #16
+        ldp     x23, x30, [sp]
+        ldp     x21, x22, [sp, #16]
+        ldp     x19, x20, [sp, #32]
+        add sp, sp, #48
         ret
 
 bignum_kmul_32_64_neon_local_mul_8_16:
-        stp	x25, x26, [sp, #-16]!
-        stp	x27, x28, [sp, #-16]!
-        stp	x29, x30, [sp, #-16]!
+        sub sp, sp, #48
+        stp	x25, x26, [sp, #32]
+        stp	x27, x28, [sp, #16]
+        stp	x29, x30, [sp]
         sub	sp, sp, #0x60
         ldr	q21, [x1, #16]
         ldr	q22, [x2, #16]
@@ -1444,9 +1449,10 @@ bignum_kmul_32_64_neon_local_mul_8_16:
         stp	x20, x21, [x0, #96]
         stp	x22, x23, [x0, #112]
         add	sp, sp, #0x60
-        ldp	x29, x30, [sp], #16
-        ldp	x27, x28, [sp], #16
-        ldp	x25, x26, [sp], #16
+        ldp	x29, x30, [sp]
+        ldp	x27, x28, [sp, #16]
+        ldp	x25, x26, [sp, #32]
+        add sp, sp, #48
         ret
 
 
