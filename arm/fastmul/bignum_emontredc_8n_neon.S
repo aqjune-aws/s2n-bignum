@@ -22,11 +22,12 @@
 
 
 S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
-           stp x19, x20, [sp, #-16]!
-           stp x21, x22, [sp, #-16]!
-           stp x23, x24, [sp, #-16]!
-           stp x25, x26, [sp, #-16]!
-           stp x27, x28, [sp, #-16]!
+           sub sp, sp, #80
+           stp x19, x20, [sp, #64]
+           stp x21, x22, [sp, #48]
+           stp x23, x24, [sp, #32]
+           stp x25, x26, [sp, #16]
+           stp x27, x28, [sp]
            sub sp, sp, #32
            lsr x0, x0, #2
            mov x26, x0
@@ -51,18 +52,18 @@ bignum_emontredc_8n_neon_outerloop:
           mul x4, x17, x3
 // NEON: Calculate x4 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x4
-uzp2    v3.4s, v21.4s, v0.4s
+uzp2    v3.4s, v21.4s, v21.4s
 xtn     v4.2s, v0.2d
 xtn     v5.2s, v21.2d
           mul	x12, x4, x8
           adds x17, x17, x12
           umulh x12, x4, x8
           mul	x13, x4, x9
-rev64   v1.4s, v21.4s
+rev64   v28.4s, v21.4s
 umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, v0.4s, v0.4s
-mul     v0.4s, v1.4s, v0.4s
+mul     v0.4s, v28.4s, v0.4s
 movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   v1.2d, v16.2s, v3.2s
@@ -92,20 +93,17 @@ mov x15, v1.d[1]
 
 // NEON: Calculate x5 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x5
-uzp2    v3.4s, v21.4s, v0.4s
 xtn     v4.2s, v0.2d
-xtn     v5.2s, v21.2d
 
           mul	x12, x5, x8
           adds	x19, x19, x12
           umulh	x12, x5, x8
           mul	x13, x5, x9
 
-rev64   v1.4s, v21.4s
 umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, v0.4s, v0.4s
-mul     v0.4s, v1.4s, v0.4s
+mul     v0.4s, v28.4s, v0.4s
 movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   v1.2d, v16.2s, v3.2s
@@ -131,13 +129,12 @@ mov x15, v1.d[1]
 // NEON: For montgomery step 2,
 // calculate x6 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x6
-#define in1  v21
-#define in2  v0
+#define in1  v0
+#define in2  v21
 #define out_lo v0
 #define out_hi v1
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
-xtn     v5.2s, in2.2d
 
           adcs x21, x21, x13
           adcs x22, x22, x14
@@ -154,7 +151,6 @@ ldr q23, [x2, #48]
 
         // Montgomery step 2
 
-rev64   v1.4s, in2.4s
 umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, in1.4s, in1.4s
@@ -162,7 +158,7 @@ uzp2    v16.4s, in1.4s, in1.4s
         mul	x12, x6, x8
         adds	x20, x20, x12
 
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v28.4s, in1.4s
 movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
@@ -209,11 +205,11 @@ ldr q21, [x1, #16]
 
 // pre-calculate 2mul+2umulhs in maddloop_neon_firstitr
 // v25++v24 = hi and lo of (x4 * x8, x5 * x9)
-#define in1  v20
-#define in2  v22
+#define in1  v22
+#define in2  v20
 #define out_lo v24
 #define out_hi v25
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
 
           // Montgomery step 3
@@ -221,22 +217,22 @@ xtn     v4.2s, in1.2d
            mul	x12, x7, x8
            mul	x13, x7, x9
 
-xtn     v5.2s, in2.2d
-rev64   v1.4s, in2.4s
-umull   v6.2d, v4.2s, v5.2s
+xtn     v28.2s, in2.2d // Will be reused later
+rev64   v29.4s, in2.4s // Will be reused later
+umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
 
            mul	x14, x7, x10
            mul	x15, x7, x11
 
 uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v29.4s, in1.4s
 movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
 and     v2.16b, v7.16b, v2.16b
-umlal   v2.2d, v16.2s, v5.2s
+umlal   v2.2d, v16.2s, v28.2s
 
            adds	x21, x21, x12
            umulh	x12, x7, x8
@@ -245,7 +241,7 @@ umlal   v2.2d, v16.2s, v5.2s
 
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
-umlal   out_lo.2d, v4.2s, v5.2s
+umlal   out_lo.2d, v4.2s, v28.2s
 usra    out_hi.2d, v2.2d, #32
 #undef in1
 #undef in2
@@ -258,23 +254,23 @@ usra    out_hi.2d, v2.2d, #32
            umulh	x15, x7, x11
 
 // v27++v26 = hi and lo of (x6 * x10, x7 * x11)
-#define in1  v21
-#define in2  v23
+#define in1  v23
+#define in2  v21
 #define out_lo v26
 #define out_hi v27
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
-xtn     v5.2s, in2.2d
-rev64   v1.4s, in2.4s
+xtn     v30.2s, in2.2d
+rev64   v31.4s, in2.4s
 
 // hoisted from maddloop_neon_firstitr and maddloop_x0one
           ldp x8, x9, [x2, #32]
           ldp x10, x11, [x2, #48]
 
-umull   v6.2d, v4.2s, v5.2s
+umull   v6.2d, v4.2s, v30.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v31.4s, in1.4s
 
           adc	x25, xzr, xzr
           adds	x12, x22, x12
@@ -287,10 +283,10 @@ usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
 and     v2.16b, v7.16b, v2.16b
-umlal   v2.2d, v16.2s, v5.2s
+umlal   v2.2d, v16.2s, v30.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
-umlal   out_lo.2d, v4.2s, v5.2s
+umlal   out_lo.2d, v4.2s, v30.2s
 usra    out_hi.2d, v2.2d, #32
 #undef in1
 #undef in2
@@ -473,24 +469,22 @@ ldr q23, [x2, #80]
           add x2, x2, #32
           add x1, x1, #32
 
-#define in1  v20
-#define in2  v22
+#define in1  v22
+#define in2  v20
 #define out_lo v24
 #define out_hi v25
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
-xtn     v5.2s, in2.2d
-rev64   v1.4s, in2.4s
 
           ldp x20,x21,[x1]
           adds x12,x12,x20
           adcs x13,x13,x21
           ldp x20,x21,[x1,#16]
 
-umull   v6.2d, v4.2s, v5.2s
+umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v29.4s, in1.4s
 
           adcs x14,x14,x20
           adcs x15,x15,x21
@@ -508,7 +502,7 @@ uaddlp  v0.2d, v0.4s
           adc x25,xzr,x25
 
 and     v2.16b, v7.16b, v2.16b
-umlal   v2.2d, v16.2s, v5.2s
+umlal   v2.2d, v16.2s, v28.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
 
@@ -517,7 +511,7 @@ usra    out_hi.2d, v7.2d, #32
           adcs x22,x24,x22
           adcs x23,x25,x23
 
-umlal   out_lo.2d, v4.2s, v5.2s
+umlal   out_lo.2d, v4.2s, v28.2s
 usra    out_hi.2d, v2.2d, #32
 #undef in1
 #undef in2
@@ -529,24 +523,22 @@ usra    out_hi.2d, v2.2d, #32
           adds x17,x17,x12
           adcs x19,x19,x13
 
-#define in1  v21
-#define in2  v23
+#define in1  v23
+#define in2  v21
 #define out_lo v26
 #define out_hi v27
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
-xtn     v5.2s, in2.2d
-rev64   v1.4s, in2.4s
 
           adcs x20,x20,x14
           adcs x21,x21,x15
           adcs x22,x22,x16
           adcs x23,x23,xzr
 
-umull   v6.2d, v4.2s, v5.2s
+umull   v6.2d, v4.2s, v30.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v31.4s, in1.4s
 
           adcs x24,x24,xzr
           adc x25,x25,xzr
@@ -564,7 +556,7 @@ uaddlp  v0.2d, v0.4s
           mul x14,x15,x13
 
 and     v2.16b, v7.16b, v2.16b
-umlal   v2.2d, v16.2s, v5.2s
+umlal   v2.2d, v16.2s, v30.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
 
@@ -573,7 +565,7 @@ usra    out_hi.2d, v7.2d, #32
           adds xzr,x12,#1
           eor x14,x14,x12
 
-umlal   out_lo.2d, v4.2s, v5.2s
+umlal   out_lo.2d, v4.2s, v30.2s
 usra    out_hi.2d, v2.2d, #32
 #undef in1
 #undef in2
@@ -706,24 +698,22 @@ ldr q23, [x2, #80]
           adc x25,x17,xzr
 mov x17, v24.d[0] // lo bits of (x4 * x8)
 
-#define in1  v20
-#define in2  v22
+#define in1  v22
+#define in2  v20
 #define out_lo v24
 #define out_hi v25
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
-xtn     v5.2s, in2.2d
-rev64   v1.4s, in2.4s
 
           ldp x20,x21,[x1]
           adds x12,x12,x20
           adcs x13,x13,x21
           ldp x20,x21,[x1,#16]
 
-umull   v6.2d, v4.2s, v5.2s
+umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v29.4s, in1.4s
 
           adcs x14,x14,x20
           adcs x15,x15,x21
@@ -741,7 +731,7 @@ uaddlp  v0.2d, v0.4s
           adc x25,xzr,x25
 
 and     v2.16b, v7.16b, v2.16b
-umlal   v2.2d, v16.2s, v5.2s
+umlal   v2.2d, v16.2s, v28.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
 
@@ -750,7 +740,7 @@ usra    out_hi.2d, v7.2d, #32
           adcs x22,x24,x22
           adcs x23,x25,x23
 
-umlal   out_lo.2d, v4.2s, v5.2s
+umlal   out_lo.2d, v4.2s, v28.2s
 usra    out_hi.2d, v2.2d, #32
 #undef in1
 #undef in2
@@ -762,24 +752,22 @@ usra    out_hi.2d, v2.2d, #32
           adds x17,x17,x12
           adcs x19,x19,x13
 
-#define in1  v21
-#define in2  v23
+#define in1  v23
+#define in2  v21
 #define out_lo v26
 #define out_hi v27
-uzp2    v3.4s, in2.4s, in1.4s
+uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
-xtn     v5.2s, in2.2d
-rev64   v1.4s, in2.4s
 
           adcs x20,x20,x14
           adcs x21,x21,x15
           adcs x22,x22,x16
           adcs x23,x23,xzr
 
-umull   v6.2d, v4.2s, v5.2s
+umull   v6.2d, v4.2s, v30.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v1.4s, in1.4s
+mul     v0.4s, v31.4s, in1.4s
 
           adcs x24,x24,xzr
           adc x25,x25,xzr
@@ -797,7 +785,7 @@ uaddlp  v0.2d, v0.4s
           mul x14,x15,x13
 
 and     v2.16b, v7.16b, v2.16b
-umlal   v2.2d, v16.2s, v5.2s
+umlal   v2.2d, v16.2s, v30.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
 
@@ -806,7 +794,7 @@ usra    out_hi.2d, v7.2d, #32
           adds xzr,x12,#1
           eor x14,x14,x12
 
-umlal   out_lo.2d, v4.2s, v5.2s
+umlal   out_lo.2d, v4.2s, v30.2s
 usra    out_hi.2d, v2.2d, #32
 #undef in1
 #undef in2
@@ -1084,10 +1072,11 @@ bignum_emontredc_8n_neon_madddone:
 bignum_emontredc_8n_neon_end:
            add sp, sp, #32
 
-           ldp x27, x28, [sp], #16
-           ldp x25, x26, [sp], #16
-           ldp x23, x24, [sp], #16
-           ldp x21, x22, [sp], #16
-           ldp x19, x20, [sp], #16
+           ldp x27, x28, [sp]
+           ldp x25, x26, [sp, #16]
+           ldp x23, x24, [sp, #32]
+           ldp x21, x22, [sp, #48]
+           ldp x19, x20, [sp, #64]
+           add sp, sp, #80
            ret
 
