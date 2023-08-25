@@ -293,6 +293,18 @@ usra    out_hi.2d, v2.2d, #32
 #undef out_lo
 #undef out_hi
 
+mov x22, v24.d[1] //mul x22, x5, x9
+mov x16, v25.d[0] //umulh x16,x4,x8
+
+mov x23, v26.d[0] //mul x23, x6, x10
+mov x20, v25.d[1] //umulh x20,x5,x9
+
+mov x24, v26.d[1] //mul x24, x7, x11
+mov x21, v27.d[0] //umulh x21,x6,x10
+
+mov x17, v24.d[0] //mul x17, x4, x8
+mov x3, v27.d[1] //umulh x3,x7,x11
+
           cbz x0, bignum_emontredc_8n_neon_madddone
           mov x27, x0
           cmp x0, #32
@@ -301,18 +313,12 @@ usra    out_hi.2d, v2.2d, #32
 bignum_emontredc_8n_neon_maddloop_x0one:
          	add	x2, x2, #0x20
          	add	x1, x1, #0x20
-         	mul	x17, x4, x8
-         	mul	x22, x5, x9
-         	mul	x23, x6, x10
-         	mul	x24, x7, x11
-         	umulh	x16, x4, x8
+
          	adds	x22, x22, x16
-         	umulh	x16, x5, x9
-         	adcs	x23, x23, x16
-         	umulh	x16, x6, x10
-         	adcs	x24, x24, x16
-         	umulh	x16, x7, x11
-         	adc	x25, x16, xzr
+         	adcs	x23, x23, x20
+         	adcs	x24, x24, x21
+         	adc	x25, x3, xzr
+
          	ldp	x20, x21, [x1]
          	adds	x12, x12, x20
          	adcs	x13, x13, x21
@@ -444,18 +450,6 @@ bignum_emontredc_8n_neon_maddloop_x0one:
 
 bignum_emontredc_8n_neon_maddloop_neon_firstitr:
 
-mov x16, v25.d[0] //umulh x16,x4,x8
-mov x22, v24.d[1] //mul x22, x5, x9
-
-mov x20, v25.d[1] //umulh x20,x5,x9
-mov x23, v26.d[0] //mul x23, x6, x10
-
-mov x21, v27.d[0] //umulh x21,x6,x10
-mov x24, v26.d[1] //mul x24, x7, x11
-
-mov x3, v27.d[1] //umulh x3,x7,x11
-mov x17, v24.d[0] //mul x17, x4, x8
-
           adds x22,x22,x16
           adcs x23,x23,x20
           adcs x24,x24,x21
@@ -467,7 +461,8 @@ ldr q22, [x2, #64]
 ldr q23, [x2, #80]
 
           add x2, x2, #32
-          add x1, x1, #32
+
+          ldp x20,x21,[x1,#32]
 
 #define in1  v22
 #define in2  v20
@@ -476,10 +471,10 @@ ldr q23, [x2, #80]
 uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
 
-          ldp x20,x21,[x1]
           adds x12,x12,x20
           adcs x13,x13,x21
-          ldp x20,x21,[x1,#16]
+          ldp x20,x21,[x1,#48]
+          add x1, x1, #32
 
 umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
@@ -584,6 +579,9 @@ usra    out_hi.2d, v2.2d, #32
           mul x14,x15,x13
           umulh x13,x15,x13
           cinv x12,x12,cc
+
+mov x16, v25.d[0] // hi bits of (x4 * x8)
+
           adds xzr,x12,#1
           eor x14,x14,x12
           adcs x19,x19,x14
@@ -597,10 +595,7 @@ usra    out_hi.2d, v2.2d, #32
 
           stp x17,x19,[x1]
 
-mov x16, v25.d[0] // hi bits of (x4 * x8)
 mov x26, v27.d[0] // hi bits of (x6 * x10)
-mov x3, v25.d[1] // hi bits of (x5 * x9)
-mov x17, v27.d[1] // hi bits of (x6 * x10)
 
           subs x15,x5,x7
           cneg x15,x15,cc
@@ -610,6 +605,9 @@ mov x17, v27.d[1] // hi bits of (x6 * x10)
           mul x14,x15,x13
           umulh x13,x15,x13
           cinv x12,x12,cc
+
+mov x3, v25.d[1] // hi bits of (x5 * x9)
+
           adds xzr,x12,#1
           eor x14,x14,x12
           adcs x22,x22,x14
@@ -617,6 +615,9 @@ mov x17, v27.d[1] // hi bits of (x6 * x10)
           adcs x23,x23,x13
           adcs x24,x24,x12
           adc x25,x25,x12
+
+mov x17, v27.d[1] // hi bits of (x6 * x10)
+
           subs x15,x4,x6
           cneg x15,x15,cc
           csetm x12,cc
@@ -690,10 +691,10 @@ ldr q22, [x2, #64]
 ldr q23, [x2, #80]
 
           add x2, x2, #32
-          add x1, x1, #32
 
           adds x22,x20,x16
           adcs x23,x21,x3
+          ldp x20,x21,[x1, #32]
           adcs x24,x24,x26
           adc x25,x17,xzr
 mov x17, v24.d[0] // lo bits of (x4 * x8)
@@ -705,10 +706,11 @@ mov x17, v24.d[0] // lo bits of (x4 * x8)
 uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
 
-          ldp x20,x21,[x1]
           adds x12,x12,x20
           adcs x13,x13,x21
-          ldp x20,x21,[x1,#16]
+          ldp x20,x21,[x1,#48]
+
+          add x1, x1, #32
 
 umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
@@ -805,6 +807,10 @@ usra    out_hi.2d, v2.2d, #32
           eor x13,x13,x12
           adcs x24,x24,x13
           adc x25,x25,x12
+
+mov x16, v25.d[0] // hi bits of (x4 * x8)
+mov x26, v27.d[0] // hi bits of (x6 * x10)
+
           subs x15,x4,x5
           cneg x15,x15,cc
           csetm x12,cc
@@ -813,6 +819,9 @@ usra    out_hi.2d, v2.2d, #32
           mul x14,x15,x13
           umulh x13,x15,x13
           cinv x12,x12,cc
+
+mov x3, v25.d[1] // hi bits of (x5 * x9)
+
           adds xzr,x12,#1
           eor x14,x14,x12
           adcs x19,x19,x14
@@ -826,9 +835,6 @@ usra    out_hi.2d, v2.2d, #32
 
           stp x17,x19,[x1]
 
-mov x16, v25.d[0] // hi bits of (x4 * x8)
-mov x26, v27.d[0] // hi bits of (x6 * x10)
-mov x3, v25.d[1] // hi bits of (x5 * x9)
 mov x17, v27.d[1] // hi bits of (x6 * x10)
 
           subs x15,x5,x7
@@ -899,14 +905,15 @@ mov x21, v26.d[0] // lo bits of (x6 * x10)
           adcs x22,x22,x13
           adcs x13,x23,x12
           adcs x14,x24,x12
-          adc x15,x25,x12
-          mov x12,x22
 
 mov x24, v26.d[1] // lo bits of (x7 * x11)
 
-           sub x27, x27, #32
-           cmp x27, #32
-           bne bignum_emontredc_8n_neon_maddloop_neon
+          adc x15,x25,x12
+          mov x12,x22
+
+          sub x27, x27, #32
+          cmp x27, #32
+          bne bignum_emontredc_8n_neon_maddloop_neon
 
 
 bignum_emontredc_8n_neon_maddloop_neon_last:
@@ -914,21 +921,24 @@ bignum_emontredc_8n_neon_maddloop_neon_last:
           ldp x10, x11, [x2, #48]
 
           add x2, x2, #32
-          add x1, x1, #32
 
           adds x22,x20,x16
           adcs x23,x21,x3
+
+          ldp x20,x21,[x1,#32]
           adcs x24,x24,x26
           adc x25,x17,xzr
 mov x17, v24.d[0] // lo bits of (x4 * x8)
 
-          ldp x20,x21,[x1]
           adds x12,x12,x20
           adcs x13,x13,x21
-          ldp x20,x21,[x1,#16]
+          ldp x20,x21,[x1,#48]
           adcs x14,x14,x20
           adcs x15,x15,x21
           adc x16,xzr,xzr
+
+          add x1, x1, #32
+
           adds x19,x22,x17
           adcs x22,x23,x22
           adcs x23,x24,x23
