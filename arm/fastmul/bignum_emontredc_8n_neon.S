@@ -542,6 +542,8 @@ ldr q23, [x2, #80] // q23 = (x10, x11) in the next iteration
 #define out_hi v25
 // Reuses v3, v28, v29
 xtn     v4.2s, in1.2d
+uzp2    v16.4s, in1.4s, in1.4s
+mul     v0.4s, v29.4s, in1.4s
 
           adds x12,x12,x20
           adcs x13,x13,x21
@@ -550,8 +552,6 @@ xtn     v4.2s, in1.2d
 
 umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
-uzp2    v16.4s, in1.4s, in1.4s
-mul     v0.4s, v29.4s, in1.4s
 
           adcs x14,x14,x20
           adcs x15,x15,x21
@@ -596,6 +596,8 @@ usra    out_hi.2d, v2.2d, #32
   #define out_hi v27
   // Reuses v5, v30, v31
   xtn     v4.2s, in1.2d
+  uzp2    v16.4s, in1.4s, in1.4s
+  mul     v0.4s, v31.4s, in1.4s
 
           adcs x20,x20,x14
           adcs x21,x21,x15
@@ -605,8 +607,6 @@ usra    out_hi.2d, v2.2d, #32
 
   umull   v6.2d, v4.2s, v30.2s
   umull   v7.2d, v4.2s, v5.2s
-  uzp2    v16.4s, in1.4s, in1.4s
-  mul     v0.4s, v31.4s, in1.4s
 
           adcs x24,x24,xzr
           adc x25,x25,xzr
@@ -771,8 +771,9 @@ uzp2    v16.4s, in1.4s, in1.4s
   #define in2_2  v21
   #define out_lo_2 v26
   #define out_hi_2 v27
-  // v5, v30, v31 are reused
+  // Reuses v5, v30, v31
   xtn     v18.2s, in1_2.2d
+  uzp2    v1.4s, in1_2.4s, in1_2.4s
 
 mul     v22.4s, v29.4s, in1.4s
 
@@ -832,19 +833,18 @@ usra    out_hi.2d, v2.2d, #32
           adcs x22,x22,x16
           adcs x23,x23,xzr
 
-  uzp2    v16.4s, in1_2.4s, in1_2.4s
   mul     v22.4s, v31.4s, in1_2.4s
 
           adcs x24,x24,xzr
           adc x25,x25,xzr
 
-  umull   out_hi_2.2d, v16.2s, v5.2s
+  umull   out_hi_2.2d, v1.2s, v5.2s
   uaddlp  v22.2d, v22.4s
 
           mul x14,x15,x13
 
   and     v2.16b, v0.16b, low_4bytes_mask.16b
-  umlal   v2.2d, v16.2s, v30.2s
+  umlal   v2.2d, v1.2s, v30.2s
   shl     out_lo_2.2d, v22.2d, #32
   usra    out_hi_2.2d, v0.2d, #32
 
