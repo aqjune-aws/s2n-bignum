@@ -3524,11 +3524,16 @@ int test_bignum_emontredc_8n(void)
                                         bignum_emontredc_8n);
 }
 
-int test_bignum_emontredc_8n_neon(void)
-{
+uint64_t _bignum_emontredc_8n_neon_withoutbuf(uint64_t k, uint64_t *z, uint64_t *m,
+                                          uint64_t w) {
+  uint64_t temp[1024];
+  return bignum_emontredc_8n_neon(k, z, m, w, temp);
+}
+
+int test_bignum_emontredc_8n_neon(void) {
 #ifdef __ARM_NEON
   return test_bignum_emontredc_specific("bignum_emontredc_8n_neon", 1,
-                                        bignum_emontredc_8n_neon);
+                                        _bignum_emontredc_8n_neon_withoutbuf);
 #else
   // Do not call the neon function to avoid a linking failure error.
   return 1;
