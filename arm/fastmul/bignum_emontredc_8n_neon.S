@@ -6,12 +6,12 @@
 // Inputs z[2*k], m[k], w; outputs function return (extra result bit) and z[2*k]
 //
 //    extern uint64_t bignum_emontredc_8n_neon
-//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w);
+//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w, uint64_t *temp);
 //
 // Functionally equivalent to bignum_emontredc (see that file for more detail).
 // But in general assumes that the input k is a multiple of 8.
 //
-// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, returns X0
+// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, X4 = temp, returns X0
 // ----------------------------------------------------------------------------
 #include "_internal_s2n_bignum.h"
 
@@ -22,43 +22,56 @@
 
 
 S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
-           sub sp, sp, #80
-           stp x19, x20, [sp, #64]
-           stp x21, x22, [sp, #48]
-           stp x23, x24, [sp, #32]
-           stp x25, x26, [sp, #16]
-           stp x27, x28, [sp]
-           sub sp, sp, #32
-           lsr x0, x0, #2
-           mov x26, x0
-           subs x12, x0, #1
-           bcc bignum_emontredc_8n_neon_end
 
-           stp x3, xzr, [sp]
-           stp x26, xzr, [sp, #16]
-           mov x28, xzr
-           lsl x0, x12, #5
+          sub sp, sp, #80
+          stp x19, x20, [sp, #64]
+          stp x21, x22, [sp, #48]
+          stp x23, x24, [sp, #32]
+          stp x25, x26, [sp, #16]
+          stp x27, x28, [sp]
+          sub sp, sp, #32
+
+          // Divide k by 4 because the inner loop will process 4-word
+          // multiplication-and-add for each iteration.
+          lsr x0, x0, #2
+          // x26 is the induction variable of the outer loop.
+          mov x26, x0
+          subs x0, x0, #1
+          bcc bignum_emontredc_8n_neon_end
+
+          // x0 is the 'distance' between the pointers to the first and
+          // last element of m. This is used to 'unwind' the pointers
+          // to z and m after the inner loop is finished.
+          lsl x0, x0, #5
+          // Store registers that are used in the outer loop
+          stp x3, x0, [sp]
+          stp x26, xzr, [sp, #16]
+
 
 bignum_emontredc_8n_neon_outerloop:
-          ldp x3, xzr, [sp]
+
+          ldp x3, x0, [sp]
           ldp x17, x19, [x1]
           ldp x20, x21, [x1, #16]
           ldp x8, x9, [x2]
           ldp x10, x11, [x2, #16]
           ldr q21, [x2, #16]
 
-          // Montgomery step 0
+          ////// Montgomery step 0
 
           mul x4, x17, x3
+
 // NEON: Calculate x4 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x4
 uzp2    v3.4s, v21.4s, v21.4s
 xtn     v4.2s, v0.2d
 xtn     v5.2s, v21.2d
+
           mul	x12, x4, x8
           adds x17, x17, x12
           umulh x12, x4, x8
           mul	x13, x4, x9
+
 rev64   v28.4s, v21.4s
 umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
@@ -75,13 +88,18 @@ usra    v1.2d, v7.2d, #32
 umlal   v0.2d, v4.2s, v5.2s
 mov x14, v0.d[0]
 mov x15, v0.d[1]
+
           adcs x19, x19, x13
           umulh x13, x4, x9
           adcs x20, x20, x14
+
 usra    v1.2d, v2.2d, #32
 mov x14, v1.d[0]
+
           adcs x21, x21, x15
+
 mov x15, v1.d[1]
+
           adc x22, xzr, xzr
           adds x19, x19, x12
           mul x5, x19, x3 // hoisted from step 1
@@ -89,7 +107,7 @@ mov x15, v1.d[1]
           adcs x21, x21, x14
           adc x22, x22, x15
 
-          // Montgomery step 1
+          ////// Montgomery step 1
 
 // NEON: Calculate x5 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x5
@@ -115,18 +133,23 @@ usra    v1.2d, v7.2d, #32
 umlal   v0.2d, v4.2s, v5.2s
 mov x14, v0.d[0]
 mov x15, v0.d[1]
+
           adcs	x20, x20, x13
           umulh	x13, x5, x9
           adcs x21, x21, x14
+
 usra    v1.2d, v2.2d, #32
 mov x14, v1.d[0]
+
           adcs x22, x22, x15
+
 mov x15, v1.d[1]
+
           adc x23, xzr, xzr
           adds x20, x20, x12
           mul	x6, x20, x3 // hoisted from step 2
 
-// NEON: For montgomery step 2,
+// NEON: Precalculation for montgomery step 2.
 // calculate x6 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x6
 #define in1  v0
@@ -149,7 +172,7 @@ ldr q20, [x1]
 ldr q22, [x2, #32]
 ldr q23, [x2, #48]
 
-        // Montgomery step 2
+        ////// Montgomery step 2
 
 umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
@@ -212,7 +235,7 @@ ldr q21, [x1, #16]
 uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
 
-          // Montgomery step 3
+          ////// Montgomery step 3
 
            mul	x12, x7, x8
            mul	x13, x7, x9
@@ -305,11 +328,11 @@ mov x21, v27.d[0] //umulh x21,x6,x10
 mov x17, v24.d[0] //mul x17, x4, x8
 mov x3, v27.d[1] //umulh x3,x7,x11
 
-          cbz x0, bignum_emontredc_8n_neon_madddone
-          mov x27, x0
           cmp x0, #32
           bne bignum_emontredc_8n_neon_maddloop_neon_firstitr
 
+
+// NOTE: This can be hoisted out of the whole outer loop.
 bignum_emontredc_8n_neon_maddloop_x0one:
          	add	x2, x2, #0x20
          	add	x1, x1, #0x20
@@ -346,13 +369,13 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	adcs	x24, x24, xzr
          	adc	x25, x25, xzr
          	subs	x15, x6, x7
-         	cneg	x15, x15, cc  // cc = lo, ul, last
-         	csetm	x12, cc  // cc = lo, ul, last
+         	cneg	x15, x15, cc
+         	csetm	x12, cc
          	subs	x13, x11, x10
-         	cneg	x13, x13, cc  // cc = lo, ul, last
+         	cneg	x13, x13, cc
          	mul	x14, x15, x13
          	umulh	x13, x15, x13
-         	cinv	x12, x12, cc  // cc = lo, ul, last
+         	cinv	x12, x12, cc
          	cmn	x12, #0x1
          	eor	x14, x14, x12
          	adcs	x23, x23, x14
@@ -360,13 +383,13 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	adcs	x24, x24, x13
          	adc	x25, x25, x12
          	subs	x15, x4, x5
-         	cneg	x15, x15, cc  // cc = lo, ul, last
-         	csetm	x12, cc  // cc = lo, ul, last
+         	cneg	x15, x15, cc
+         	csetm	x12, cc
          	subs	x13, x9, x8
-         	cneg	x13, x13, cc  // cc = lo, ul, last
+         	cneg	x13, x13, cc
          	mul	x14, x15, x13
          	umulh	x13, x15, x13
-         	cinv	x12, x12, cc  // cc = lo, ul, last
+         	cinv	x12, x12, cc
          	cmn	x12, #0x1
          	eor	x14, x14, x12
          	adcs	x19, x19, x14
@@ -378,13 +401,13 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	adcs	x24, x24, x12
          	adc	x25, x25, x12
          	subs	x15, x5, x7
-         	cneg	x15, x15, cc  // cc = lo, ul, last
-         	csetm	x12, cc  // cc = lo, ul, last
+         	cneg	x15, x15, cc
+         	csetm	x12, cc
          	subs	x13, x11, x9
-         	cneg	x13, x13, cc  // cc = lo, ul, last
+         	cneg	x13, x13, cc
          	mul	x14, x15, x13
          	umulh	x13, x15, x13
-         	cinv	x12, x12, cc  // cc = lo, ul, last
+         	cinv	x12, x12, cc
          	cmn	x12, #0x1
          	eor	x14, x14, x12
          	adcs	x22, x22, x14
@@ -393,13 +416,13 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	adcs	x24, x24, x12
          	adc	x25, x25, x12
          	subs	x15, x4, x6
-         	cneg	x15, x15, cc  // cc = lo, ul, last
-         	csetm	x12, cc  // cc = lo, ul, last
+         	cneg	x15, x15, cc
+         	csetm	x12, cc
          	subs	x13, x10, x8
-         	cneg	x13, x13, cc  // cc = lo, ul, last
+         	cneg	x13, x13, cc
          	mul	x14, x15, x13
          	umulh	x13, x15, x13
-         	cinv	x12, x12, cc  // cc = lo, ul, last
+         	cinv	x12, x12, cc
          	cmn	x12, #0x1
          	eor	x14, x14, x12
          	adcs	x20, x20, x14
@@ -410,13 +433,13 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	adcs	x24, x24, x12
          	adc	x25, x25, x12
          	subs	x15, x4, x7
-         	cneg	x15, x15, cc  // cc = lo, ul, last
-         	csetm	x12, cc  // cc = lo, ul, last
+         	cneg	x15, x15, cc
+         	csetm	x12, cc
          	subs	x13, x11, x8
-         	cneg	x13, x13, cc  // cc = lo, ul, last
+         	cneg	x13, x13, cc
          	mul	x14, x15, x13
          	umulh	x13, x15, x13
-         	cinv	x12, x12, cc  // cc = lo, ul, last
+         	cinv	x12, x12, cc
          	cmn	x12, #0x1
          	eor	x14, x14, x12
          	adcs	x21, x21, x14
@@ -426,13 +449,13 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	adcs	x24, x24, x12
          	adc	x25, x25, x12
          	subs	x15, x5, x6
-         	cneg	x15, x15, cc  // cc = lo, ul, last
-         	csetm	x12, cc  // cc = lo, ul, last
+         	cneg	x15, x15, cc
+         	csetm	x12, cc
          	subs	x13, x10, x9
-         	cneg	x13, x13, cc  // cc = lo, ul, last
+         	cneg	x13, x13, cc
          	mul	x14, x15, x13
          	umulh	x13, x15, x13
-         	cinv	x12, x12, cc  // cc = lo, ul, last
+         	cinv	x12, x12, cc
          	cmn	x12, #0x1
          	eor	x14, x14, x12
          	adcs	x21, x21, x14
@@ -444,7 +467,6 @@ bignum_emontredc_8n_neon_maddloop_x0one:
          	mov	x12, x22
          	stp	x17, x19, [x1]
          	stp	x20, x21, [x1, #16]
-         	sub	x27, x27, #0x20
           b bignum_emontredc_8n_neon_madddone
 
 
@@ -676,12 +698,13 @@ mov x21, v26.d[0] // lo bits of (x6 * x10)
 
 mov x24, v26.d[1] // lo bits of (x7 * x11)
 
-           sub x27, x27, #32
+           sub x27, x0, #32
            cmp x27, #32
            beq bignum_emontredc_8n_neon_maddloop_neon_last
 
 
 bignum_emontredc_8n_neon_maddloop_neon:
+
           ldp x8, x9, [x2, #32]
           ldp x10, x11, [x2, #48]
 
@@ -697,6 +720,7 @@ ldr q23, [x2, #80]
           ldp x20,x21,[x1, #32]
           adcs x24,x24,x26
           adc x25,x17,xzr
+
 mov x17, v24.d[0] // lo bits of (x4 * x8)
 
 #define in1  v22
@@ -917,6 +941,7 @@ mov x24, v26.d[1] // lo bits of (x7 * x11)
 
 
 bignum_emontredc_8n_neon_maddloop_neon_last:
+
           ldp x8, x9, [x2, #32]
           ldp x10, x11, [x2, #48]
 
@@ -928,6 +953,8 @@ bignum_emontredc_8n_neon_maddloop_neon_last:
           ldp x20,x21,[x1,#32]
           adcs x24,x24,x26
           adc x25,x17,xzr
+
+
 mov x17, v24.d[0] // lo bits of (x4 * x8)
 
           adds x12,x12,x20
@@ -1057,36 +1084,42 @@ mov x17, v24.d[0] // lo bits of (x4 * x8)
           mov x12,x22
           stp x17,x19,[x1]
           stp x20,x21,[x1,#16]
-           subs x27, x27, #64
+
 
 bignum_emontredc_8n_neon_madddone:
-           ldp x17, x19, [x1, #32]
-           ldp x20, x21, [x1, #48]
-           ldp x26, xzr, [sp, #16]
-           adds xzr, x28, x28
-           adcs x17, x17, x12
-           adcs x19, x19, x13
-           adcs x20, x20, x14
-           adcs x21, x21, x15
-           csetm x28, cs
-           stp x17, x19, [x1, #32]
-           stp x20, x21, [x1, #48]
-           sub x1, x1, x0
-           sub x2, x2, x0
-           add x1, x1, #32
-           subs x26, x26, #1
-           stp x26, xzr, [sp, #16]
-           bne bignum_emontredc_8n_neon_outerloop
-           neg x0, x28
+
+          ldp x17, x19, [x1, #32]
+          ldp x20, x21, [x1, #48]
+          // x26 is ind var, x28 is the carry from the previous outer iteration
+          ldp x26, x28, [sp, #16]
+          adds xzr, x28, x28
+          adcs x17, x17, x12
+          adcs x19, x19, x13
+          adcs x20, x20, x14
+          adcs x21, x21, x15
+          csetm x28, cs
+          stp x17, x19, [x1, #32]
+          stp x20, x21, [x1, #48]
+          sub x1, x1, x0
+          sub x2, x2, x0
+          add x1, x1, #32
+          subs x26, x26, #1
+          stp x26, x28, [sp, #16]
+          bne bignum_emontredc_8n_neon_outerloop
+
+          // Set the return value of this function which is carry
+          neg x0, x28
+
 
 bignum_emontredc_8n_neon_end:
-           add sp, sp, #32
 
-           ldp x27, x28, [sp]
-           ldp x25, x26, [sp, #16]
-           ldp x23, x24, [sp, #32]
-           ldp x21, x22, [sp, #48]
-           ldp x19, x20, [sp, #64]
-           add sp, sp, #80
-           ret
+          add sp, sp, #32
+
+          ldp x27, x28, [sp]
+          ldp x25, x26, [sp, #16]
+          ldp x23, x24, [sp, #32]
+          ldp x21, x22, [sp, #48]
+          ldp x19, x20, [sp, #64]
+          add sp, sp, #80
+          ret
 
