@@ -25,6 +25,8 @@
           cneg out_diff, out_diff, cc; \
           csetm out_carry, cc \
 
+#define low_4bytes_mask v17
+
 S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
 
           sub sp, sp, #96
@@ -96,6 +98,8 @@ bignum_emontredc_8n_neon_precalc_m_subs:
           stp x3, x0, [sp]
           stp x26, xzr, [sp, #16]
 
+movi    low_4bytes_mask.2d, #0x000000ffffffff
+
 bignum_emontredc_8n_neon_outerloop:
 
           ldp x3, x0, [sp]
@@ -113,7 +117,7 @@ bignum_emontredc_8n_neon_outerloop:
 dup v0.2d, x4
 uzp2    v3.4s, v21.4s, v21.4s
 xtn     v4.2s, v0.2d
-xtn     v5.2s, v21.2d
+xtn     v5.2s, v21.2d // v5 will be reused in step 1 ~ 3
 
           mul x12, x4, x8
           adds x17, x17, x12
@@ -125,11 +129,10 @@ umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, v0.4s, v0.4s
 mul     v0.4s, v28.4s, v0.4s
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   v1.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v5.2s
 shl     v0.2d, v0.2d, #32
 usra    v1.2d, v7.2d, #32
@@ -170,11 +173,10 @@ umull   v6.2d, v4.2s, v5.2s
 umull   v7.2d, v4.2s, v3.2s
 uzp2    v16.4s, v0.4s, v0.4s
 mul     v0.4s, v28.4s, v0.4s
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   v1.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v5.2s
 shl     v0.2d, v0.2d, #32
 usra    v1.2d, v7.2d, #32
@@ -230,7 +232,6 @@ uzp2    v16.4s, in1.4s, in1.4s
         adds x20, x20, x12
 
 mul     v0.4s, v28.4s, in1.4s
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 
@@ -238,7 +239,7 @@ umull   out_hi.2d, v16.2s, v3.2s
         mul x13, x6, x9
 
 uaddlp  v0.2d, v0.4s
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v5.2s
 shl     out_lo.2d, v0.2d, #32
 
@@ -298,11 +299,10 @@ umull   v7.2d, v4.2s, v3.2s
 
 uzp2    v16.4s, in1.4s, in1.4s
 mul     v0.4s, v29.4s, in1.4s
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v28.2s
 
           adds x21, x21, x12
@@ -349,11 +349,10 @@ mul     v0.4s, v31.4s, in1.4s
           adcs x14, x24, x14
           adc x15, x25, x15
 
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v30.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
@@ -563,7 +562,6 @@ mul     v0.4s, v29.4s, in1.4s
           adc x16,xzr,xzr
           adds x19,x22,x17
 
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
@@ -573,7 +571,7 @@ uaddlp  v0.2d, v0.4s
           adcs x24,x25,x24
           adc x25,xzr,x25
 
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v28.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
@@ -616,7 +614,6 @@ mul     v0.4s, v31.4s, in1.4s
           adcs x24,x24,xzr
           adc x25,x25,xzr
 
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
@@ -624,7 +621,7 @@ uaddlp  v0.2d, v0.4s
           ldp x13, x0, [x28] // x11 - x10
           mul x14,x15,x13
 
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v30.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
@@ -786,7 +783,6 @@ mul     v0.4s, v29.4s, in1.4s
           adc x16,xzr,xzr
           adds x19,x22,x17
 
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
@@ -796,7 +792,7 @@ uaddlp  v0.2d, v0.4s
           adcs x24,x25,x24
           adc x25,xzr,x25
 
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v28.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
@@ -840,14 +836,13 @@ mul     v0.4s, v31.4s, in1.4s
           adcs x24,x24,xzr
           adc x25,x25,xzr
 
-movi    v2.2d, #0x000000ffffffff
 usra    v7.2d, v6.2d, #32
 umull   out_hi.2d, v16.2s, v3.2s
 uaddlp  v0.2d, v0.4s
 
           mul x14,x15,x13
 
-and     v2.16b, v7.16b, v2.16b
+and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v30.2s
 shl     out_lo.2d, v0.2d, #32
 usra    out_hi.2d, v7.2d, #32
