@@ -3,7 +3,8 @@
 
 // ----------------------------------------------------------------------------
 // Extend Montgomery reduce in 8-digit blocks, results in input-output buffer
-// Inputs z[2*k], m[k], w; outputs function return (extra result bit) and z[2*k]
+// Inputs z[2*k], m[k], w, temp[12*k]
+// Outputs function return (extra result bit) and z[2*k]
 //
 //    extern uint64_t bignum_emontredc_8n_neon
 //     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w, uint64_t *temp);
