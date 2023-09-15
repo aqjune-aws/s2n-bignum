@@ -199,8 +199,7 @@ mov x15, v1.d[1]
           adds x20, x20, x12
           mul x6, x20, x3 // hoisted from step 2
 
-// NEON: Precalculation for montgomery step 2.
-// calculate x6 * (x10, x11) that does two 64x64->128-bit multiplications.
+// NEON: calculate x6 * (x10, x11) that does two 64x64->128-bit multiplications.
 dup v0.2d, x6
 #define in1  v0
 #define in2  v21
@@ -265,7 +264,7 @@ mov x15, v1.d[1]
 
           stp x6, x7, [x1, #16]
 
-// hoisted from maddloop_neon_firstitr
+////// NEON: Precalculation of multiplications in maddloop_neon{_*}
 // Four loads hoisted from maddloop_neon_firstitr
 ldr q20, [x1]       // q20 = (x4, x5)
 ldr q21, [x1, #16]  // q21 = (x6, x7)
@@ -278,16 +277,16 @@ ldr q23, [x2, #48]  // q23 = (x10, x11)
 #define in2  v20
 #define out_lo v24
 #define out_hi v25
-uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
+uzp2    v3.4s, in2.4s, in2.4s // Will be reused in the inner loop
+xtn     v28.2s, in2.2d // Will be reused in the inner loop
+rev64   v29.4s, in2.4s // Will be reused in the inner loop
 
           ////// Montgomery step 3
 
           mul x12, x7, x8
           mul x13, x7, x9
 
-xtn     v28.2s, in2.2d // Will be reused in the inner loop
-rev64   v29.4s, in2.4s // Will be reused in the inner loop
 umull   v6.2d, v4.2s, v28.2s
 umull   v7.2d, v4.2s, v3.2s
 
@@ -326,8 +325,8 @@ usra    out_hi.2d, v2.2d, #32
 #define in2  v21
 #define out_lo v26
 #define out_hi v27
-uzp2    v3.4s, in2.4s, in2.4s
 xtn     v4.2s, in1.2d
+uzp2    v5.4s, in2.4s, in2.4s // Will be reused in the inner loop
 xtn     v30.2s, in2.2d // Will be reused in the inner loop
 rev64   v31.4s, in2.4s // Will be reused in the inner loop
 
@@ -336,7 +335,7 @@ rev64   v31.4s, in2.4s // Will be reused in the inner loop
           ldp x10, x11, [x2, #48]
 
 umull   v6.2d, v4.2s, v30.2s
-umull   v7.2d, v4.2s, v3.2s
+umull   v7.2d, v4.2s, v5.2s
 uzp2    v16.4s, in1.4s, in1.4s
 mul     v0.4s, v31.4s, in1.4s
 
@@ -347,7 +346,7 @@ mul     v0.4s, v31.4s, in1.4s
           adc x15, x25, x15
 
 usra    v7.2d, v6.2d, #32
-umull   out_hi.2d, v16.2s, v3.2s
+umull   out_hi.2d, v16.2s, v5.2s
 uaddlp  v0.2d, v0.4s
 and     v2.16b, v7.16b, low_4bytes_mask.16b
 umlal   v2.2d, v16.2s, v30.2s
@@ -541,7 +540,7 @@ ldr q23, [x2, #80] // q23 = (x10, x11) in the next iteration
 #define in2  v20
 #define out_lo v24
 #define out_hi v25
-uzp2    v3.4s, in2.4s, in2.4s
+// Reuses v3, v28, v29
 xtn     v4.2s, in1.2d
 
           adds x12,x12,x20
@@ -595,7 +594,7 @@ usra    out_hi.2d, v2.2d, #32
   #define in2  v21
   #define out_lo v26
   #define out_hi v27
-  uzp2    v3.4s, in2.4s, in2.4s
+  // Reuses v5, v30, v31
   xtn     v4.2s, in1.2d
 
           adcs x20,x20,x14
@@ -605,7 +604,7 @@ usra    out_hi.2d, v2.2d, #32
           adcs x23,x23,xzr
 
   umull   v6.2d, v4.2s, v30.2s
-  umull   v7.2d, v4.2s, v3.2s
+  umull   v7.2d, v4.2s, v5.2s
   uzp2    v16.4s, in1.4s, in1.4s
   mul     v0.4s, v31.4s, in1.4s
 
@@ -613,7 +612,7 @@ usra    out_hi.2d, v2.2d, #32
           adc x25,x25,xzr
 
   usra    v7.2d, v6.2d, #32
-  umull   out_hi.2d, v16.2s, v3.2s
+  umull   out_hi.2d, v16.2s, v5.2s
   uaddlp  v0.2d, v0.4s
 
           ldp x13, x0, [x28] // x11 - x10
@@ -762,14 +761,9 @@ mov x17, v24.d[0] // lo bits of (x4 * x8)
 #define in2  v20
 #define out_lo v24
 #define out_hi v25
-uzp2    v3.4s, in2.4s, in2.4s
+// Reuses v3, v28, v29
 xtn     v4.2s, in1.2d
-
-          adds x12,x12,x20
-          adcs x13,x13,x21
-          ldp x20,x21,[x1,#48]
-
-          add x1, x1, #32
+uzp2    v16.4s, in1.4s, in1.4s
 
   // pre-calculate multiplications for the next iter.
   // v27 ++ v26 = hi, lo of (x6 * x10, x7 * x11)
@@ -777,39 +771,42 @@ xtn     v4.2s, in1.2d
   #define in2_2  v21
   #define out_lo_2 v26
   #define out_hi_2 v27
-  uzp2    v5.4s, in2_2.4s, in2_2.4s
+  // v5, v30, v31 are reused
   xtn     v18.2s, in1_2.2d
+
+mul     v22.4s, v29.4s, in1.4s
+
+          adds x12,x12,x20
+          adcs x13,x13,x21
+          ldp x20,x21,[x1,#48]
+
+          add x1, x1, #32
+
+umull   v6.2d, v4.2s, v28.2s
+umull   v7.2d, v4.2s, v3.2s
 
           adcs x14,x14,x20
           adcs x15,x15,x21
           adc x16,xzr,xzr
           adds x19,x22,x17
 
-umull   v6.2d, v4.2s, v28.2s
-umull   v7.2d, v4.2s, v3.2s
-
   umull   v19.2d, v18.2s, v30.2s
   umull   v0.2d, v18.2s, v5.2s
+  usra    v0.2d, v19.2d, #32
 
           adcs x22,x23,x22
           adcs x23,x24,x23
           adcs x24,x25,x24
           adc x25,xzr,x25
 
-uzp2    v16.4s, in1.4s, in1.4s
-mul     v22.4s, v29.4s, in1.4s
-
-  usra    v0.2d, v19.2d, #32
+usra    v7.2d, v6.2d, #32
+umull   out_hi.2d, v16.2s, v3.2s
+uaddlp  v22.2d, v22.4s
 
           adds x20,x22,x17
           adcs x21,x23,x19
           adcs x22,x24,x22
           adcs x23,x25,x23
-
-usra    v7.2d, v6.2d, #32
-umull   out_hi.2d, v16.2s, v3.2s
-uaddlp  v22.2d, v22.4s
-
           adcs x24,xzr,x24
           adc x25,xzr,x25
 
@@ -977,7 +974,6 @@ bignum_emontredc_8n_neon_maddloop_neon_last:
           ldp x20,x21,[x1,#32]
           adcs x24,x24,x26
           adc x25,x17,xzr
-
 
 mov x17, v24.d[0] // lo bits of (x4 * x8)
 
