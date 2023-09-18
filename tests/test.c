@@ -3477,8 +3477,8 @@ int test_bignum_emontredc_specific(const char *name, int is_8n,
     k = (unsigned)rand() % MAXSIZE;
     if (is_8n) {
       k = (k >> 3) << 3;
-      if (k == 0)
-        k = 8;
+      if (k <= 8)
+        k = 16;
     }
 
     random_bignum(k, b0);
@@ -3527,7 +3527,7 @@ int test_bignum_emontredc_8n(void)
 uint64_t _bignum_emontredc_8n_neon_withoutbuf(uint64_t k, uint64_t *z, uint64_t *m,
                                           uint64_t w) {
   uint64_t temp[1024];
-  return bignum_emontredc_8n_neon(k, z, m, w, temp);
+  return bignum_emontredc_8n_neon(k, z, m, w);
 }
 
 int test_bignum_emontredc_8n_neon(void) {

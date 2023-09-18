@@ -773,7 +773,7 @@ void call_bignum_ksqr_16_32_neon(void) repeat(bignum_ksqr_16_32_neon(b0,b1,b2))
 void call_bignum_kmul_32_32_neon(void) repeat(bignum_kmul_32_32_neon(b0,b1,b2,b3))
 void call_bignum_kmul_32_64_neon(void) repeat(bignum_kmul_32_64_neon(b0,b1,b2,b3))
 void call_bignum_ksqr_32_64_neon(void) repeat(bignum_ksqr_32_64_neon(b0,b1,b2))
-void call_bignum_emontredc_8n_neon__32(void) repeat(bignum_emontredc_8n_neon(32,b0,b1,b2[0],b3))
+void call_bignum_emontredc_8n_neon__32(void) repeat(bignum_emontredc_8n_neon(32,b0,b1,b2[0]))
 
 #else
 void call_bignum_mul_8_16_neon(void) {}
