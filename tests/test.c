@@ -3527,7 +3527,7 @@ int test_bignum_emontredc_8n(void)
 uint64_t _bignum_emontredc_8n_neon_withoutbuf(uint64_t k, uint64_t *z, uint64_t *m,
                                           uint64_t w) {
   uint64_t temp[1024];
-  return bignum_emontredc_8n_neon(k, z, m, w);
+  return bignum_emontredc_8n_neon(k, z, m, w, temp);
 }
 
 int test_bignum_emontredc_8n_neon(void) {

@@ -6,12 +6,13 @@
 // Inputs z[2*k], m[k], w; outputs function return (extra result bit) and z[2*k]
 //
 //    extern uint64_t bignum_emontredc_8n_neon
-//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w);
+//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w, uint64_t *m_precalc);
 //
 // Functionally equivalent to bignum_emontredc (see that file for more detail).
 // But in general assumes that the input k is a multiple of 8.
 //
-// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, returns X0
+// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, X4 = m_precalc
+//                   returns X0
 // ----------------------------------------------------------------------------
 #include "_internal_s2n_bignum.h"
 
@@ -20,53 +21,7 @@
         .text
         .balign 4
 
-#define count x27
-
-        // The 'slothy:no-unfold' annotation prevents SLOTHY from opening the macro,
-        // and instead makes it treat `stph` as an instruction specified in the
-        // Arch and uArch models provided to it.
-        .macro stph a, b, addr, imm, hint // slothy:no-unfold
-            stp \a\(), \b\(), [\addr, \imm]
-        .endm
-
-        .macro ldph a, b, addr, imm, hint // slothy:no-unfold
-            ldp \a\(), \b\(), [\addr, \imm]
-        .endm
-
-        .macro ldrh a, addr, imm, hint // slothy:no-unfold
-            ldr \a\(), [\addr, \imm]
-        .endm
-
-// Helper macro for the pre-computations
-#define cdiff(t, c, x, y) subs t, x, y; cneg t, t, cc; csetm c, cc
-
-        // Some immediate offsets for cached differences+carry used
-        // in the inner ADK multiplications
-        #define cache_a01 (32+0*16)
-        #define cache_a02 (32+1*16)
-        #define cache_a03 (32+2*16)
-        #define cache_a12 (32+3*16)
-        #define cache_a13 (32+4*16)
-        #define cache_a23 (32+5*16)
-        #define cache_m10 (0*16)
-        #define cache_m20 (1*16)
-        #define cache_m30 (2*16)
-        #define cache_m21 (3*16)
-        #define cache_m31 (4*16)
-        #define cache_m32 (5*16)
-
-        a0 .req x4
-        a1 .req x5
-        a2 .req x6
-        a3 .req x7
-
-        vpre00 .req v30
-        vpre01 .req v28
-        vpre02 .req v17
-        vpre10 .req v18
-        vpre11 .req v19
-        vpre12 .req v20
-
+/*
         // Computes two 64x64->128-bit multiplication a*x and a*y
         // v_in0: 128-bit input vector viewed as pair (x,y) of 64-bit numbers
         // x_in: 64-bit common multiplicand a
@@ -104,7 +59,41 @@
           umlal   \v_out0\().2d, vtmp0.2s, v_in0_pp.2s
           usra    \v_out1\().2d, vtmp4.2d, #32
         .endm
+*/
 
+
+#define count x27
+
+// Helper macro for the pre-computations
+#define cdiff(t, c, x, y) subs t, x, y; cneg t, t, cc; csetm c, cc
+
+// Some immediate offsets for cached differences+carry used
+// in the inner ADK multiplications
+#define cache_a01 (32+0*16)
+#define cache_a02 (32+1*16)
+#define cache_a03 (32+2*16)
+#define cache_a12 (32+3*16)
+#define cache_a13 (32+4*16)
+#define cache_a23 (32+5*16)
+#define cache_m10 (0*16)
+#define cache_m20 (1*16)
+#define cache_m30 (2*16)
+#define cache_m21 (3*16)
+#define cache_m31 (4*16)
+#define cache_m32 (5*16)
+
+#define a0 x4
+#define a1 x5
+#define a2 x6
+#define a3 x7
+
+// Registers for precalculation
+#define vpre00 v30
+#define vpre01 v28
+#define vpre02 v17
+#define vpre10 v18
+#define vpre11 v19
+#define vpre12 v20
 
 S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
 
@@ -133,10 +122,10 @@ S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
         subs x12, x0, #1
         bcc bignum_emontredc_8n_neon_end
 
-        // x30 = buffer holding precomputed ADK carry-differences for modulus
-        mov w30, #(12*8)
-        mul w30, w12, w30
-        sub x30, sp, x30
+        // x30 = x4 = buffer holding precomputed ADK carry-differences for modulus
+        //mov w30, #(12*8)
+        //mul w30, w12, w30
+        //sub x30, sp, x30
 
         //
         // Start of precomputation
@@ -151,8 +140,8 @@ S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
         // Number of extra limbs required:
         // 6 * (number of limbs / 4 - 1) * 2 = 12 * (number_of_limbs/4 - 1)
         //
-        // For now, just put them on the stack
-        mov sp, x30
+        mov x24, x4
+        mov x30, x4
 
         // Save modulus pointer
         mov x25, x2
@@ -163,29 +152,30 @@ bignum_emontredc_8n_neon_precomp:
         ldp a0, a1, [x2, #32]!
         ldp a2, a3, [x2, #16]
 
-        t .req x28
-        c .req x29
+#define t x28
+#define c x29
 
         cdiff(t, c, a1, a0)
-        stp   t, c, [sp, #cache_m10]
+        stp   t, c, [x30, #cache_m10]
         cdiff(t, c, a2, a0)
-        stp   t, c, [sp, #cache_m20]
+        stp   t, c, [x30, #cache_m20]
         cdiff(t, c, a3, a0)
-        stp   t, c, [sp, #cache_m30]
+        stp   t, c, [x30, #cache_m30]
         cdiff(t, c, a2, a1)
-        stp   t, c, [sp, #cache_m21]
+        stp   t, c, [x30, #cache_m21]
         cdiff(t, c, a3, a1)
-        stp   t, c, [sp, #cache_m31]
+        stp   t, c, [x30, #cache_m31]
         cdiff(t, c, a3, a2)
-        stp   t, c, [sp, #cache_m32]
+        stp   t, c, [x30, #cache_m32]
 
-        add sp, sp, #(6*16)
+        add x30, x30, #(6*16)
 
         subs count, count, #1
         cbnz count, bignum_emontredc_8n_neon_precomp
 
         // Set modulus pointer back to its original value
         mov x2, x25
+        mov x30, x24
 
         //
         // End of precomputation
@@ -200,7 +190,7 @@ bignum_emontredc_8n_neon_precomp:
         movi    v29.2d, #0x000000ffffffff
 
 bignum_emontredc_8n_neon_outerloop:
-        ldph x15, x24, x1, #0, t0
+        ldp x15, x24, [x1, #0]
         ldr x3, [sp]                                 // gap(s) to follow
         ldr q7, [x2, #48]                            // gap(s) to follow
         ldr q19, [x2, #32]!                          // gap(s) to follow
@@ -223,7 +213,7 @@ bignum_emontredc_8n_neon_outerloop:
         xtn v27.2S, v26.2D
         adds x17, x15, x17                           // gap(s) to follow
         umull v6.2D, v31.2S, v8.2S                   // gap(s) to follow
-        ldph x15, x21, x1, #16, t1                   // gap(s) to follow
+        ldp x15, x21, [x1, #16]                      // gap(s) to follow
         umull v8.2D, v31.2S, v25.2S                  // gap(s) to follow
         uaddlp v2.2D, v10.4S                         // gap(s) to follow
         mul x17, x9, x13                             // gap(s) to follow
@@ -246,7 +236,7 @@ bignum_emontredc_8n_neon_outerloop:
         usra v5.2D, v8.2D, #32                       // gap(s) to follow
         uzp2 v8.4S, v26.4S, v26.4S                   // gap(s) to follow
         dup v3.2D, x16                               // gap(s) to follow
-        stph x9, x16, x1, #0, t0                     // gap(s) to follow
+        stp x9, x16, [x1, #0]                       // gap(s) to follow
         mov x19, v5.d[0]                             // gap(s) to follow
         mov x15, v5.d[1]
         mul v6.4S, v21.4S, v3.4S
@@ -254,7 +244,7 @@ bignum_emontredc_8n_neon_outerloop:
         adcs x17, x7, x6
         xtn v10.2S, v3.2D                            // gap(s) to follow
         adcs x24, x4, x19                            // gap(s) to follow
-        ldrh q30, x1, #0, t0
+        ldr q30, [x1, #0]
         adc x15, x23, x15                            // gap(s) to follow
         uzp2 v3.4S, v3.4S, v3.4S
         umull v12.2D, v10.2S, v8.2S                  // gap(s) to follow
@@ -315,7 +305,7 @@ bignum_emontredc_8n_neon_outerloop:
         csetm x26, cc
         cneg x17, x24, cc
         umull v23.2D, v5.2S, v30.2S
-        stph x17, x26, sp, #cache_a01, t01
+        stp x17, x26, [sp, #cache_a01]
         adds x19, x4, x19
         umulh x20, x11, x5
         xtn v4.2S, v7.2D
@@ -336,9 +326,9 @@ bignum_emontredc_8n_neon_outerloop:
         adcs x15, x10, x24                           // gap(s) to follow
         umull v19.2D, v5.2S, v28.2S                  // gap(s) to follow
         mul x10, x23, x5
-        stph x11, x23, x1, #16, t1                   // gap(s) to follow
+        stp x11, x23, [x1, #16]                   // gap(s) to follow
         mov x14, v24.d[0]                            // gap(s) to follow
-        ldrh q8, x1, #16, t1
+        ldr q8, [x1, #16]
         mov x20, v24.d[1]                            // gap(s) to follow
         usra v23.2D, v19.2D, #32
         umulh x5, x23, x5
@@ -356,7 +346,7 @@ bignum_emontredc_8n_neon_outerloop:
         rev64 v20.4S, v8.4S
         umull v0.2D, v4.2S, v19.2S
         subs x4, x16, x23
-        stph x12, x26, sp, #cache_a12, t12
+        stp x12, x26, [sp, #cache_a12]
         usra v11.2D, v23.2D, #32
         umull v25.2D, v4.2S, v18.2S
         mul x7, x23, x25
@@ -364,19 +354,19 @@ bignum_emontredc_8n_neon_outerloop:
         mul v15.4S, v20.4S, v7.4S
         cneg x20, x4, cc
         subs x19, x9, x23                            // gap(s) to follow
-        stph x20, x26, sp, #cache_a13, t13
+        stp x20, x26, [sp, #cache_a13]
         csetm x26, cc
         cneg x25, x19, cc
         umlal v14.2D, v22.2S, v28.2S
-        stph x25, x26, sp, #cache_a03, t03
+        stp x25, x26, [sp, #cache_a03]
         mul x20, x23, x13
         subs x16, x9, x11
         usra v25.2D, v0.2D, #32
         csetm x26, cc
         cneg x16, x16, cc
-        ldph x12, x25, sp, #cache_a01, t01
+        ldp x12, x25, [sp, #cache_a01]
         umull v13.2D, v26.2S, v18.2S
-        stph x16, x26, sp, #cache_a02, t02
+        stp x16, x26, [sp, #cache_a02]
         subs x16, x11, x23                           // gap(s) to follow
         uaddlp v27.2D, v15.4S
         csetm x26, cc
@@ -386,7 +376,7 @@ bignum_emontredc_8n_neon_outerloop:
         adds x11, x22, x10                           // gap(s) to follow
         and v8.16B, v25.16B, v29.16B
         shl v3.2D, v27.2D, #32
-        stph x19, x26, sp, #cache_a23, t23
+        stp x19, x26, [sp, #cache_a23]
         adcs x22, x15, x20
         usra v13.2D, v25.2D, #32
         umulh x19, x23, x13
@@ -425,7 +415,7 @@ bignum_emontredc_8n_neon_outerloop:
         adcs x8, x11, x5
         mul x29, x12, x29                            // gap(s) to follow
         adcs x11, x14, x15
-        ldph x5, x21, sp, #cache_a23, t23
+        ldp x5, x21, [sp, #cache_a23]
         ldp x17, x14, [x30, #cache_m32 - 96]         // gap(s) to follow
         adcs x24, x24, x20                           // gap(s) to follow
         adc x12, xzr, xzr
@@ -441,7 +431,7 @@ bignum_emontredc_8n_neon_outerloop:
         eor x14, x16, x7                             // gap(s) to follow
         eor x10, x25, x21
         adcs x8, x9, x8
-        ldph x16, x9, sp, #cache_a13, t13            // gap(s) to follow
+        ldp x16, x9, [sp, #cache_a13]                // gap(s) to follow
 
 bignum_emontredc_8n_neon_maddloop_neon:
 
@@ -465,7 +455,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         umull v24.2D, v7.2S, v30.2S
         eor x23, x25, x21
         adcs x10, x6, x10
-        ldph x25, x6, sp, #cache_a02, t02
+        ldp x25, x6, [sp, #cache_a02]
         umull v11.2D, v23.2S, v18.2S
         umulh x20, x16, x20
         eor x16, x9, x5
@@ -484,7 +474,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         mul x14, x25, x12
         adcs x19, x29, x7
         umulh x29, x25, x12
-        ldph x11, x15, sp, #cache_a03, t03           // gap(s) to follow
+        ldp x11, x15, [sp, #cache_a03]               // gap(s) to follow
         adcs x12, x10, x7                            // gap(s) to follow
         umull v3.2D, v12.2S, v30.2S                  // gap(s) to follow
         adcs x9, x9, x7                              // gap(s) to follow
@@ -498,7 +488,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         adcs x25, x12, x23                           // gap(s) to follow
         adcs x4, x9, x16
         eor x19, x14, x6
-        ldph x9, x14, sp, #cache_a12, t12
+        ldp x9, x14, [sp, #cache_a12]
         usra v3.2D, v2.2D, #32
         adc x10, x10, x16
         adds xzr, x6, #1
@@ -567,12 +557,12 @@ bignum_emontredc_8n_neon_maddloop_neon:
         mov x22, v8.d[0]
         adcs x16, x20, x3
         ldp x10, x13, [x30], #96
-        ldph x29, x7, sp, #cache_a01, t01            // gap(s) to follow
+        ldp x29, x7, [sp, #cache_a01]                // gap(s) to follow
         adcs x19, x21, x26                           // gap(s) to follow
         adc x20, x8, xzr
         adds x8, x4, x22                             // gap(s) to follow
         adcs x4, x16, x4
-        ldph x5, x6, sp, #cache_a23, t23             // gap(s) to follow
+        ldp x5, x6, [sp, #cache_a23]                 // gap(s) to follow
         adcs x14, x19, x16
         ldp x17, x21, [x30, #cache_m32 - 96]
         umulh x16, x29, x10                          // gap(s) to follow
@@ -592,7 +582,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         adc x23, xzr, x23
         adds x22, x22, x25                           // gap(s) to follow
         adcs x8, x8, x9
-        ldph x16, x9, sp, #cache_a13, t13
+        ldp x16, x9, [sp, #cache_a13]
         eor x10, x13, x21                            // gap(s) to follow
         sub count, count, #1
         cbnz count, bignum_emontredc_8n_neon_maddloop_neon
@@ -605,7 +595,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         adcs x20, x6, xzr
         adcs x24, x19, xzr
         eor x9, x9, x13
-        ldph x19, x6, sp, #cache_a02, t02
+        ldp x19, x6, [sp, #cache_a02]
         adc x13, x23, xzr
         adds xzr, x21, #1
         ldp x12, x23, [x30, #cache_m20 - 96]
@@ -622,7 +612,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         adcs x21, x17, x7
         adcs x17, x4, x7
         ldp x20, x4, [x30, #cache_m30 - 96]
-        ldph x11, x14, sp, #cache_a03, t03
+        ldp x11, x14, [sp, #cache_a03]
         mul x12, x19, x12
         adcs x25, x25, x7
         eor x29, x16, x9
@@ -634,7 +624,7 @@ bignum_emontredc_8n_neon_maddloop_neon:
         umulh x24, x11, x20
         adcs x7, x25, x15
         eor x25, x6, x23
-        ldph x15, x23, sp, #cache_a12, t12
+        ldp x15, x23, [sp, #cache_a12]
         eor x17, x12, x25
         adcs x10, x19, x9
         adc x19, x16, x9
