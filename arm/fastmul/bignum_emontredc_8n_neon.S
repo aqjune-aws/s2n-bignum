@@ -3,7 +3,9 @@
 
 // ----------------------------------------------------------------------------
 // Extend Montgomery reduce in 8-digit blocks, results in input-output buffer
-// Inputs z[2*k], m[k], w; outputs function return (extra result bit) and z[2*k]
+// Inputs z[2*k], m[k], w;
+// Outputs function return (extra result bit) and z[2*k]
+// Temporary buffer m_precalc[12*(k/4-1)]
 //
 //    extern uint64_t bignum_emontredc_8n_neon
 //     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w, uint64_t *m_precalc);
@@ -113,7 +115,7 @@ S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
         str q14, [sp, #16*6]
         str q15, [sp, #16*7]
 
-        // Leave space for cached differences in inner loop
+        // Leave space for cached differences of words of a in inner loop
         sub sp, sp, #(6*16)
 
         sub sp, sp, #32
@@ -122,13 +124,8 @@ S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
         subs x12, x0, #1
         bcc bignum_emontredc_8n_neon_end
 
-        // x30 = x4 = buffer holding precomputed ADK carry-differences for modulus
-        //mov w30, #(12*8)
-        //mul w30, w12, w30
-        //sub x30, sp, x30
-
         //
-        // Start of precomputation
+        // Start of precomputation of m
         //
         // Precompute and cache signed differences of modulus components
         // used in the ADK multiplication in the inner loop.
@@ -173,7 +170,7 @@ bignum_emontredc_8n_neon_precomp:
         subs count, count, #1
         cbnz count, bignum_emontredc_8n_neon_precomp
 
-        // Set modulus pointer back to its original value
+        // Set modulus pointer and buffer pointer back to its original value
         mov x2, x25
         mov x30, x24
 
