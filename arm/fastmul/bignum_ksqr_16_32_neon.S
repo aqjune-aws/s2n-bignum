@@ -35,10 +35,11 @@ S2N_BN_SYMBOL(bignum_ksqr_16_32_neon):
 
 // Save registers, including return address
 
-        stp     x19, x20, [sp, #-16]!
-        stp     x21, x22, [sp, #-16]!
-        stp     x23, x24, [sp, #-16]!
-        stp     x25, x30, [sp, #-16]!
+        sub sp, sp, #64
+        stp     x19, x20, [sp, #48]
+        stp     x21, x22, [sp, #32]
+        stp     x23, x24, [sp, #16]
+        stp     x25, x30, [sp]
 
 // Move parameters into subroutine-safe places
 
@@ -250,10 +251,11 @@ S2N_BN_SYMBOL(bignum_ksqr_16_32_neon):
 
 // Restore registers and return
 
-        ldp     x25, x30, [sp], #16
-        ldp     x23, x24, [sp], #16
-        ldp     x21, x22, [sp], #16
-        ldp     x19, x20, [sp], #16
+        ldp     x25, x30, [sp]
+        ldp     x23, x24, [sp, #16]
+        ldp     x21, x22, [sp, #32]
+        ldp     x19, x20, [sp, #48]
+        add sp, sp, #64
 
         ret
 

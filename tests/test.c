@@ -9,6 +9,7 @@
 // against disparities between the formal model and the real world.
 // ***************************************************************************
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -19,6 +20,8 @@
 // Prototypes for the assembler implementations
 
 #include "../include/s2n-bignum.h"
+
+#include "mul_mod_128kplustwo.h"
 
 // Functiosn for detecting architectures and instruction sets
 
@@ -1321,6 +1324,103 @@ void reference_modexp(uint64_t k,uint64_t *res,
 
   bignum_demont(k,res,z,m);
 }
+
+int test_bignum_mul_mod_2_to_128kplus2_minus1(void)
+{ int64_t t;
+  printf("Testing bignum_mul_mod_2_to_128kplus2_minus1 with %d cases\n",tests);
+  uint64_t k = 8; // simulate 2^(1024+2)-1!
+  // modulus len: 4k+2
+  // 2^{128k+2}+1
+  uint64_t modulus[128];
+  for (int i = 0; i < k; ++i)
+    modulus[2*i] = modulus[2*i+1] = -1ull;
+  modulus[2*k] = 3;
+  for (int i = 2*k+1; i < 128; ++i)
+    modulus[i] = 0;
+
+  // 2^{64k+1}+1
+  uint64_t modulus_half_plusone[128];
+  for (int i = 0; i <= k; ++i)
+    modulus_half_plusone[i] = 0;
+  modulus_half_plusone[0] = 1;
+  modulus_half_plusone[k] = 2;
+
+  // 2^{64k+1}-1
+  uint64_t modulus_half_minusone[128];
+  for (int i = 0; i < k; ++i)
+    modulus_half_minusone[i] = -1ull;
+  modulus_half_minusone[k] = 1;
+
+  for (t = 0; t < (int64_t)tests; ++t)
+   { random_bignum(2 * k + 1,b0);
+     random_bignum(2 * k + 1,b1);
+     b0[2 * k] &= 3;
+     b1[2 * k] &= 3;
+     if (reference_eq_samelen(2 * k + 1, b0, modulus)) b0[0]--;
+     if (reference_eq_samelen(2 * k + 1, b1, modulus)) b1[0]--;
+
+     bignum_mul_mod_2_to_128kplus2_minus1(k, b2, b0, b1, b3,
+        modulus, modulus_half_plusone, modulus_half_minusone);
+
+     reference_mul(4 * k + 2, b3, 2 * k + 1, b0, 2 * k + 1, b1);
+     reference_mod(4 * k + 2, b4, b3, modulus);
+
+     if (!reference_eq_samelen(2 * k + 1, b4, b2))
+      { printf("### Disparity\n");
+        print_bignum(2 * k + 1, b0, "input1");
+        print_bignum(2 * k + 1, b1, "input2");
+        print_bignum(2 * k + 1, b2, "output");
+        print_bignum(2 * k + 1, b4, "answer");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK\n");
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
+int test_bignum_mul_mod_2_to_1026_minus1(void)
+{ int64_t t;
+  printf("Testing bignum_mul_mod_2_to_1026_minus1 with %d cases\n",tests);
+
+  uint64_t modulus[128];
+  for (int i = 0; i < 16; ++i)
+    modulus[i] = -1ull;
+  modulus[16] = 3;
+  for (int i = 17; i < 128; ++i)
+    modulus[i] = 0;
+
+  for (t = 0; t < (int64_t)tests; ++t)
+   { random_bignum(17,b0);
+     random_bignum(17,b1);
+     b0[16] &= 3;
+     b1[16] &= 3;
+     if (reference_eq_samelen(17, b0, modulus)) b0[0]--;
+     if (reference_eq_samelen(17, b1, modulus)) b1[0]--;
+
+     bignum_mul_mod_2_to_1026_minus1(b2, b0, b1, b3);
+
+     reference_mul(34, b3, 17, b0, 17, b1);
+     reference_mod(34, b4, b3, modulus);
+
+     if (!reference_eq_samelen(17, b4, b2))
+      { printf("### Disparity\n");
+        print_bignum(17, b0, "input1");
+        print_bignum(17, b1, "input2");
+        print_bignum(17, b2, "output");
+        print_bignum(17, b4, "answer");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK\n");
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
 
 // ****************************************************************************
 // Testing functions
@@ -3377,8 +3477,8 @@ int test_bignum_emontredc_specific(const char *name, int is_8n,
     k = (unsigned)rand() % MAXSIZE;
     if (is_8n) {
       k = (k >> 3) << 3;
-      if (k == 0)
-        k = 8;
+      if (k <= 8)
+        k = 16;
     }
 
     random_bignum(k, b0);
@@ -3424,11 +3524,16 @@ int test_bignum_emontredc_8n(void)
                                         bignum_emontredc_8n);
 }
 
-int test_bignum_emontredc_8n_neon(void)
-{
+uint64_t _bignum_emontredc_8n_neon_withoutbuf(uint64_t k, uint64_t *z, uint64_t *m,
+                                          uint64_t w) {
+  uint64_t temp[1024];
+  return bignum_emontredc_8n_neon(k, z, m, w, temp);
+}
+
+int test_bignum_emontredc_8n_neon(void) {
 #ifdef __ARM_NEON
   return test_bignum_emontredc_specific("bignum_emontredc_8n_neon", 1,
-                                        bignum_emontredc_8n_neon);
+                                        _bignum_emontredc_8n_neon_withoutbuf);
 #else
   // Do not call the neon function to avoid a linking failure error.
   return 1;
@@ -3915,6 +4020,17 @@ int test_bignum_kmul_specific
   return 0;
 }
 
+int test_bignum_kmul_16_16_neon(void)
+{
+#ifdef __ARM_NEON
+  return test_bignum_kmul_specific(16,16,16,"bignum_kmul_16_16_neon",
+                                   bignum_kmul_16_16_neon);
+#else
+  // Do not call the neon function to avoid a linking failure error.
+  return 1;
+#endif
+}
+
 int test_bignum_kmul_16_32(void)
 { return test_bignum_kmul_specific(32,16,16,"bignum_kmul_16_32",bignum_kmul_16_32);
 }
@@ -3924,6 +4040,17 @@ int test_bignum_kmul_16_32_neon(void)
 #ifdef __ARM_NEON
   return test_bignum_kmul_specific(32,16,16,"bignum_kmul_16_32_neon",
                                    bignum_kmul_16_32_neon);
+#else
+  // Do not call the neon function to avoid a linking failure error.
+  return 1;
+#endif
+}
+
+int test_bignum_kmul_32_32_neon(void)
+{
+#ifdef __ARM_NEON
+  return test_bignum_kmul_specific(32,32,32,"bignum_kmul_32_32_neon",
+                                   bignum_kmul_32_32_neon);
 #else
   // Do not call the neon function to avoid a linking failure error.
   return 1;
@@ -5957,7 +6084,7 @@ int test_bignum_mul_specific
      random_bignum(p,b2);
      for (j = 0; j < p; ++j) b3[j] = b2[j] + 1;
      (*f)(b2,b0,b1);
-     reference_mul(p,b3,m,b0,n,b1);
+     reference_mul(m+n,b3,m,b0,n,b1); // Do not use p, but instead do the full multiplication
      c = reference_compare(p,b2,p,b3);
      if (c != 0)
       { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
@@ -5976,6 +6103,10 @@ int test_bignum_mul_specific
   return 0;
 }
 
+int test_bignum_mul_4_4(void)
+{ return test_bignum_mul_specific(4,4,4,"bignum_mul_4_4",bignum_mul_4_4);
+}
+
 int test_bignum_mul_4_8(void)
 { return test_bignum_mul_specific(8,4,4,"bignum_mul_4_8",bignum_mul_4_8);
 }
@@ -5990,6 +6121,21 @@ int test_bignum_mul_6_12(void)
 
 int test_bignum_mul_6_12_alt(void)
 { return test_bignum_mul_specific(12,6,6,"bignum_mul_6_12_alt",bignum_mul_6_12_alt);
+}
+
+int test_bignum_mul_8_8(void)
+{ return test_bignum_mul_specific(8,8,8,"bignum_mul_8_8",bignum_mul_8_8);
+}
+
+int test_bignum_mul_8_8_neon(void)
+{
+#ifdef __ARM_NEON
+  return test_bignum_mul_specific(8, 8, 8, "bignum_mul_8_8_neon",
+                                  bignum_mul_8_8_neon);
+#else
+  // Do not call the neon function to avoid a linking failure error.
+  return 1;
+#endif
 }
 
 int test_bignum_mul_8_16(void)
@@ -10662,6 +10808,10 @@ int main(int argc, char *argv[])
 
   if (tests == 0) tests = TESTS;
 
+  functionaltest(all,"bignum_mul_mod_2_to_128kplus2_minus1",
+      test_bignum_mul_mod_2_to_128kplus2_minus1);
+  functionaltest(all,"bignum_mul_mod_2_to_1026_minus1",
+      test_bignum_mul_mod_2_to_1026_minus1);
   functionaltest(all,"bignum_add",test_bignum_add);
   functionaltest(all,"bignum_add_p25519",test_bignum_add_p25519);
   functionaltest(all,"bignum_add_p256",test_bignum_add_p256);
@@ -10806,10 +10956,13 @@ int main(int argc, char *argv[])
   functionaltest(bmi,"bignum_montsqr_sm2",test_bignum_montsqr_sm2);
   functionaltest(all,"bignum_montsqr_sm2_alt",test_bignum_montsqr_sm2_alt);
   functionaltest(all,"bignum_mul",test_bignum_mul);
+  functionaltest(bmi,"bignum_mul_4_4",test_bignum_mul_4_4);
   functionaltest(bmi,"bignum_mul_4_8",test_bignum_mul_4_8);
   functionaltest(all,"bignum_mul_4_8_alt",test_bignum_mul_4_8_alt);
   functionaltest(bmi,"bignum_mul_6_12",test_bignum_mul_6_12);
   functionaltest(all,"bignum_mul_6_12_alt",test_bignum_mul_6_12_alt);
+  functionaltest(all,"bignum_mul_8_8",test_bignum_mul_8_8);
+  functionaltest(all,"bignum_mul_8_8_neon",test_bignum_mul_8_8_neon);
   functionaltest(bmi,"bignum_mul_8_16",test_bignum_mul_8_16);
   functionaltest(all,"bignum_mul_8_16_alt",test_bignum_mul_8_16_alt);
   functionaltest(bmi,"bignum_mul_p25519",test_bignum_mul_p25519);
@@ -10941,7 +11094,9 @@ int main(int argc, char *argv[])
   if (get_arch_name() == ARCH_AARCH64) {
     int neon = supports_neon();
     functionaltest(neon,"bignum_emontredc_8n_neon",test_bignum_emontredc_8n_neon);
+    functionaltest(neon,"bignum_kmul_16_16_neon", test_bignum_kmul_16_16_neon);
     functionaltest(neon,"bignum_kmul_16_32_neon", test_bignum_kmul_16_32_neon);
+    functionaltest(neon,"bignum_kmul_32_32_neon", test_bignum_kmul_32_32_neon);
     functionaltest(neon,"bignum_kmul_32_64_neon", test_bignum_kmul_32_64_neon);
     functionaltest(neon,"bignum_ksqr_16_32_neon",test_bignum_ksqr_16_32_neon);
     functionaltest(neon,"bignum_ksqr_32_64_neon",test_bignum_ksqr_32_64_neon);

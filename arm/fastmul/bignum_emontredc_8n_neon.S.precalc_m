@@ -1,0 +1,1130 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0 OR ISC
+
+// ----------------------------------------------------------------------------
+// Extend Montgomery reduce in 8-digit blocks, results in input-output buffer
+// Inputs z[2*k], m[k], w, temp[12*k]
+// Outputs function return (extra result bit) and z[2*k]
+//
+//    extern uint64_t bignum_emontredc_8n_neon
+//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w, uint64_t *temp);
+//
+// Functionally equivalent to bignum_emontredc (see that file for more detail).
+// But in general assumes that the input k is a multiple of 8.
+//
+// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, X4 = temp, returns X0
+// ----------------------------------------------------------------------------
+#include "_internal_s2n_bignum.h"
+
+     S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_emontredc_8n_neon)
+     S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_emontredc_8n_neon)
+     .text
+     .balign 4
+
+#define absdiff_and_carry(out_diff,out_carry,a,b) \
+          subs out_diff, a, b; \
+          cneg out_diff, out_diff, cc; \
+          csetm out_carry, cc \
+
+#define low_4bytes_mask v17
+
+S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
+
+          sub sp, sp, #96
+          stp x19, x20, [sp, #80]
+          stp x21, x22, [sp, #64]
+          stp x23, x24, [sp, #48]
+          stp x25, x26, [sp, #32]
+          stp x27, x28, [sp, #16]
+          stp x30, xzr, [sp]
+
+          sub sp, sp, #128
+          // [sp]: w (input argument), byte length of m - 4
+          // [sp+16]: outer loop's induction variable, previous outer iter's add carry
+          // [sp+32]: "a2-a3" in scalar impl, its carry
+          // [sp+48]: "a0-a1" in scalar impl, its carry
+          // [sp+64]: "a1-a3" in scalar impl, its carry
+          // [sp+80]: "a0-a2" in scalar impl, its carry
+          // [sp+96]: "a0-a3" in scalar impl, its carry
+          // [sp+112]: "a1-a2" in scalar impl, its carry
+
+          // Divide k by 4 because the inner loop will process 4-word
+          // multiplication-and-add for each iteration.
+          lsr x0, x0, #2
+          // x26 is the induction variable of the outer loop.
+          mov x26, x0
+          subs x0, x0, #1
+          bcc bignum_emontredc_8n_neon_end
+
+          mov x28, x4
+          mov x30, x4
+          add x5, x2, #32
+          mov x6, x0
+
+bignum_emontredc_8n_neon_precalc_m_subs:
+
+          // b0,b1,b2,b3 in scalar code
+          ldp x8, x9, [x5]
+          ldp x10, x11, [x5, #16]
+
+          // "b3-b2" in scalar code
+          absdiff_and_carry(x12, x13, x11, x10)
+          stp x12, x13, [x28]
+          // "b1-b0" in scalar code
+          absdiff_and_carry(x12, x13, x9, x8)
+          stp x12, x13, [x28, #16]
+          // "b3-b1" in scalar code
+          absdiff_and_carry(x12, x13, x11, x9)
+          stp x12, x13, [x28, #32]
+          // "b2-b0" in scalar code
+          absdiff_and_carry(x12, x13, x10, x8)
+          stp x12, x13, [x28, #48]
+          // "b3-b0" in scalar code
+          absdiff_and_carry(x12, x13, x11, x8)
+          stp x12, x13, [x28, #64]
+          // "b2-b1" in scalar code
+          absdiff_and_carry(x12, x13, x10, x9)
+          stp x12, x13, [x28, #80]
+
+          add x5, x5, #32
+          add x28, x28, #96
+          subs x6, x6, 1
+          bne bignum_emontredc_8n_neon_precalc_m_subs
+
+          // x0 is the length of m - 4 (in bytes).
+          // x0 is used to 'unwind' the pointers
+          // to z and m after the inner loop is finished.
+          lsl x0, x0, #5
+          // Store registers that are used in the outer loop
+          stp x3, x0, [sp]
+          stp x26, xzr, [sp, #16]
+
+movi    low_4bytes_mask.2d, #0x000000ffffffff
+
+bignum_emontredc_8n_neon_outerloop:
+
+          ldp x3, x0, [sp]
+          ldp x17, x19, [x1]
+          ldp x20, x21, [x1, #16]
+          ldp x8, x9, [x2]
+          ldp x10, x11, [x2, #16]
+          ldr q21, [x2, #16]
+
+          ////// Montgomery step 0
+
+          mul x4, x17, x3
+
+// NEON: Calculate x4 * (x10, x11) that does two 64x64->128-bit multiplications.
+dup v0.2d, x4
+xtn     v4.2s, v0.2d
+uzp2    v3.4s, v21.4s, v21.4s // v3, v5, v28 be reused in step 1 ~ 3
+xtn     v5.2s, v21.2d
+rev64   v28.4s, v21.4s
+
+          mul x12, x4, x8
+          adds x17, x17, x12
+          umulh x12, x4, x8
+          mul x13, x4, x9
+
+umull   v6.2d, v4.2s, v5.2s
+umull   v7.2d, v4.2s, v3.2s
+uzp2    v16.4s, v0.4s, v0.4s
+mul     v0.4s, v28.4s, v0.4s
+usra    v7.2d, v6.2d, #32
+umull   v1.2d, v16.2s, v3.2s
+uaddlp  v0.2d, v0.4s
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v5.2s
+shl     v0.2d, v0.2d, #32
+usra    v1.2d, v7.2d, #32
+umlal   v0.2d, v4.2s, v5.2s
+mov x14, v0.d[0]
+mov x15, v0.d[1]
+
+          adcs x19, x19, x13
+          umulh x13, x4, x9
+          adcs x20, x20, x14
+
+usra    v1.2d, v2.2d, #32
+mov x14, v1.d[0]
+
+          adcs x21, x21, x15
+
+mov x15, v1.d[1]
+
+          adc x22, xzr, xzr
+          adds x19, x19, x12
+          mul x5, x19, x3 // hoisted from step 1
+          adcs x20, x20, x13
+          adcs x21, x21, x14
+          adc x22, x22, x15
+
+          ////// Montgomery step 1
+
+// NEON: Calculate x5 * (x10, x11) that does two 64x64->128-bit multiplications.
+dup v0.2d, x5
+xtn     v4.2s, v0.2d
+umull   v6.2d, v4.2s, v5.2s
+umull   v7.2d, v4.2s, v3.2s
+
+          mul x12, x5, x8
+          adds x19, x19, x12
+          umulh x12, x5, x8
+          mul x13, x5, x9
+
+uzp2    v16.4s, v0.4s, v0.4s
+mul     v0.4s, v28.4s, v0.4s
+usra    v7.2d, v6.2d, #32
+umull   v1.2d, v16.2s, v3.2s
+uaddlp  v0.2d, v0.4s
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v5.2s
+shl     v0.2d, v0.2d, #32
+usra    v1.2d, v7.2d, #32
+umlal   v0.2d, v4.2s, v5.2s
+mov x14, v0.d[0]
+mov x15, v0.d[1]
+
+          adcs x20, x20, x13
+          umulh x13, x5, x9
+          adcs x21, x21, x14
+
+usra    v1.2d, v2.2d, #32
+mov x14, v1.d[0]
+
+          adcs x22, x22, x15
+
+mov x15, v1.d[1]
+
+          adc x23, xzr, xzr
+          adds x20, x20, x12
+          mul x6, x20, x3 // hoisted from step 2
+
+// NEON: calculate x6 * (x10, x11) that does two 64x64->128-bit multiplications.
+dup v0.2d, x6
+#define in1  v0
+#define in2  v21
+#define out_lo v0
+#define out_hi v1
+xtn     v4.2s, v0.2d
+uzp2    v16.4s, in1.4s, in1.4s
+mul     v0.4s, v28.4s, in1.4s
+
+          adcs x21, x21, x13
+          adcs x22, x22, x14
+          adc x23, x23, x15
+
+umull   v6.2d, v4.2s, v5.2s
+umull   v7.2d, v4.2s, v3.2s
+
+          stp x4, x5, [x1]
+
+
+          ////// Montgomery step 2
+
+          mul x12, x6, x8
+          adds x20, x20, x12
+
+umull   out_hi.2d, v16.2s, v3.2s
+usra    v7.2d, v6.2d, #32
+
+          umulh x12, x6, x8
+          mul x13, x6, x9
+
+uaddlp  v0.2d, v0.4s
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v5.2s
+shl     out_lo.2d, v0.2d, #32
+
+          adcs x21, x21, x13
+          umulh x13, x6, x9
+
+usra    out_hi.2d, v7.2d, #32
+umlal   out_lo.2d, v4.2s, v5.2s
+mov x14, out_lo.d[0]
+mov x15, out_lo.d[1]
+
+usra    out_hi.2d, v2.2d, #32
+#undef in1
+#undef in2
+#undef out_lo
+#undef out_hi
+
+          adcs x22, x22, x14
+          adcs x23, x23, x15
+
+mov x14, v1.d[0]
+mov x15, v1.d[1]
+
+          adc x24, xzr, xzr
+          adds x21, x21, x12
+          mul x7, x21, x3
+          adcs x22, x22, x13
+          adcs x23, x23, x14
+          adc x24, x24, x15
+
+          stp x6, x7, [x1, #16]
+
+////// NEON: Precalculation of multiplications in maddloop_neon{_*}
+// Four loads hoisted from maddloop_neon_firstitr
+ldr q20, [x1]       // q20 = (x4, x5)
+ldr q21, [x1, #16]  // q21 = (x6, x7)
+ldr q22, [x2, #32]  // q22 = (x8, x9)
+ldr q23, [x2, #48]  // q23 = (x10, x11)
+
+// Pre-calculate 2mul+2umulhs in maddloop_neon_firstitr
+// v25++v24 = hi and lo of (x4 * x8, x5 * x9)
+#define in1  v22
+#define in2  v20
+#define out_lo v24
+#define out_hi v25
+xtn     v4.2s, in1.2d
+uzp2    v3.4s, in2.4s, in2.4s // Will be reused in the inner loop
+xtn     v28.2s, in2.2d // Will be reused in the inner loop
+rev64   v29.4s, in2.4s // Will be reused in the inner loop
+
+          ////// Montgomery step 3
+
+          mul x12, x7, x8
+          mul x13, x7, x9
+
+umull   v6.2d, v4.2s, v28.2s
+umull   v7.2d, v4.2s, v3.2s
+
+          mul x14, x7, x10
+          mul x15, x7, x11
+
+uzp2    v16.4s, in1.4s, in1.4s
+mul     v0.4s, v29.4s, in1.4s
+usra    v7.2d, v6.2d, #32
+umull   out_hi.2d, v16.2s, v3.2s
+uaddlp  v0.2d, v0.4s
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v28.2s
+
+          adds x21, x21, x12
+          umulh x12, x7, x8
+          adcs x22, x22, x13
+          umulh x13, x7, x9
+
+shl     out_lo.2d, v0.2d, #32
+usra    out_hi.2d, v7.2d, #32
+umlal   out_lo.2d, v4.2s, v28.2s
+usra    out_hi.2d, v2.2d, #32
+#undef in1
+#undef in2
+#undef out_lo
+#undef out_hi
+
+          adcs x23, x23, x14
+          umulh x14, x7, x10
+          adcs x24, x24, x15
+          umulh x15, x7, x11
+
+// Precalcule v27++v26 = hi and lo of (x6 * x10, x7 * x11)
+#define in1  v23
+#define in2  v21
+#define out_lo v26
+#define out_hi v27
+xtn     v4.2s, in1.2d
+uzp2    v5.4s, in2.4s, in2.4s // Will be reused in the inner loop
+xtn     v30.2s, in2.2d // Will be reused in the inner loop
+rev64   v31.4s, in2.4s // Will be reused in the inner loop
+
+// hoisted from maddloop_neon_firstitr and maddloop_x0one
+          ldp x8, x9, [x2, #32]
+          ldp x10, x11, [x2, #48]
+
+umull   v6.2d, v4.2s, v30.2s
+umull   v7.2d, v4.2s, v5.2s
+uzp2    v16.4s, in1.4s, in1.4s
+mul     v0.4s, v31.4s, in1.4s
+
+          adc x25, xzr, xzr
+          adds x12, x22, x12
+          adcs x13, x23, x13
+          adcs x14, x24, x14
+          adc x15, x25, x15
+
+usra    v7.2d, v6.2d, #32
+umull   out_hi.2d, v16.2s, v5.2s
+uaddlp  v0.2d, v0.4s
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v30.2s
+shl     out_lo.2d, v0.2d, #32
+usra    out_hi.2d, v7.2d, #32
+umlal   out_lo.2d, v4.2s, v30.2s
+usra    out_hi.2d, v2.2d, #32
+#undef in1
+#undef in2
+#undef out_lo
+#undef out_hi
+
+          // Precalculate subtractions
+          // [sp+32]: "a2-a3" in scalar impl, its carry
+          absdiff_and_carry(x17, x3, x6, x7)
+          stp x17, x3, [sp, #32]
+          // [sp+48]: "a0-a1" in scalar impl, its carry
+          absdiff_and_carry(x17, x3, x4, x5)
+          stp x17, x3, [sp, #48]
+
+mov x22, v24.d[1] // lo bits of (x5 * x9)
+mov x16, v25.d[0] // hi bits of (x4 * x8)
+
+          // [sp+64]: "a1-a3" in scalar impl, its carry
+          absdiff_and_carry(x17, x3, x5, x7)
+          stp x17, x3, [sp, #64]
+
+mov x23, v26.d[0] // lo bits of (x6 * x10)
+mov x20, v25.d[1] // hi bits of (x5 * x9)
+
+          // [sp+80]: "a0-a2" in scalar impl, its carry
+          absdiff_and_carry(x17, x3, x4, x6)
+          stp x17, x3, [sp, #80]
+
+mov x24, v26.d[1] // lo bits of (x7 * x11)
+mov x21, v27.d[0] // hi bits of (x6 * x10)
+
+          // [sp+96]: "a0-a3" in scalar impl, its carry
+          absdiff_and_carry(x17, x3, x4, x7)
+          stp x17, x3, [sp, #96]
+          // [sp+112]: "a1-a2" in scalar impl, its carry
+          absdiff_and_carry(x17, x3, x5, x6)
+          stp x17, x3, [sp, #112]
+
+mov x17, v24.d[0] // lo bits of (x4 * x8)
+mov x3, v27.d[1] // hi bits of (x7 * x11)
+
+          mov x28, x30 // Precalculated differences in m
+
+          cmp x0, #32
+          bne bignum_emontredc_8n_neon_maddloop_neon_firstitr
+
+
+// NOTE: This can be hoisted out of the whole outer loop.
+bignum_emontredc_8n_neon_maddloop_x0one:
+          add x2, x2, #0x20
+          add x1, x1, #0x20
+
+          adds x22, x22, x16
+          adcs x23, x23, x20
+          adcs x24, x24, x21
+          adc x25, x3, xzr
+
+          ldp x20, x21, [x1]
+          adds x12, x12, x20
+          adcs x13, x13, x21
+          ldp x20, x21, [x1, #16]
+          adcs x14, x14, x20
+          adcs x15, x15, x21
+          adc x16, xzr, xzr
+          adds x19, x22, x17
+          adcs x22, x23, x22
+          adcs x23, x24, x23
+          adcs x24, x25, x24
+          adc x25, xzr, x25
+          adds x20, x22, x17
+          adcs x21, x23, x19
+          adcs x22, x24, x22
+          adcs x23, x25, x23
+          adcs x24, xzr, x24
+          adc x25, xzr, x25
+          adds x17, x17, x12
+          adcs x19, x19, x13
+          ldp x13, x0, [x28] // x11 - x10
+          adcs x20, x20, x14
+          adcs x21, x21, x15
+          ldp x15, x12, [sp, #32] // x6 - x7
+          adcs x22, x22, x16
+          adcs x23, x23, xzr
+          adcs x24, x24, xzr
+          adc x25, x25, xzr
+          mul x14, x15, x13
+          umulh x13, x15, x13
+          eor x12, x12, x0
+          cmn x12, #0x1
+          eor x14, x14, x12
+          adcs x23, x23, x14
+          eor x13, x13, x12
+          adcs x24, x24, x13
+          ldp x13, x0, [x28, #16] // x9 - x8
+          adc x25, x25, x12
+          ldp x15, x12, [sp, #48] // x4 - x5
+          mul x14, x15, x13
+          umulh x13, x15, x13
+          eor x12, x12, x0
+          cmn x12, #0x1
+          eor x14, x14, x12
+          adcs x19, x19, x14
+          eor x13, x13, x12
+          adcs x20, x20, x13
+          ldp x13, x0, [x28, #32] // x11 - x9
+          adcs x21, x21, x12
+          adcs x22, x22, x12
+          adcs x23, x23, x12
+          adcs x24, x24, x12
+          adc x25, x25, x12
+          ldp x15, x12, [sp, #64] // x5 - x7
+          mul x14, x15, x13
+          umulh x13, x15, x13
+          eor x12,x12,x0
+          cmn x12, #0x1
+          eor x14, x14, x12
+          adcs x22, x22, x14
+          eor x13, x13, x12
+          adcs x23, x23, x13
+          ldp x13, x0, [x28, #48] // x10 - x8
+          adcs x24, x24, x12
+          adc x25, x25, x12
+          ldp x15, x12, [sp, #80] // x4 - x6
+          mul x14, x15, x13
+          umulh x13, x15, x13
+          eor x12, x12, x0
+          cmn x12, #0x1
+          eor x14, x14, x12
+          adcs x20, x20, x14
+          eor x13, x13, x12
+          adcs x21, x21, x13
+          adcs x22, x22, x12
+          adcs x23, x23, x12
+          adcs x24, x24, x12
+          adc x25, x25, x12
+          ldp x15, x12, [sp, #96] // x4 - x7
+          ldp x13, x0, [x28, #64] // x11 - x8
+          mul x14, x15, x13
+          umulh x13, x15, x13
+          eor x12, x12, x0
+          cmn x12, #0x1
+          eor x14, x14, x12
+          adcs x21, x21, x14
+          eor x13, x13, x12
+          adcs x22, x22, x13
+          ldp x13, x0, [x28, #80] // x10 - x9
+          adcs x23, x23, x12
+          adcs x24, x24, x12
+          adc x25, x25, x12
+          ldp x15, x12, [sp, #112] // x5 - x6
+          mul x14, x15, x13
+          umulh x13, x15, x13
+          eor x12, x12, x0
+          cmn x12, #0x1
+          eor x14, x14, x12
+          adcs x21, x21, x14
+          eor x13, x13, x12
+          adcs x22, x22, x13
+          adcs x13, x23, x12
+          adcs x14, x24, x12
+          adc x15, x25, x12
+          mov x12, x22
+          stp x17, x19, [x1]
+          stp x20, x21, [x1, #16]
+          b bignum_emontredc_8n_neon_madddone
+
+
+bignum_emontredc_8n_neon_maddloop_neon_firstitr:
+
+          adds x22,x22,x16
+          adcs x23,x23,x20
+          adcs x24,x24,x21
+          adc x25,x3,xzr
+
+ldr q22, [x2, #64] // q22 = (x8, x9) in the next iteration
+ldr q23, [x2, #80] // q23 = (x10, x11) in the next iteration
+
+          add x2, x2, #32
+
+          ldp x20,x21,[x1,#32]
+
+// pre-calculate multiplications in bignum_emontredc_8n_neon_maddloop_neon.
+// v25 ++ v24 = hi, lo of (x4 * x8, x5 * x9)
+#define in1  v22
+#define in2  v20
+#define out_lo v24
+#define out_hi v25
+// Reuses v3, v28, v29
+xtn     v4.2s, in1.2d
+uzp2    v16.4s, in1.4s, in1.4s
+mul     v0.4s, v29.4s, in1.4s
+
+          adds x12,x12,x20
+          adcs x13,x13,x21
+          ldp x20,x21,[x1,#48]
+          add x1, x1, #32
+
+umull   v6.2d, v4.2s, v28.2s
+umull   v7.2d, v4.2s, v3.2s
+
+          adcs x14,x14,x20
+          adcs x15,x15,x21
+          adc x16,xzr,xzr
+          adds x19,x22,x17
+
+usra    v7.2d, v6.2d, #32
+umull   out_hi.2d, v16.2s, v3.2s
+uaddlp  v0.2d, v0.4s
+
+          adcs x22,x23,x22
+          adcs x23,x24,x23
+          adcs x24,x25,x24
+          adc x25,xzr,x25
+
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v28.2s
+shl     out_lo.2d, v0.2d, #32
+usra    out_hi.2d, v7.2d, #32
+
+          adds x20,x22,x17
+          adcs x21,x23,x19
+          adcs x22,x24,x22
+          adcs x23,x25,x23
+
+umlal   out_lo.2d, v4.2s, v28.2s
+usra    out_hi.2d, v2.2d, #32
+#undef in1
+#undef in2
+#undef out_lo
+#undef out_hi
+
+          adcs x24,xzr,x24
+          adc x25,xzr,x25
+          adds x17,x17,x12
+          adcs x19,x19,x13
+
+  // v27 ++ v26 = hi, lo of (x6 * x10, x7 * x11)
+  #define in1  v23
+  #define in2  v21
+  #define out_lo v26
+  #define out_hi v27
+  // Reuses v5, v30, v31
+  xtn     v4.2s, in1.2d
+  uzp2    v16.4s, in1.4s, in1.4s
+  mul     v0.4s, v31.4s, in1.4s
+
+          adcs x20,x20,x14
+          adcs x21,x21,x15
+          ldp x15, x12, [sp, #32] // x6 - x7
+          adcs x22,x22,x16
+          adcs x23,x23,xzr
+
+  umull   v6.2d, v4.2s, v30.2s
+  umull   v7.2d, v4.2s, v5.2s
+
+          adcs x24,x24,xzr
+          adc x25,x25,xzr
+
+  usra    v7.2d, v6.2d, #32
+  umull   out_hi.2d, v16.2s, v5.2s
+  uaddlp  v0.2d, v0.4s
+
+          ldp x13, x0, [x28] // x11 - x10
+          mul x14,x15,x13
+
+  and     v2.16b, v7.16b, low_4bytes_mask.16b
+  umlal   v2.2d, v16.2s, v30.2s
+  shl     out_lo.2d, v0.2d, #32
+  usra    out_hi.2d, v7.2d, #32
+
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+
+  umlal   out_lo.2d, v4.2s, v30.2s
+  usra    out_hi.2d, v2.2d, #32
+  #undef in1
+  #undef in2
+  #undef out_lo
+  #undef out_hi
+
+          adcs x23,x23,x14
+          eor x13,x13,x12
+          adcs x24,x24,x13
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #48] // x4 - x5
+          ldp x13, x0, [x28, #16] // x9 - x8
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+
+mov x16, v25.d[0] // hi bits of (x4 * x8)
+
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x19,x19,x14
+          eor x13,x13,x12
+          adcs x20,x20,x13
+          adcs x21,x21,x12
+          adcs x22,x22,x12
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+
+          stp x17,x19,[x1]
+
+mov x26, v27.d[0] // hi bits of (x6 * x10)
+
+          ldp x15, x12, [sp, #64] // x5 - x7
+          ldp x13, x0, [x28, #32] // x11 - x9
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+
+mov x3, v25.d[1] // hi bits of (x5 * x9)
+
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x22,x22,x14
+          eor x13,x13,x12
+          adcs x23,x23,x13
+          ldp x13, x0, [x28, #48] // x10 - x8
+          adcs x24,x24,x12
+          adc x25,x25,x12
+
+mov x17, v27.d[1] // hi bits of (x7 * x11)
+
+          ldp x15, x12, [sp, #80] // x4 - x6
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x20,x20,x14
+          eor x13,x13,x12
+          adcs x21,x21,x13
+          ldp x13, x0, [x28, #64] // x11 - x8
+          adcs x22,x22,x12
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #96] // x4 - x7
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x21,x21,x14
+          eor x13,x13,x12
+          adcs x22,x22,x13
+          ldp x13, x0, [x28, #80] // x10 - x9
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #112] // x5 - x6
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x21,x21,x14
+
+          stp x20,x21,[x1,#16]
+
+mov x20, v24.d[1] // lo bits of (x5 * x9)
+mov x21, v26.d[0] // lo bits of (x6 * x10)
+
+          eor x13,x13,x12
+          adcs x22,x22,x13
+          adcs x13,x23,x12
+          adcs x14,x24,x12
+          adc x15,x25,x12
+          mov x12,x22
+
+mov x24, v26.d[1] // lo bits of (x7 * x11)
+
+          ldp xzr, x27, [sp]
+          sub x27, x27, #32
+          cmp x27, #32
+          beq bignum_emontredc_8n_neon_maddloop_neon_last
+
+
+bignum_emontredc_8n_neon_maddloop_neon:
+
+          ldp x8, x9, [x2, #32]
+          ldp x10, x11, [x2, #48]
+
+ldr q22, [x2, #64] // q22 = (x8, x9) in the next iteration
+ldr q23, [x2, #80] // q23 = (x10, x11) in the next iteration
+
+          add x2, x2, #32
+          add x28, x28, #96
+
+          adds x22,x20,x16
+          adcs x23,x21,x3
+          ldp x20,x21,[x1, #32]
+          adcs x24,x24,x26
+          adc x25,x17,xzr
+
+mov x17, v24.d[0] // lo bits of (x4 * x8)
+
+// pre-calculate multiplications for the next iter.
+// v25 ++ v24 = hi, lo of (x4 * x8, x5 * x9)
+#define in1  v22
+#define in2  v20
+#define out_lo v24
+#define out_hi v25
+// Reuses v3, v28, v29
+xtn     v4.2s, in1.2d
+uzp2    v16.4s, in1.4s, in1.4s
+
+  // pre-calculate multiplications for the next iter.
+  // v27 ++ v26 = hi, lo of (x6 * x10, x7 * x11)
+  #define in1_2  v23
+  #define in2_2  v21
+  #define out_lo_2 v26
+  #define out_hi_2 v27
+  // Reuses v5, v30, v31
+  xtn     v18.2s, in1_2.2d
+  uzp2    v1.4s, in1_2.4s, in1_2.4s
+
+mul     v22.4s, v29.4s, in1.4s
+
+          adds x12,x12,x20
+          adcs x13,x13,x21
+          ldp x20,x21,[x1,#48]
+
+          add x1, x1, #32
+
+umull   v6.2d, v4.2s, v28.2s
+umull   v7.2d, v4.2s, v3.2s
+
+          adcs x14,x14,x20
+          adcs x15,x15,x21
+          adc x16,xzr,xzr
+          adds x19,x22,x17
+
+  umull   v19.2d, v18.2s, v30.2s
+  umull   v0.2d, v18.2s, v5.2s
+  usra    v0.2d, v19.2d, #32
+
+          adcs x22,x23,x22
+          adcs x23,x24,x23
+          adcs x24,x25,x24
+          adc x25,xzr,x25
+
+usra    v7.2d, v6.2d, #32
+umull   out_hi.2d, v16.2s, v3.2s
+uaddlp  v22.2d, v22.4s
+
+          adds x20,x22,x17
+          adcs x21,x23,x19
+          adcs x22,x24,x22
+          adcs x23,x25,x23
+          adcs x24,xzr,x24
+          adc x25,xzr,x25
+
+and     v2.16b, v7.16b, low_4bytes_mask.16b
+umlal   v2.2d, v16.2s, v28.2s
+shl     out_lo.2d, v22.2d, #32
+usra    out_hi.2d, v7.2d, #32
+
+          adds x17,x17,x12
+          adcs x19,x19,x13
+          ldp x13, x0, [x28] // x11 - x10
+
+umlal   out_lo.2d, v4.2s, v28.2s
+usra    out_hi.2d, v2.2d, #32
+#undef in1
+#undef in2
+#undef out_lo
+#undef out_hi
+
+          adcs x20,x20,x14
+          adcs x21,x21,x15
+          ldp x15, x12, [sp, #32] // x6 - x7
+          adcs x22,x22,x16
+          adcs x23,x23,xzr
+
+  mul     v22.4s, v31.4s, in1_2.4s
+
+          adcs x24,x24,xzr
+          adc x25,x25,xzr
+
+  umull   out_hi_2.2d, v1.2s, v5.2s
+  uaddlp  v22.2d, v22.4s
+
+          mul x14,x15,x13
+
+  and     v2.16b, v0.16b, low_4bytes_mask.16b
+  umlal   v2.2d, v1.2s, v30.2s
+  shl     out_lo_2.2d, v22.2d, #32
+  usra    out_hi_2.2d, v0.2d, #32
+
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+
+  umlal   out_lo_2.2d, v18.2s, v30.2s
+  usra    out_hi_2.2d, v2.2d, #32
+  #undef in1_2
+  #undef in2_2
+  #undef out_lo_2
+  #undef out_hi_2
+
+          adcs x23,x23,x14
+          eor x13,x13,x12
+          adcs x24,x24,x13
+          ldp x13, x0, [x28, #16] // x9 - x8
+          adc x25,x25,x12
+
+mov x16, v25.d[0] // hi bits of (x4 * x8)
+mov x26, v27.d[0] // hi bits of (x6 * x10)
+
+          ldp x15, x12, [sp, #48] // x4 - x5
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+
+mov x3, v25.d[1] // hi bits of (x5 * x9)
+
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x19,x19,x14
+          eor x13,x13,x12
+          adcs x20,x20,x13
+          ldp x13, x0, [x28, #32] // x11 - x9
+          adcs x21,x21,x12
+          adcs x22,x22,x12
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+
+          stp x17,x19,[x1]
+
+mov x17, v27.d[1] // hi bits of (x6 * x10)
+
+          ldp x15, x12, [sp, #64] // x5 - x7
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x22,x22,x14
+          eor x13,x13,x12
+          adcs x23,x23,x13
+          ldp x13, x0, [x28, #48] // x10 - x8
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #80] // x4 - x6
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          //cinv x12,x12,cc
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x20,x20,x14
+          eor x13,x13,x12
+          adcs x21,x21,x13
+          ldp x13, x0, [x28, #64] // x11 - x8
+          adcs x22,x22,x12
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #96] // x4 - x7
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x21,x21,x14
+          eor x13,x13,x12
+          adcs x22,x22,x13
+          ldp x13, x0, [x28, #80] // x10 - x9
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #112] // x5 - x6
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x21,x21,x14
+
+          stp x20,x21,[x1,#16]
+
+mov x20, v24.d[1] // lo bits of (x5 * x9)
+mov x21, v26.d[0] // lo bits of (x6 * x10)
+
+          eor x13,x13,x12
+          adcs x22,x22,x13
+          adcs x13,x23,x12
+          adcs x14,x24,x12
+
+mov x24, v26.d[1] // lo bits of (x7 * x11)
+
+          adc x15,x25,x12
+          mov x12,x22
+
+          sub x27, x27, #32
+          cmp x27, #32
+          bne bignum_emontredc_8n_neon_maddloop_neon
+
+
+bignum_emontredc_8n_neon_maddloop_neon_last:
+
+          ldp x8, x9, [x2, #32]
+          ldp x10, x11, [x2, #48]
+
+          add x2, x2, #32
+          add x28, x28, #96
+
+          adds x22,x20,x16
+          adcs x23,x21,x3
+
+          ldp x20,x21,[x1,#32]
+          adcs x24,x24,x26
+          adc x25,x17,xzr
+
+mov x17, v24.d[0] // lo bits of (x4 * x8)
+
+          adds x12,x12,x20
+          adcs x13,x13,x21
+          ldp x20,x21,[x1,#48]
+          adcs x14,x14,x20
+          adcs x15,x15,x21
+          adc x16,xzr,xzr
+
+          add x1, x1, #32
+
+          adds x19,x22,x17
+          adcs x22,x23,x22
+          adcs x23,x24,x23
+          adcs x24,x25,x24
+          adc x25,xzr,x25
+          adds x20,x22,x17
+          adcs x21,x23,x19
+          adcs x22,x24,x22
+          adcs x23,x25,x23
+          adcs x24,xzr,x24
+          adc x25,xzr,x25
+          adds x17,x17,x12
+          adcs x19,x19,x13
+          ldp x13, x0, [x28] // x11 - x10
+          adcs x20,x20,x14
+          adcs x21,x21,x15
+          ldp x15, x12, [sp, #32] // x6 - x7
+          adcs x22,x22,x16
+          adcs x23,x23,xzr
+          adcs x24,x24,xzr
+          adc x25,x25,xzr
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x23,x23,x14
+          eor x13,x13,x12
+          adcs x24,x24,x13
+          ldp x13, x0, [x28, #16] // x9 - x8
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #48] // x4 - x5
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x19,x19,x14
+          eor x13,x13,x12
+          adcs x20,x20,x13
+          ldp x13, x0, [x28, #32] // x11 - x9
+          adcs x21,x21,x12
+          adcs x22,x22,x12
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #64] // x5 - x7
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x22,x22,x14
+          eor x13,x13,x12
+          adcs x23,x23,x13
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #80] // x4 - x6
+          ldp x13, x0, [x28, #48] // x10 - x8
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x20,x20,x14
+          eor x13,x13,x12
+          adcs x21,x21,x13
+          ldp x13, x0, [x28, #64] // x11 - x8
+          adcs x22,x22,x12
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #96] // x4 - x7
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x21,x21,x14
+          eor x13,x13,x12
+          adcs x22,x22,x13
+          ldp x13, x0, [x28, #80] // x10 - x9
+          adcs x23,x23,x12
+          adcs x24,x24,x12
+          adc x25,x25,x12
+          ldp x15, x12, [sp, #112] // x5 - x6
+          mul x14,x15,x13
+          umulh x13,x15,x13
+          eor x12,x12,x0
+          adds xzr,x12,#1
+          eor x14,x14,x12
+          adcs x21,x21,x14
+          eor x13,x13,x12
+          adcs x22,x22,x13
+          adcs x13,x23,x12
+          adcs x14,x24,x12
+          adc x15,x25,x12
+          mov x12,x22
+          stp x17,x19,[x1]
+          stp x20,x21,[x1,#16]
+
+
+bignum_emontredc_8n_neon_madddone:
+
+          ldp x17, x19, [x1, #32]
+          ldp x20, x21, [x1, #48]
+          // x26 is ind var, x28 is the carry from the previous outer iteration
+          ldp x26, x28, [sp, #16]
+          ldp xzr, x0, [sp]
+          adds xzr, x28, x28
+          adcs x17, x17, x12
+          adcs x19, x19, x13
+          adcs x20, x20, x14
+          adcs x21, x21, x15
+          csetm x28, cs
+          stp x17, x19, [x1, #32]
+          stp x20, x21, [x1, #48]
+          sub x1, x1, x0
+          sub x2, x2, x0
+          add x1, x1, #32
+          subs x26, x26, #1
+          stp x26, x28, [sp, #16]
+          bne bignum_emontredc_8n_neon_outerloop
+
+          // Set the return value of this function which is carry
+          neg x0, x28
+
+
+bignum_emontredc_8n_neon_end:
+
+          add sp, sp, #128
+
+          ldp x30, xzr, [sp]
+          ldp x27, x28, [sp, #16]
+          ldp x25, x26, [sp, #32]
+          ldp x23, x24, [sp, #48]
+          ldp x21, x22, [sp, #64]
+          ldp x19, x20, [sp, #80]
+          add sp, sp, #96
+          ret
+

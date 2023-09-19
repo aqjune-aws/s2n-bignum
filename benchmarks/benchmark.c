@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "../include/s2n-bignum.h"
+#include "../tests/mul_mod_128kplustwo.h"
 #include "../tests/arch.h"
 
 // Controls whether an explanatory header goes on the output
@@ -43,6 +44,19 @@ static uint64_t b3[BUFFERSIZE];
 static uint64_t b4[BUFFERSIZE];
 
 static uint64_t bb[16][BUFFERSIZE];
+
+static uint64_t two_to_1026_minus1[17] = {
+  -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull,
+  -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull,
+  3
+};
+static uint64_t two_to_513_plus1[17] = {
+  1, 0, 0, 0, 0, 0, 0, 0, 2
+};
+static uint64_t two_to_513_minus1[17] = {
+  -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, -1ull, 1
+};
+
 
 // Source of random 64-bit numbers with bit density
 // 0 = all zeros, 32 = "average", 64 = all ones
@@ -416,6 +430,10 @@ void call_bignum_mul_6_12(void) repeat(bignum_mul_6_12(b0,b1,b2))
 
 void call_bignum_mul_6_12_alt(void) repeat(bignum_mul_6_12_alt(b0,b1,b2))
 
+void call_bignum_mul_8_8(void) repeat(bignum_mul_8_8(b0,b1,b2))
+
+void call_bignum_mul_8_8_neon(void) repeat(bignum_mul_8_8_neon(b0,b1,b2))
+
 void call_bignum_mul_8_16(void) repeat(bignum_mul_8_16(b0,b1,b2))
 
 void call_bignum_mul_8_16_alt(void) repeat(bignum_mul_8_16_alt(b0,b1,b2))
@@ -449,6 +467,13 @@ void call_bignum_mul__8_16(void) repeat(bignum_mul(16,b0,8,b1,8,b2))
 void call_bignum_mul__16_32(void) repeat(bignum_mul(32,b0,16,b1,16,b2))
 
 void call_bignum_mul__32_64(void) repeat(bignum_mul(64,b0,32,b1,32,b2))
+
+void call_bignum_mul_mod_2_to_128kplus2_minus1__8(void) \
+    repeat(bignum_mul_mod_2_to_128kplus2_minus1(8,b0,b1,b2,b3,\
+      two_to_1026_minus1,two_to_513_plus1,two_to_513_minus1))
+
+void call_bignum_mul_mod_2_to_1026_minus1(void) \
+    repeat(bignum_mul_mod_2_to_1026_minus1(b0,b1,b2,b3))
 
 void call_bignum_madd__4_8(void) repeat(bignum_madd(8,b0,4,b1,4,b2))
 
@@ -742,17 +767,21 @@ void call_sm2_montjmixadd(void) repeat(sm2_montjmixadd(b1,b2,b3))
 #ifdef __ARM_NEON
 void call_bignum_mul_8_16_neon(void) repeat(bignum_mul_8_16_neon(b0,b1,b2))
 void call_bignum_sqr_8_16_neon(void) repeat(bignum_sqr_8_16_neon(b0,b1))
+void call_bignum_kmul_16_16_neon(void) repeat(bignum_kmul_16_16_neon(b0,b1,b2,b3))
 void call_bignum_kmul_16_32_neon(void) repeat(bignum_kmul_16_32_neon(b0,b1,b2,b3))
 void call_bignum_ksqr_16_32_neon(void) repeat(bignum_ksqr_16_32_neon(b0,b1,b2))
+void call_bignum_kmul_32_32_neon(void) repeat(bignum_kmul_32_32_neon(b0,b1,b2,b3))
 void call_bignum_kmul_32_64_neon(void) repeat(bignum_kmul_32_64_neon(b0,b1,b2,b3))
 void call_bignum_ksqr_32_64_neon(void) repeat(bignum_ksqr_32_64_neon(b0,b1,b2))
-void call_bignum_emontredc_8n_neon__32(void) repeat(bignum_emontredc_8n_neon(32,b0,b1,b2[0]))
+void call_bignum_emontredc_8n_neon__32(void) repeat(bignum_emontredc_8n_neon(32,b0,b1,b2[0],b3))
 
 #else
 void call_bignum_mul_8_16_neon(void) {}
 void call_bignum_sqr_8_16_neon(void) {}
+void call_bignum_kmul_16_16_neon(void) {}
 void call_bignum_kmul_16_32_neon(void) {}
 void call_bignum_ksqr_16_32_neon(void) {}
+void call_bignum_kmul_32_32_neon(void) {}
 void call_bignum_kmul_32_64_neon(void) {}
 void call_bignum_ksqr_32_64_neon(void) {}
 void call_bignum_emontredc_8n_neon__32(void) {}
@@ -912,8 +941,10 @@ int main(int argc, char *argv[])
   timingtest(all,"bignum_half_p521",call_bignum_half_p521);
   timingtest(all,"bignum_half_sm2",call_bignum_half_sm2);
   timingtest(all,"bignum_iszero (32)" ,call_bignum_iszero__32);
+  timingtest(neon,"bignum_kmul_16_16_neon",call_bignum_kmul_16_16_neon);
   timingtest(bmi,"bignum_kmul_16_32",call_bignum_kmul_16_32);
   timingtest(neon,"bignum_kmul_16_32_neon",call_bignum_kmul_16_32_neon);
+  timingtest(neon,"bignum_kmul_32_32_neon",call_bignum_kmul_32_32_neon);
   timingtest(bmi,"bignum_kmul_32_64",call_bignum_kmul_32_64);
   timingtest(neon,"bignum_kmul_32_64_neon",call_bignum_kmul_32_64_neon);
   timingtest(bmi,"bignum_ksqr_16_32",call_bignum_ksqr_16_32);
@@ -993,10 +1024,16 @@ int main(int argc, char *argv[])
   timingtest(all,"bignum_mul (8x8 -> 16)",call_bignum_mul__8_16);
   timingtest(all,"bignum_mul (16x16 -> 32)",call_bignum_mul__16_32);
   timingtest(all,"bignum_mul (32x32 -> 64)",call_bignum_mul__32_64);
+  timingtest(all,"bignum_mul_mod_2_to_128kplus2_minus1 (k=8)",
+             call_bignum_mul_mod_2_to_128kplus2_minus1__8);
+  timingtest(all,"bignum_mul_mod_2_to_1026_minus1",
+             call_bignum_mul_mod_2_to_1026_minus1);
   timingtest(bmi,"bignum_mul_4_8",call_bignum_mul_4_8);
   timingtest(all,"bignum_mul_4_8_alt",call_bignum_mul_4_8_alt);
   timingtest(bmi,"bignum_mul_6_12",call_bignum_mul_6_12);
   timingtest(all,"bignum_mul_6_12_alt",call_bignum_mul_6_12_alt);
+  timingtest(bmi,"bignum_mul_8_8",call_bignum_mul_8_8);
+  timingtest(bmi,"bignum_mul_8_8_neon",call_bignum_mul_8_8_neon);
   timingtest(bmi,"bignum_mul_8_16",call_bignum_mul_8_16);
   timingtest(all,"bignum_mul_8_16_alt",call_bignum_mul_8_16_alt);
   timingtest(neon,"bignum_mul_8_16_neon",call_bignum_mul_8_16_neon);

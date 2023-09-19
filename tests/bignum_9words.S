@@ -1,0 +1,930 @@
+#include "_internal_s2n_bignum.h"
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_9words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_9words_1word)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_9words_1word)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_9words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_ge_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_ge_9words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optadd_8words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optadd_8words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optadd_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optadd_9words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optsub_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optsub_9words)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_optneg_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_optneg_9words)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_mod_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_mod_2_to_513_minus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_absdiff_9words)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_absdiff_9words)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_modoptneg_mod_2_to_513_plus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_modoptneg_mod_2_to_513_plus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_ge_optsub_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_ge_optsub_2_to_513_minus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_optadd_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_optadd_2_to_513_minus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_sub_optadd_2_to_513_plus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_sub_optadd_2_to_513_plus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_add_hi_lo_mod_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_add_hi_lo_mod_2_to_513_minus1)
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(mod_2_to_513_minus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(mod_2_to_513_minus1)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(mod_2_to_513_plus1)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(mod_2_to_513_plus1)
+
+        .text
+        .balign 4
+
+S2N_BN_SYMBOL(bignum_add_9words):
+        ldp x3, x4, [x1]
+        ldp x5, x6, [x2]
+        adds x3, x3, x5
+        adcs x4, x4, x6
+        stp x3, x4, [x0]
+
+        ldp x3, x4, [x1, #16]
+        ldp x5, x6, [x2, #16]
+        adcs x3, x3, x5
+        adcs x4, x4, x6
+        stp x3, x4, [x0, #16]
+
+        ldp x3, x4, [x1, #32]
+        ldp x5, x6, [x2, #32]
+        adcs x3, x3, x5
+        adcs x4, x4, x6
+        stp x3, x4, [x0, #32]
+
+        ldp x3, x4, [x1, #48]
+        ldp x5, x6, [x2, #48]
+        adcs x3, x3, x5
+        adcs x4, x4, x6
+        stp x3, x4, [x0, #48]
+
+        ldr x3, [x1, #64]
+        ldr x5, [x2, #64]
+        adc x3, x3, x5
+        str x3, [x0, #64]
+
+        ret
+
+// bignum_add_9words_1word(z, x, y)
+// x: uint64_t[9], y: uint64_t
+S2N_BN_SYMBOL(bignum_add_9words_1word):
+        ldp x3, x4, [x1]
+        adds x3, x3, x2
+        adcs x4, x4, xzr
+        stp x3, x4, [x0]
+
+        ldp x3, x4, [x1, #16]
+        adcs x3, x3, xzr
+        adcs x4, x4, xzr
+        stp x3, x4, [x0, #16]
+
+        ldp x3, x4, [x1, #32]
+        adcs x3, x3, xzr
+        adcs x4, x4, xzr
+        stp x3, x4, [x0, #32]
+
+        ldp x3, x4, [x1, #48]
+        adcs x3, x3, xzr
+        adcs x4, x4, xzr
+        stp x3, x4, [x0, #48]
+
+        ldr x3, [x1, #64]
+        adc x3, x3, xzr
+        str x3, [x0, #64]
+
+        ret
+
+
+S2N_BN_SYMBOL(bignum_sub_9words):
+        ldp x3, x4, [x1]
+        ldp x5, x6, [x2]
+        subs x3, x3, x5
+        sbcs x4, x4, x6
+        stp x3, x4, [x0]
+
+        ldp x3, x4, [x1, #16]
+        ldp x5, x6, [x2, #16]
+        sbcs x3, x3, x5
+        sbcs x4, x4, x6
+        stp x3, x4, [x0, #16]
+
+        ldp x3, x4, [x1, #32]
+        ldp x5, x6, [x2, #32]
+        sbcs x3, x3, x5
+        sbcs x4, x4, x6
+        stp x3, x4, [x0, #32]
+
+        ldp x3, x4, [x1, #48]
+        ldp x5, x6, [x2, #48]
+        sbcs x3, x3, x5
+        sbcs x4, x4, x6
+        stp x3, x4, [x0, #48]
+
+        ldr x3, [x1, #64]
+        ldr x5, [x2, #64]
+        sbcs x3, x3, x5
+        str x3, [x0, #64]
+
+        cset x0, cc
+        ret
+
+S2N_BN_SYMBOL(bignum_ge_9words):
+        ldp x3, x4, [x0]
+        ldp x5, x6, [x1]
+        subs xzr, x3, x5
+        sbcs xzr, x4, x6
+
+        ldp x3, x4, [x0, #16]
+        ldp x5, x6, [x1, #16]
+        sbcs xzr, x3, x5
+        sbcs xzr, x4, x6
+
+        ldp x3, x4, [x0, #32]
+        ldp x5, x6, [x1, #32]
+        sbcs xzr, x3, x5
+        sbcs xzr, x4, x6
+
+        ldp x3, x4, [x0, #48]
+        ldp x5, x6, [x1, #48]
+        sbcs xzr, x3, x5
+        sbcs xzr, x4, x6
+
+        ldr x3, [x0, #64]
+        ldr x5, [x1, #64]
+        sbcs xzr, x3, x5
+
+        cset x0, cs
+        ret
+
+
+// z, x, cond, y
+S2N_BN_SYMBOL(bignum_optadd_9words):
+        cmp x2, xzr
+        csetm x2, ne
+
+        ldp x4, x5, [x1]
+        ldp x6, x7, [x3]
+        and x6, x6, x2
+        and x7, x7, x2
+        adds x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0]
+
+        ldp x4, x5, [x1, #16]
+        ldp x6, x7, [x3, #16]
+        and x6, x6, x2
+        and x7, x7, x2
+        adcs x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0, #16]
+
+        ldp x4, x5, [x1, #32]
+        ldp x6, x7, [x3, #32]
+        and x6, x6, x2
+        and x7, x7, x2
+        adcs x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0, #32]
+
+        ldp x4, x5, [x1, #48]
+        ldp x6, x7, [x3, #48]
+        and x6, x6, x2
+        and x7, x7, x2
+        adcs x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0, #48]
+
+        ldr x4, [x1, #64]
+        ldr x6, [x3, #64]
+        and x6, x6, x2
+        adcs x4, x4, x6
+        str x4, [x0, #64]
+
+        ret
+
+// uint64_t bignum_optadd_8words(z, x, cond, y)
+S2N_BN_SYMBOL(bignum_optadd_8words):
+        cmp x2, xzr
+        csetm x2, ne
+
+        ldp x4, x5, [x1]
+        ldp x6, x7, [x3]
+        and x6, x6, x2
+        and x7, x7, x2
+        adds x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0]
+
+        ldp x4, x5, [x1, #16]
+        ldp x6, x7, [x3, #16]
+        and x6, x6, x2
+        and x7, x7, x2
+        adcs x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0, #16]
+
+        ldp x4, x5, [x1, #32]
+        ldp x6, x7, [x3, #32]
+        and x6, x6, x2
+        and x7, x7, x2
+        adcs x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0, #32]
+
+        ldp x4, x5, [x1, #48]
+        ldp x6, x7, [x3, #48]
+        and x6, x6, x2
+        and x7, x7, x2
+        adcs x4, x4, x6
+        adcs x5, x5, x7
+        stp x4, x5, [x0, #48]
+
+        adc x0, xzr, xzr
+        ret
+
+// bignum_optsub_9words(z, x, cond, y)
+// z = cond ? x - y : x
+S2N_BN_SYMBOL(bignum_optsub_9words):
+        cmp x2, xzr
+        csetm x2, ne
+
+        ldp x4, x5, [x1]
+        ldp x6, x7, [x3]
+        and x6, x6, x2
+        and x7, x7, x2
+        subs x4, x4, x6
+        sbcs x5, x5, x7
+        stp x4, x5, [x0]
+
+        ldp x4, x5, [x1, #16]
+        ldp x6, x7, [x3, #16]
+        and x6, x6, x2
+        and x7, x7, x2
+        sbcs x4, x4, x6
+        sbcs x5, x5, x7
+        stp x4, x5, [x0, #16]
+
+        ldp x4, x5, [x1, #32]
+        ldp x6, x7, [x3, #32]
+        and x6, x6, x2
+        and x7, x7, x2
+        sbcs x4, x4, x6
+        sbcs x5, x5, x7
+        stp x4, x5, [x0, #32]
+
+        ldp x4, x5, [x1, #48]
+        ldp x6, x7, [x3, #48]
+        and x6, x6, x2
+        and x7, x7, x2
+        sbcs x4, x4, x6
+        sbcs x5, x5, x7
+        stp x4, x5, [x0, #48]
+
+        ldr x4, [x1, #64]
+        ldr x6, [x3, #64]
+        and x6, x6, x2
+        sbc x4, x4, x6
+        str x4, [x0, #64]
+
+        ret
+
+// bignum_optneg_9words(z, x, cond, y)
+// z = cond ? -y : y
+S2N_BN_SYMBOL(bignum_optneg_9words):
+        cmp x1, xzr
+        csetm x1, ne
+
+        adds xzr, x1, x1
+
+        ldp x4, x5, [x2]
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+        eor x5, x5, x1
+        adcs x5, x5, xzr
+        stp x4, x5, [x0]
+
+        ldp x4, x5, [x2, #16]
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+        eor x5, x5, x1
+        adcs x5, x5, xzr
+        stp x4, x5, [x0, #16]
+
+        ldp x4, x5, [x2, #32]
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+        eor x5, x5, x1
+        adcs x5, x5, xzr
+        stp x4, x5, [x0, #32]
+
+        ldp x4, x5, [x2, #48]
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+        eor x5, x5, x1
+        adcs x5, x5, xzr
+        stp x4, x5, [x0, #48]
+
+        ldr x4, [x2, #64]
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+        str x4, [x0, #64]
+
+        ret
+
+// bignum_add_mod_2_to_513_minus1(z, x, y)
+// Given x, y <= 2^513-1 (note '<=')
+// Return z s.t. 0 <= z <= (2^513-1) /\
+//                z mod (2^513-1) = (x+y) mod (2^513-1).
+S2N_BN_SYMBOL(bignum_add_mod_2_to_513_minus1):
+        // x1[0..8] + x2[0..8]
+        // x0[0..8]: output
+        ldp x3, x4, [x1]
+        ldp x14, x15, [x2]
+        adds x3, x3, x14
+        adcs x4, x4, x15
+
+        ldp x5, x6, [x1,#16]
+        ldp x14, x15, [x2,#16]
+        adcs x5, x5, x14
+        adcs x6, x6, x15
+
+        ldp x7, x8, [x1,#32]
+        ldp x14, x15, [x2,#32]
+        adcs x7, x7, x14
+        adcs x8, x8, x15
+
+        ldp x9, x10, [x1,#48]
+        ldp x14, x15, [x2,#48]
+        adcs x9, x9, x14
+        adcs x10, x10, x15
+
+        ldr x11, [x1,#64]
+        ldr x14, [x2,#64]
+        adc x11, x11, x14
+        lsr x12, x11, 1
+        and x11, x11, 1
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        adc x11, x11, xzr
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+S2N_BN_SYMBOL(bignum_absdiff_9words):
+        // x1[0..8] + x2[0..8]
+        // x0[0..8]: output
+        ldp x3, x4, [x1]
+        ldp x14, x15, [x2]
+        subs x3, x3, x14
+        sbcs x4, x4, x15
+
+        ldp x5, x6, [x1,#16]
+        ldp x14, x15, [x2,#16]
+        sbcs x5, x5, x14
+        sbcs x6, x6, x15
+
+        ldp x7, x8, [x1,#32]
+        ldp x14, x15, [x2,#32]
+        sbcs x7, x7, x14
+        sbcs x8, x8, x15
+
+        ldp x9, x10, [x1,#48]
+        ldp x14, x15, [x2,#48]
+        sbcs x9, x9, x14
+        sbcs x10, x10, x15
+
+        ldr x11, [x1,#64]
+        ldr x14, [x2,#64]
+        sbcs x11, x11, x14
+
+        csetm x12, cc
+        adds xzr, x12, x12
+
+        eor x3, x3, x12
+        adcs x3, x3, xzr
+
+        eor x4, x4, x12
+        adcs x4, x4, xzr
+
+        eor x5, x5, x12
+        adcs x5, x5, xzr
+
+        eor x6, x6, x12
+        adcs x6, x6, xzr
+
+        eor x7, x7, x12
+        adcs x7, x7, xzr
+
+        eor x8, x8, x12
+        adcs x8, x8, xzr
+
+        eor x9, x9, x12
+        adcs x9, x9, xzr
+
+        eor x10, x10, x12
+        adcs x10, x10, xzr
+
+        eor x11, x11, x12
+        adc x11, x11, xzr
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        sub x0, xzr, x12
+
+        ret
+
+// bignum_modoptneg(z, cond, x)
+S2N_BN_SYMBOL(bignum_modoptneg_mod_2_to_513_plus1):
+        // x12: is x zero?
+        ldp x3, x4, [x2]
+        orr x12, x3, x4
+
+        ldp x5, x6, [x2, #16]
+        orr x12, x12, x5
+        orr x12, x12, x6
+
+        ldp x7, x8, [x2, #32]
+        orr x12, x12, x7
+        orr x12, x12, x8
+
+        ldp x9, x10, [x2, #48]
+        orr x12, x12, x9
+        orr x12, x12, x10
+
+        ldr x11, [x2, #64]
+        orr x12, x12, x11
+
+        cmp x12, xzr
+        csel x1, x1, xzr, ne
+
+        cmp x1, xzr
+        csetm x1, ne
+        // now x2 is a bitmask
+
+        adds xzr, x1, x1
+        
+        and x12, x1, #1
+        eor x3, x3, x1
+        adcs x3, x3, x12
+
+        eor x4, x4, x1
+        adcs x4, x4, xzr
+
+        eor x5, x5, x1
+        adcs x5, x5, xzr
+
+        eor x6, x6, x1
+        adcs x6, x6, xzr
+
+        eor x7, x7, x1
+        adcs x7, x7, xzr
+
+        eor x8, x8, x1
+        adcs x8, x8, xzr
+
+        eor x9, x9, x1
+        adcs x9, x9, xzr
+
+        eor x10, x10, x1
+        adcs x10, x10, xzr
+
+        and x12, x1, #2
+        eor x11, x11, x1
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+
+
+S2N_BN_SYMBOL(bignum_ge_optsub_2_to_513_minus1):
+        // If x >= 2^513-1, subtract 2^513-1.
+        ldp x3, x4, [x0]
+        ldp x5, x6, [x0, #16]
+        ldp x7, x8, [x0, #32]
+        ldp x9, x10, [x0, #48]
+        ldr x11, [x0, #64]
+        // case 1. x == 2^513-1
+        and x12, x3, x4
+        and x13, x5, x6
+        and x14, x7, x8
+        and x15, x9, x10
+        and x12, x12, x13
+        and x14, x14, x15
+        and x12, x12, x14
+        cmp x12, -1
+        csetm x12, eq
+        cmp x11, 1
+        csetm x13, eq
+        and x12, x12, x13
+        // case 2. x >= 2^513
+        cmp x11, 2
+        csetm x13, cs
+        orr x12, x12, x13
+
+        subs x3, x3, x12
+        sbcs x4, x4, x12
+        sbcs x5, x5, x12
+        sbcs x6, x6, x12
+        sbcs x7, x7, x12
+        sbcs x8, x8, x12
+        sbcs x9, x9, x12
+        sbcs x10, x10, x12
+        lsr x12, x12, 63
+        sbc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+
+S2N_BN_SYMBOL(bignum_sub_optadd_2_to_513_minus1):
+        // Do x - y, and if the result is negative, add 2^513-1.
+        ldp x3, x4, [x1]
+        ldp x12, x13, [x2]
+        subs x3, x3, x12
+        sbcs x4, x4, x13
+
+        ldp x5, x6, [x1, #16]
+        ldp x12, x13, [x2, #16]
+        sbcs x5, x5, x12
+        sbcs x6, x6, x13
+
+        ldp x7, x8, [x1, #32]
+        ldp x12, x13, [x2, #32]
+        sbcs x7, x7, x12
+        sbcs x8, x8, x13
+
+        ldp x9, x10, [x1, #48]
+        ldp x12, x13, [x2, #48]
+        sbcs x9, x9, x12
+        sbcs x10, x10, x13
+
+        ldr x11, [x1, #64]
+        ldr x12, [x2, #64]
+        sbcs x11, x11, x12
+
+        csetm x12, cc
+
+        adds x3, x3, x12
+        adcs x4, x4, x12
+        adcs x5, x5, x12
+        adcs x6, x6, x12
+        adcs x7, x7, x12
+        adcs x8, x8, x12
+        adcs x9, x9, x12
+        adcs x10, x10, x12
+        lsr x12, x12, 63
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+S2N_BN_SYMBOL(bignum_sub_optadd_2_to_513_plus1):
+        // Do x - y, and if the result is negative, add 2^513+1.
+        ldp x3, x4, [x1]
+        ldp x12, x13, [x2]
+        subs x3, x3, x12
+        sbcs x4, x4, x13
+
+        ldp x5, x6, [x1, #16]
+        ldp x12, x13, [x2, #16]
+        sbcs x5, x5, x12
+        sbcs x6, x6, x13
+
+        ldp x7, x8, [x1, #32]
+        ldp x12, x13, [x2, #32]
+        sbcs x7, x7, x12
+        sbcs x8, x8, x13
+
+        ldp x9, x10, [x1, #48]
+        ldp x12, x13, [x2, #48]
+        sbcs x9, x9, x12
+        sbcs x10, x10, x13
+
+        ldr x11, [x1, #64]
+        ldr x12, [x2, #64]
+        sbcs x11, x11, x12
+
+        cset x12, cc
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        lsl x12, x12, 1
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+// Given x0: 17 words, calculate x0 mod 2^513-1 and store at t.
+S2N_BN_SYMBOL(bignum_add_hi_lo_mod_2_to_513_minus1):
+        // copy_hilo_513bits + bignum_add_mod_2_to_513_minus1
+        ldp x3, x4, [x0]
+        ldp x12, x13, [x0, #64]
+        // lo: x0[0], hi: x0[8] >> 1 | x0[9] << 63
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        adds x3, x3, x12
+        ldp x14, x15, [x0, #80]
+        // lo: x0[1], hi: x0[9] >> 1 | x0[10] << 63
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        adcs x4, x4, x13
+
+        ldp x5, x6, [x0, #16]
+        lsr x14, x14, #1
+        lsl x13, x15, #63
+        orr x14, x14, x13
+        adcs x5, x5, x14
+        ldp x12, x13, [x0, #96]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        adcs x6, x6, x15
+
+        ldp x7, x8, [x0, #32]
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        adcs x7, x7, x12
+        ldp x14, x15, [x0, #112]
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        adcs x8, x8, x13
+
+        ldp x9, x10, [x0, #48]
+        lsr x14, x14, #1
+        lsl x12, x15, #63
+        orr x14, x14, x12
+        adcs x9, x9, x14
+        ldr x12, [x0, #128]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        adcs x10, x10, x15
+
+        ldr x11, [x0, #64]
+        and x11, x11, 1
+        lsr x12, x12, #1
+        adc x11, x11, x12
+
+        lsr x12, x11, 1
+        and x11, x11, 1
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        adc x11, x11, xzr
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+
+
+// Given x0: 17 words, calculate x0 mod 2^513-1 and store at t.
+S2N_BN_SYMBOL(mod_2_to_513_minus1):
+        // copy_hilo_513bits + bignum_add_mod_2_to_513_minus1
+        ldp x3, x4, [x0]
+        ldp x12, x13, [x0, #64]
+        // lo: x0[0], hi: x0[8] >> 1 | x0[9] << 63
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        adds x3, x3, x12
+        ldp x14, x15, [x0, #80]
+        // lo: x0[1], hi: x0[9] >> 1 | x0[10] << 63
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        adcs x4, x4, x13
+
+        ldp x5, x6, [x0, #16]
+        lsr x14, x14, #1
+        lsl x13, x15, #63
+        orr x14, x14, x13
+        adcs x5, x5, x14
+        ldp x12, x13, [x0, #96]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        adcs x6, x6, x15
+
+        ldp x7, x8, [x0, #32]
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        adcs x7, x7, x12
+        ldp x14, x15, [x0, #112]
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        adcs x8, x8, x13
+
+        ldp x9, x10, [x0, #48]
+        lsr x14, x14, #1
+        lsl x12, x15, #63
+        orr x14, x14, x12
+        adcs x9, x9, x14
+        ldr x12, [x0, #128]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        adcs x10, x10, x15
+
+        ldr x11, [x0, #64]
+        and x11, x11, 1
+        lsr x12, x12, #1
+        adc x11, x11, x12
+
+        lsr x12, x11, 1
+        and x11, x11, 1
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        adc x11, x11, xzr
+
+        // bignum_ge_optsub_2_to_513_minus1
+        // If x >= 2^513-1, subtract 2^513-1.
+        // case 1. x == 2^513-1
+        and x12, x3, x4
+        and x13, x5, x6
+        and x14, x7, x8
+        and x15, x9, x10
+        and x12, x12, x13
+        and x14, x14, x15
+        and x12, x12, x14
+        cmp x12, -1
+        csetm x12, eq
+        cmp x11, 1
+        csetm x13, eq
+        and x12, x12, x13
+        // case 2. x >= 2^513
+        cmp x11, 2
+        csetm x13, cs
+        orr x12, x12, x13
+
+        subs x3, x3, x12
+        sbcs x4, x4, x12
+        sbcs x5, x5, x12
+        sbcs x6, x6, x12
+        sbcs x7, x7, x12
+        sbcs x8, x8, x12
+        sbcs x9, x9, x12
+        sbcs x10, x10, x12
+        lsr x12, x12, 63
+        sbc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
+
+
+S2N_BN_SYMBOL(mod_2_to_513_plus1):
+        ldp x3, x4, [x0]
+        ldp x12, x13, [x0, #64]
+        // lo: x0[0], hi: x0[8] >> 1 | x0[9] << 63
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        subs x3, x3, x12
+        ldp x14, x15, [x0, #80]
+        // lo: x0[1], hi: x0[9] >> 1 | x0[10] << 63
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        sbcs x4, x4, x13
+
+        ldp x5, x6, [x0, #16]
+        lsr x14, x14, #1
+        lsl x13, x15, #63
+        orr x14, x14, x13
+        sbcs x5, x5, x14
+        ldp x12, x13, [x0, #96]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        sbcs x6, x6, x15
+
+        ldp x7, x8, [x0, #32]
+        lsr x12, x12, #1
+        lsl x14, x13, #63
+        orr x12, x12, x14
+        sbcs x7, x7, x12
+        ldp x14, x15, [x0, #112]
+        lsr x13, x13, #1
+        lsl x12, x14, #63
+        orr x13, x13, x12
+        sbcs x8, x8, x13
+
+        ldp x9, x10, [x0, #48]
+        lsr x14, x14, #1
+        lsl x12, x15, #63
+        orr x14, x14, x12
+        sbcs x9, x9, x14
+        ldr x12, [x0, #128]
+        lsr x15, x15, #1
+        lsl x14, x12, #63
+        orr x15, x15, x14
+        sbcs x10, x10, x15
+
+        ldr x11, [x0, #64]
+        and x11, x11, 1
+        lsr x12, x12, #1
+        sbcs x11, x11, x12
+
+        // If the result is negative, add 2^513+1.
+        cset x12, cc
+
+        adds x3, x3, x12
+        adcs x4, x4, xzr
+        adcs x5, x5, xzr
+        adcs x6, x6, xzr
+        adcs x7, x7, xzr
+        adcs x8, x8, xzr
+        adcs x9, x9, xzr
+        adcs x10, x10, xzr
+        lsl x12, x12, 1
+        adc x11, x11, x12
+
+        stp x3, x4, [x0]
+        stp x5, x6, [x0, #16]
+        stp x7, x8, [x0, #32]
+        stp x9, x10, [x0, #48]
+        str x11, [x0, #64]
+
+        ret
