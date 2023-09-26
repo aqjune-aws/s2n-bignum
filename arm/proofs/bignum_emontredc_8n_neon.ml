@@ -853,29 +853,8 @@ let BIGNUM_FROM_MEMORY_DIV2 = prove(`!a d n s.
         cdiff(t, c, a3, a2)
         stp   t, c, [x30, #cache_m32]
 *)
-(* Returns (d, d < 0) where d = m[m_ofs_div_4*4 + i0] - m[m_ofs_div_4*4 + i1] *)
-(*
-let m_precalc_cdiff (m_ofs_div_4:term) (i0:int) (i1:int) (state:string):
-    term * term =
-  assert (type_of m_ofs_div_4 = `:num`);
-  let template =
-    `read (memory :> bytes64 (word_add m
-      (word_add (word (__m_ofs_div_4__ * 4))
-                (word (__idx__))))) __state__` in
-  let st = mk_var (state, `:armstate`) in
-  let operands = [(st,`__state__:armstate`);
-                  (m_ofs_div_4,`__m_ofs_div_4__:num`)] in
-  let i0num, i1num = mk_numeral (Int (8*i0)), mk_numeral (Int (8*i1)) in
-  let tfst, tsnd =
-    subst ((i0num,`__idx__:num`)::operands) template,
-    subst ((i1num,`__idx__:num`)::operands) template in
-  let subres = subst [(tfst,`__t1__:int64`);(tsnd,`__t2__:int64`)]
-      `word_sub __t1__ __t2__:int64` in
-  (subres,
-    subst [subres,`__t1__:int64`] `ival (__t1__:int64) < &0`);;
-*)
 
-(* Returns (d, d < 0) where d = n[m_ofs_div_4*4 + i0] - n[m_ofs_div_4*4 + i1] *)
+(* Returns (|d|, d >= 0) where d = n[m_ofs_div_4*4 + i0] - n[m_ofs_div_4*4 + i1] *)
 let m_precalc_cdiff (n:term) (m_ofs_div_4:term) (i0:int) (i1:int): term * term =
   assert (type_of m_ofs_div_4 = `:num` && type_of n = `:num`);
   let template = `bigdigit __n__ (__m_ofs_div_4__ * 4 + __idx__)` in
@@ -886,67 +865,32 @@ let m_precalc_cdiff (n:term) (m_ofs_div_4:term) (i0:int) (i1:int): term * term =
     subst ((i1num,`__idx__:num`)::operands) template in
   let subres = subst [(tfst,`__t1__:num`);(tsnd,`__t2__:num`)]
       `word_sub (word __t1__) (word __t2__):int64` in
-  (subres,
-    subst [subres,`__t1__:int64`] `ival (__t1__:int64) < &0`);;
+  let cmpres = subst [(tfst,`__t1__:num`);(tsnd,`__t2__:num`)]
+      `val (word __t2__:int64) <= val (word __t1__:int64)` in
+  let absdiff = subst [(cmpres,`__isnonneg__:bool`);(subres,`__sub__:int64`)]
+      `if __isnonneg__ then (__sub__:int64) else word_neg __sub__` in
+  (absdiff, cmpres);;
 
-(*
-let m_precalc_stored: thm =
-  (* read 64-bit word from m_precalc *)
-  let read_template ofs =
-      subst [(mk_var ("s", `:armstate`),`__state__:armstate`);
-              (mk_numeral (Int ofs), `__ofs__:num`)]
-        `read (memory :> bytes64 (word_add m_precalc (word (8 * 12 * i + __ofs__))))
-          __state__` in
-  let replace_operands_lhs = List.map (fun i0 ->
-      let i = i0 * 8 in
-      let read_varname = Printf.sprintf "__read_%d__" i in
-      (read_template i, mk_var (read_varname, `:int64`))) (0--11) in
-  let sub_offsets = [(1,0);(2,0);(3,0);(2,1);(3,1);(3,2)] in
-  let replace_operands_rhs:(term*term) list =
-    List.concat (List.map (fun (ofs0, ofs1) ->
-        let sub,isneg = m_precalc_cdiff `i:num` ofs0 ofs1 "s" in
-        let sub_varname = Printf.sprintf "__sub_%d_%d__" ofs0 ofs1 in
-        let isneg_varname = Printf.sprintf "__isneg_%d_%d__" ofs0 ofs1 in
-        [(sub,mk_var (sub_varname, `:int64`));
-          (isneg,mk_var (isneg_varname, `:bool`))])
-      sub_offsets) in
-  let pred =
-      subst (replace_operands_lhs @ replace_operands_rhs)
-          `(__read_0__:int64) = __sub_1_0__ /\
-          (__read_8__:int64) = (if __isneg_1_0__ then word_neg (word 1) else word 1) /\
-          (__read_16__:int64) = __sub_2_0__ /\
-          (__read_24__:int64) = (if __isneg_2_0__ then word_neg (word 1) else word 1) /\
-          (__read_32__:int64) = __sub_3_0__ /\
-          (__read_40__:int64) = (if __isneg_3_0__ then word_neg (word 1) else word 1) /\
-          (__read_48__:int64) = __sub_2_1__ /\
-          (__read_56__:int64) = (if __isneg_2_1__ then word_neg (word 1) else word 1) /\
-          (__read_64__:int64) = __sub_3_1__ /\
-          (__read_72__:int64) = (if __isneg_3_1__ then word_neg (word 1) else word 1) /\
-          (__read_80__:int64) = __sub_3_2__ /\
-          (__read_88__:int64) = (if __isneg_3_2__ then word_neg (word 1) else word 1)` in
-  new_definition (mk_iff
-    (`m_precalc_stored (m:int64) (m_precalc:int64) (i:num) (s:armstate):bool`, pred));;
-*)
 let m_precalc_value: thm =
   let sub_offsets = [(1,0);(2,0);(3,0);(2,1);(3,1);(3,2)] in
   let full_expr_template =
-     `val (__sub_1_0__:int64) +
-      2 EXP (64 * 1) * val (if __isneg_1_0__ then word_neg (word 1) else word 1:int64) +
-      2 EXP (64 * 2) * val (__sub_2_0__:int64) +
-      2 EXP (64 * 3) * val (if __isneg_2_0__ then word_neg (word 1) else word 1:int64) +
-      2 EXP (64 * 4) * val (__sub_3_0__:int64) +
-      2 EXP (64 * 5) * val (if __isneg_3_0__ then word_neg (word 1) else word 1:int64) +
-      2 EXP (64 * 6) * val (__sub_2_1__:int64) +
-      2 EXP (64 * 7) * val (if __isneg_2_1__ then word_neg (word 1) else word 1:int64) +
-      2 EXP (64 * 8) * val (__sub_3_1__:int64) +
-      2 EXP (64 * 9) * val (if __isneg_3_1__ then word_neg (word 1) else word 1:int64) +
-      2 EXP (64 * 10) * val (__sub_3_2__:int64) +
-      2 EXP (64 * 11) * val (if __isneg_3_2__ then word_neg (word 1) else word 1:int64)` in
+     `val (__absdiff_1_0__:int64) +
+      2 EXP (64 * 1) * val (if __isnonneg_1_0__ then (word 0) else (word 18446744073709551615):int64) +
+      2 EXP (64 * 2) * val (__absdiff_2_0__:int64) +
+      2 EXP (64 * 3) * val (if __isnonneg_2_0__ then (word 0) else (word 18446744073709551615):int64) +
+      2 EXP (64 * 4) * val (__absdiff_3_0__:int64) +
+      2 EXP (64 * 5) * val (if __isnonneg_3_0__ then (word 0) else (word 18446744073709551615):int64) +
+      2 EXP (64 * 6) * val (__absdiff_2_1__:int64) +
+      2 EXP (64 * 7) * val (if __isnonneg_2_1__ then (word 0) else (word 18446744073709551615):int64) +
+      2 EXP (64 * 8) * val (__absdiff_3_1__:int64) +
+      2 EXP (64 * 9) * val (if __isnonneg_3_1__ then (word 0) else (word 18446744073709551615):int64) +
+      2 EXP (64 * 10) * val (__absdiff_3_2__:int64) +
+      2 EXP (64 * 11) * val (if __isnonneg_3_2__ then (word 0) else (word 18446744073709551615):int64)` in
   let full_expr = subst
       (List.concat_map (fun (i0, i1) ->
           let d, isneg = m_precalc_cdiff `n:num` `(i_div_4+1):num` i0 i1 in
-          [(d, mk_var(Printf.sprintf "__sub_%d_%d__" i0 i1,`:int64`));
-          (isneg, mk_var(Printf.sprintf "__isneg_%d_%d__" i0 i1,`:bool`))])
+          [(d, mk_var(Printf.sprintf "__absdiff_%d_%d__" i0 i1,`:int64`));
+          (isneg, mk_var(Printf.sprintf "__isnonneg_%d_%d__" i0 i1,`:bool`))])
         sub_offsets)
       full_expr_template in
   define
@@ -967,27 +911,28 @@ g `!k z m w m_sub_precalc a n pc stackpointer.
           [(word_sub stackpointer (word 128), 128)] /\
         nonoverlapping
           (z,8 * 2 * val k) (m_sub_precalc,8 * 12 * (val k DIV 4 - 1)) /\
-        8 divides val k
-        ==> ensures arm
-             (\s. aligned_bytes_loaded s (word pc) bignum_emontredc_8n_neon_mc /\
-                read PC s = word(pc + 0x3c) /\
-                read SP s = stackpointer /\
-                C_ARGUMENTS [k; z; m; w; m_sub_precalc] s /\
-                bignum_from_memory (z,2 * val k) s = a /\
-                bignum_from_memory (m,val k) s = n)
-           (\s. read PC s = word(pc + 0x898) /\
-                ((n * val w + 1 == 0) (mod (2 EXP 64))
-                 ==> n * bignum_from_memory (z,val k) s + a =
-                     2 EXP (64 * val k) *
-                     (2 EXP (64 * val k) * val(C_RETURN s) +
-                      bignum_from_memory
-                        (word_add z (word(8 * val k)),val k) s)))
-            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
-             MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
-             MAYCHANGE [X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30] ,,
-             MAYCHANGE [memory :> bytes(z,8 * 2 * val k);
-                        memory :> bytes(word_sub stackpointer (word 128),128);
-                        memory :> bytes(m_sub_precalc,8 * 12 * (val k DIV 4 - 1))])`;;
+        8 divides val k /\
+        8 * 12 * (val k DIV 4 - 1) < 2 EXP 64
+      ==> ensures arm
+            (\s. aligned_bytes_loaded s (word pc) bignum_emontredc_8n_neon_mc /\
+              read PC s = word(pc + 0x3c) /\
+              read SP s = stackpointer /\
+              C_ARGUMENTS [k; z; m; w; m_sub_precalc] s /\
+              bignum_from_memory (z,2 * val k) s = a /\
+              bignum_from_memory (m,val k) s = n)
+          (\s. read PC s = word(pc + 0x898) /\
+              ((n * val w + 1 == 0) (mod (2 EXP 64))
+                ==> n * bignum_from_memory (z,val k) s + a =
+                    2 EXP (64 * val k) *
+                    (2 EXP (64 * val k) * val(C_RETURN s) +
+                    bignum_from_memory
+                      (word_add z (word(8 * val k)),val k) s)))
+          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+            MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+            MAYCHANGE [X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30] ,,
+            MAYCHANGE [memory :> bytes(z,8 * 2 * val k);
+                      memory :> bytes(word_sub stackpointer (word 128),128);
+                      memory :> bytes(m_sub_precalc,8 * 12 * (val k DIV 4 - 1))])`;;
 
 
 e(W64_GEN_TAC `k:num` THEN
@@ -1140,10 +1085,57 @@ e(ENSURES_SEQUENCE_TAC `pc + 0xe0`
 
       e(ALL_TAC);;
     e(COMMENT_TAC "Proved H_a0_to_a3");;
+    e(ASSERT_USING_UNDISCH_AND_ARITH_TAC
+        `(8 * 12 * (k4 - 1 - (i + 1)) + 8) + 8 <= 18446744073709551616`
+        `8 * 12 * (k4 - 1) < 2 EXP 64`);;
+
     e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--2));;
     e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (3--5));;
     e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC [6]);;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (7--10));;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (11--14));;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (15--18));;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (19--22));;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (23--26));;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (27--28));;
+    e(COMMENT_TAC "Simulation end!");;
+    e(ENSURES_FINAL_STATE_TAC);;
+    e(ASM_REWRITE_TAC[]);;
+    e(REPEAT CONJ_TAC);;
+      e(CONV_TAC WORD_RULE);;
 
+      e(REWRITE_TAC[WORD_ADD_ASSOC_CONSTS] THEN AP_TERM_TAC THEN AP_TERM_TAC
+        THEN UNDISCH_TAC `i < k4 - 1` THEN ARITH_TAC);;
+
+      e(REWRITE_TAC[WORD_ADD_ASSOC_CONSTS] THEN AP_TERM_TAC THEN AP_TERM_TAC
+        THEN UNDISCH_TAC `i < k4 - 1` THEN ARITH_TAC);;
+
+      e(ASSERT_USING_UNDISCH_AND_ARITH_TAC `k4 - 1 - i = (k4 - 1 - (i + 1)) + 1` `i < k4 - 1`);;
+      e(REWRITE_TAC[ASSUME `k4 - 1 - i = k4 - 1 - (i + 1) + 1`]);;
+      e(REWRITE_TAC[GSYM BIGNUM_FROM_MEMORY_BYTES]);;
+      e(REWRITE_TAC[LEFT_ADD_DISTRIB]);;
+      e(REWRITE_TAC[BIGNUM_FROM_MEMORY_SPLIT]);;
+      e(RULE_ASSUM_TAC (REWRITE_RULE [GSYM BIGNUM_FROM_MEMORY_BYTES]));;
+      e(ASM_REWRITE_TAC[]);;
+      e(REWRITE_TAC[ARITH_RULE`12 * 1 = (((((((((((0+1)+1)+1)+1)+1)+1)+1)+1)+1)+1)+1)+1`]);;
+      e(REWRITE_TAC[BIGNUM_FROM_MEMORY_STEP; BIGNUM_FROM_MEMORY_TRIVIAL]);;
+      e(CONV_TAC (DEPTH_CONV NUM_ADD_CONV));;
+      e(CONV_TAC (ONCE_DEPTH_CONV NUM_MULT_CONV));;
+      e(REWRITE_TAC[WORD_ADD_ASSOC_CONSTS]);;
+      e(ASM_REWRITE_TAC[ARITH_RULE `x+0=x`]);;
+      e(REWRITE_TAC[m_precalc_value]);;
+      e(CONV_TAC (ONCE_DEPTH_CONV NUM_MULT_CONV));;
+      e(IMP_REWRITE_TAC[ARITH_RULE`x=y ==> x+z=z+y`]);;
+      e(REWRITE_TAC[EQ_MULT_LCANCEL] THEN DISJ2_TAC);;
+      e(REWRITE_TAC[ARITH_RULE`2 EXP 0 = 1`;MULT_CLAUSES;ADD_CLAUSES;ADD_ASSOC]);;
+      e(REWRITE_TAC[LEFT_ADD_DISTRIB; RIGHT_ADD_DISTRIB;ARITH_RULE`1*4=4`]);;
+      e(REWRITE_TAC[GSYM ADD_ASSOC]);;
+      e(CONV_TAC (DEPTH_CONV NUM_ADD_CONV));;
+      e(REWRITE_TAC[ARITH_RULE`(k4 - 1 - (i + 1)) * 4 = 4 * (k4 - 1 - (i + 1))`]);;
+
+      e(REWRITE_TAC[WORD_SUB_ADD]);;
+      (* After WORD_SUB_ADD, now the goal is `val (word i) = 0 <=> i = 0` *)
+  
   ENSURES_SEQUENCE_TAC `pc + 0xd74`
    `\s. ((n' * w + 1 == 0) (mod (2 EXP 64))
          ==> n' * bignum_from_memory (z,k') s + a' =
