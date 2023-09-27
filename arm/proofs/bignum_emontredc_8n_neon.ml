@@ -900,6 +900,11 @@ let m_precalc_value: thm =
             (m_precalc_value n i_div_4) +
             (2 EXP (64 * 12 * i_div_4)) * __full_expr__)`);;
 
+let VAL_WORD_EQ_ZERO = prove (`!i. i < 2 EXP 64 ==> (val (word i:int64) = 0 <=> i = 0)`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[VAL_WORD; DIMINDEX_64] THEN
+  SUBGOAL_THEN `i MOD 2 EXP 64 = i` (fun thm -> REWRITE_TAC[thm]) THEN IMP_REWRITE_TAC[MOD_LT]);;
+
 g `!k z m w m_sub_precalc a n pc stackpointer.
         aligned 16 stackpointer /\
         ALLPAIRS nonoverlapping
@@ -1088,16 +1093,7 @@ e(ENSURES_SEQUENCE_TAC `pc + 0xe0`
     e(ASSERT_USING_UNDISCH_AND_ARITH_TAC
         `(8 * 12 * (k4 - 1 - (i + 1)) + 8) + 8 <= 18446744073709551616`
         `8 * 12 * (k4 - 1) < 2 EXP 64`);;
-
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--2));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (3--5));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC [6]);;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (7--10));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (11--14));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (15--18));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (19--22));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (23--26));;
-    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (27--28));;
+    e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--28));;
     e(COMMENT_TAC "Simulation end!");;
     e(ENSURES_FINAL_STATE_TAC);;
     e(ASM_REWRITE_TAC[]);;
@@ -1135,7 +1131,24 @@ e(ENSURES_SEQUENCE_TAC `pc + 0xe0`
 
       e(REWRITE_TAC[WORD_SUB_ADD]);;
       (* After WORD_SUB_ADD, now the goal is `val (word i) = 0 <=> i = 0` *)
-  
+      e(MATCH_MP_TAC VAL_WORD_EQ_ZERO);;
+      e(MAP_EVERY UNDISCH_TAC [`k < 2 EXP 64`; `i < k4 - 1`]);;
+      e(EXPAND_TAC "k4");;
+      e(ARITH_TAC);;
+
+    (* 4. Backedge *)
+    e(REPEAT STRIP_TAC THEN ARM_SIM_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC [1]);;
+    e(MATCH_MP_TAC (TAUT `a ==> ((if a then b else c) = b)`));;
+    e(IMP_REWRITE_TAC[VAL_WORD_EQ]);;
+    e(REWRITE_TAC[DIMINDEX_64]);;
+    e(MAP_EVERY UNDISCH_TAC [`k < 2 EXP 64`; `i < k4 - 1`]
+      THEN EXPAND_TAC "k4" THEN ARITH_TAC);;
+
+    (* 5. Loop termination to 0xe0 *)
+    e(ARM_SIM_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--3));;
+    e(RULE_ASSUM_TAC (REWRITE_RULE [SUB_0]));;
+    e(ASM_REWRITE_TAC[]);;
+
   ENSURES_SEQUENCE_TAC `pc + 0xd74`
    `\s. ((n' * w + 1 == 0) (mod (2 EXP 64))
          ==> n' * bignum_from_memory (z,k') s + a' =
