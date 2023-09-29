@@ -3,97 +3,37 @@
 
 // ----------------------------------------------------------------------------
 // Extend Montgomery reduce in 8-digit blocks, results in input-output buffer
-// Inputs z[2*k], m[k], w; outputs function return (extra result bit) and z[2*k]
+// Inputs z[2*k], m[k], w;
+// Outputs function return (extra result bit) and z[2*k]
+// Temporary buffer m_precalc[12*(k/4-1)]
 //
 //    extern uint64_t bignum_emontredc_8n_neon
-//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w);
+//     (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w, uint64_t *m_precalc);
 //
 // Functionally equivalent to bignum_emontredc (see that file for more detail).
 // But in general assumes that the input k is a multiple of 8.
 //
-// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, returns X0
+// Standard ARM ABI: X0 = k, X1 = z, X2 = m, X3 = w, X4 = m_precalc
+//                   returns X0
 // ----------------------------------------------------------------------------
 #include "_internal_s2n_bignum.h"
 
-					S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_emontredc_8n_neon)
-					S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_emontredc_8n_neon)
-					.text
-					.balign 4
-.macro save_vregs // slothy:no-unfold
-        sub sp, sp, #(16*4)
-        stp  d8,  d9, [sp, #16*0]
-        stp d10, d11, [sp, #16*1]
-        stp d12, d13, [sp, #16*2]
-        stp d14, d15, [sp, #16*3]
-.endm
-
-.macro restore_vregs // slothy:no-unfold
-        ldp  d8,  d9, [sp, #16*0]
-        ldp d10, d11, [sp, #16*1]
-        ldp d12, d13, [sp, #16*2]
-        ldp d14, d15, [sp, #16*3]
-        add sp, sp, #(16*4)
-.endm
-
-        // Silly SLOTHY limitation: It needs the loop counter to have the name 'count'
-        count .req x27 // inner loop counter
-
-        // Semantically transparent instruction wrapper which is used by SLOTHY
-        // for dependency tracking through memory. SLOTHY itself has no notion of
-        // memory, only registers; to still track static dependencies through memory
-        // (register spills), a 'hint' register type is introduced (syntax t{i}, t{i}{j})
-        // that's written to in store instructions and read from in the corresponding
-        // load instruction.
-        //
-        // The 'slothy:no-unfold' annotation prevents SLOTHY from opening the macro,
-        // and instead makes it treat `stph` as an instruction specified in the
-        // Arch and uArch models provided to it.
-        .macro stph a, b, addr, imm, hint // slothy:no-unfold
-            stp \a\(), \b\(), [\addr, \imm]
-        .endm
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(bignum_emontredc_8n_neon)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(bignum_emontredc_8n_neon)
+        .text
+        .balign 4
 
         .macro ldph a, b, addr, imm, hint // slothy:no-unfold
             ldp \a\(), \b\(), [\addr, \imm]
         .endm
-
         .macro ldrh a, addr, imm, hint // slothy:no-unfold
             ldr \a\(), [\addr, \imm]
         .endm
-
-        // Helper macro for the pre-computations
-        .macro cdiff t, c, x, y
-          subs    \t, \x, \y
-          cneg    \t, \t, cc
-          csetm   \c, cc
+        .macro stph a, b, addr, imm, hint // slothy:no-unfold
+            stp \a\(), \b\(), [\addr, \imm]
         .endm
 
-        // Some immediate offsets for cached differences+carry used
-        // in the inner ADK multiplications
-        #define cache_a01 (32+0*16)
-        #define cache_a02 (32+1*16)
-        #define cache_a03 (32+2*16)
-        #define cache_a12 (32+3*16)
-        #define cache_a13 (32+4*16)
-        #define cache_a23 (32+5*16)
-        #define cache_m10 (0*16)
-        #define cache_m20 (1*16)
-        #define cache_m30 (2*16)
-        #define cache_m21 (3*16)
-        #define cache_m31 (4*16)
-        #define cache_m32 (5*16)
-
-        a0 .req x4
-        a1 .req x5
-        a2 .req x6
-        a3 .req x7
-
-        vpre00 .req v30
-        vpre01 .req v28
-        vpre02 .req v17
-        vpre10 .req v18
-        vpre11 .req v19
-        vpre12 .req v20
-
+/*
         // Computes two 64x64->128-bit multiplication a*x and a*y
         // v_in0: 128-bit input vector viewed as pair (x,y) of 64-bit numbers
         // x_in: 64-bit common multiplicand a
@@ -111,7 +51,7 @@
         #define vtmp3 v16
         #define vtmp4 v2
 
-        .macro vmul_2x_64_64_128 v_in0, x_in, v_out0, v_out1 // slothy:no-unfold
+        .macro vmul_2x_64_64_128 v_in0, x_in, v_out0, v_out1
           dup     v_in1.2d, \x_in
           uzp2    v_in0_p.4s, \v_in0\().4s, \v_in0\().4s
           xtn     vtmp0.2s, v_in1.2d
@@ -131,127 +71,134 @@
           umlal   \v_out0\().2d, vtmp0.2s, v_in0_pp.2s
           usra    \v_out1\().2d, vtmp4.2d, #32
         .endm
+*/
 
-        // SLOTHY version of the above multiplication macro, using symbolic
-        // registers instead of hardcoded registers. This is only used during
-        // SLOTHY optimization (the above macro is ignored because of
-        // 'slothy:no-unfold').
-#if defined(SLOTHY)
-        .macro vmul_2x_64_64_128 v_in0, x_in, v_out0, v_out1
-          dup     V<in1>.2d, \x_in
-          uzp2    V<in0_p>.4s, \v_in0\().4s, \v_in0\().4s
-          xtn     V<tmp0>.2s, V<in1>.2d
-          xtn     V<in0_pp>.2s, \v_in0\().2d
-          rev64   V<in0_ppp>.4s, \v_in0\().4s
-          umull   V<tmp1>.2d, V<tmp0>.2s, V<in0_pp>.2s
-          umull   V<tmp2>.2d, V<tmp0>.2s, V<in0_p>.2s
-          uzp2    V<tmp3>.4s, V<in1>.4s, V<in1>.4s
-          mul     V<in1>.4s, V<in0_ppp>.4s, V<in1>.4s
-          usra    V<tmp2>.2d, V<tmp1>.2d, #32
-          umull   \v_out1\().2d, V<tmp3>.2s, V<in0_p>.2s
-          uaddlp  V<in1>.2d, V<in1>.4s
-          and     V<tmp4>.16b, V<tmp2>.16b, v29.16b
-          umlal   V<tmp4>.2d, V<tmp3>.2s, V<in0_pp>.2s
-          shl     \v_out0\().2d, V<in1>.2d, #32
-          usra    \v_out1\().2d, V<tmp2>.2d, #32
-          umlal   \v_out0\().2d, V<tmp0>.2s, V<in0_pp>.2s
-          usra    \v_out1\().2d, V<tmp4>.2d, #32
-        .endm
-#endif
 
-bignum_emontredc_8n_neon_fallback:
-           b S2N_BN_SYMBOL(bignum_emontredc_8n_neon)
+#define count x27
+
+// Helper macro for the pre-computations
+#define cdiff(t, c, x, y) subs t, x, y; cneg t, t, cc; csetm c, cc
+
+// Some immediate offsets for cached differences+carry used
+// in the inner ADK multiplications
+#define cache_a01 (32+0*16)
+#define cache_a02 (32+1*16)
+#define cache_a03 (32+2*16)
+#define cache_a12 (32+3*16)
+#define cache_a13 (32+4*16)
+#define cache_a23 (32+5*16)
+#define cache_m10 (0*16)
+#define cache_m20 (1*16)
+#define cache_m30 (2*16)
+#define cache_m21 (3*16)
+#define cache_m31 (4*16)
+#define cache_m32 (5*16)
+
+#define a0 x4
+#define a1 x5
+#define a2 x6
+#define a3 x7
+
+// Registers for precalculation
+#define vpre00 v30
+#define vpre01 v28
+#define vpre02 v17
+#define vpre10 v18
+#define vpre11 v19
+#define vpre12 v20
+
+#define m x2
 
 S2N_BN_SYMBOL(bignum_emontredc_8n_neon):
 
-           cmp x0, #12
-           ble bignum_emontredc_8n_neon_fallback
+        sub sp, sp, #(14*16)
+        stp x19, x20, [sp, #(13*16)]
+        stp x21, x22, [sp, #(12*16)]
+        stp x23, x24, [sp, #(11*16)]
+        stp x25, x26, [sp, #(10*16)]
+        stp x27, x28, [sp, #(9*16)]
+        stp x29, x30, [sp, #(8*16)]
+        str q8, [sp, #16*0]
+        str q9, [sp, #16*1]
+        str q10, [sp, #16*2]
+        str q11, [sp, #16*3]
+        str q12, [sp, #16*4]
+        str q13, [sp, #16*5]
+        str q14, [sp, #16*6]
+        str q15, [sp, #16*7]
 
-           sub sp, sp, #(6*16)
-           stp x19, x20, [sp, #(5*16)]
-           stp x21, x22, [sp, #(4*16)]
-           stp x23, x24, [sp, #(3*16)]
-           stp x25, x26, [sp, #(2*16)]
-           stp x27, x28, [sp, #(1*16)]
-           stp x29, x30, [sp, #(0*16)]
+        // Leave space for cached differences of words of a in inner loop
+        sub sp, sp, #(6*16)
 
-          save_vregs
+        sub sp, sp, #32
+        lsr x0, x0, #2
+        mov x26, x0
+        subs x12, x0, #1
+        bcc bignum_emontredc_8n_neon_end
 
-           // Leave space for cached differences in inner loop
-           sub sp, sp, #(6*16)
+        //
+        // Start of precomputation of m
+        //
+        // Precompute and cache signed differences of modulus components
+        // used in the ADK multiplication in the inner loop.
+        //
+        // THIS SHOULD BE HOISTED OUT
+        // (and until then, comment out for benchmarking to get accurate estimates)
+        //
 
-           sub sp, sp, #32
-           lsr x0, x0, #2
-           mov x26, x0
-           subs x12, x0, #1
-           bcc bignum_emontredc_8n_neon_end
+        // Number of extra limbs required:
+        // 6 * (number of limbs / 4 - 1) * 2 = 12 * (number_of_limbs/4 - 1)
+        //
+        mov x24, x4
+        mov x30, x4
 
-           // x30 = buffer holding precomputed ADK carry-differences for modulus
-           mov w30, #(12*8)
-           mul w30, w12, w30
-           sub x30, sp, x30
+        // Save modulus pointer
+        mov x25, m
 
-           //
-           // Start of precomputation
-           //
-           // Precompute and cache signed differences of modulus components
-           // used in the ADK multiplication in the inner loop.
-           //
-           // THIS SHOULD BE HOISTED OUT
-           // (and until then, comment out for benchmarking to get accurate estimates)
-           //
+        mov count, x12
 
-           // Number of extra limbs required:
-           // 6 * (number of limbs / 4 - 1) * 2 = 12 * (number_of_limbs/4 - 1)
-           //
-           // For now, just put them on the stack
-           mov sp, x30
-
-           // Save modulus pointer
-           mov x25, x2
-
-           mov count, x12
 bignum_emontredc_8n_neon_precomp:
-           ldp a0, a1, [x2, #32]!
-           ldp a2, a3, [x2, #16]
+        ldp a0, a1, [m, #32]!
+        ldp a2, a3, [m, #16]
 
-           t .req x28
-           c .req x29
+#define t x28
+#define c x29
 
-           cdiff t, c, a1, a0
-           stp   t, c, [sp, #cache_m10]
-           cdiff t, c, a2, a0
-           stp   t, c, [sp, #cache_m20]
-           cdiff t, c, a3, a0
-           stp   t, c, [sp, #cache_m30]
-           cdiff t, c, a2, a1
-           stp   t, c, [sp, #cache_m21]
-           cdiff t, c, a3, a1
-           stp   t, c, [sp, #cache_m31]
-           cdiff t, c, a3, a2
-           stp   t, c, [sp, #cache_m32]
+        cdiff(t, c, a1, a0)
+        stp   t, c, [x30, #cache_m10]
+        cdiff(t, c, a2, a0)
+        stp   t, c, [x30, #cache_m20]
+        cdiff(t, c, a3, a0)
+        stp   t, c, [x30, #cache_m30]
+        cdiff(t, c, a2, a1)
+        stp   t, c, [x30, #cache_m21]
+        cdiff(t, c, a3, a1)
+        stp   t, c, [x30, #cache_m31]
+        cdiff(t, c, a3, a2)
+        stp   t, c, [x30, #cache_m32]
 
-           add sp, sp, #(6*16)
+        add x30, x30, #(6*16)
 
-           subs count, count, #1
-           cbnz count, bignum_emontredc_8n_neon_precomp
+        subs count, count, #1
+        cbnz count, bignum_emontredc_8n_neon_precomp
 
-           // Set modulus pointer back to its original value
-           mov x2, x25
+        // Set modulus pointer and buffer pointer back to its original value
+        mov m, x25
+        mov x30, x24
 
-           //
-           // End of precomputation
-           //
+        //
+        // End of precomputation
+        //
 
-           stp x3, x30, [sp]
-           //stp x3, xzr, [sp]
-           stp x26, xzr, [sp, #16]
-           mov x28, xzr
-           lsl x0, x12, #5
+        stp x3, x30, [sp]
+        //stp x3, xzr, [sp]
+        stp x26, xzr, [sp, #16]
+        mov x28, xzr
+        lsl x0, x12, #5
 
-           movi    v29.2d, #0x000000ffffffff
+        movi    v29.2d, #0x000000ffffffff
 
-        bignum_emontredc_8n_neon_outerloop:
+bignum_emontredc_8n_neon_outerloop:
         ldph x9, x13, x1, #0, t0                   // .*..................................................................................................................................................................................................................
         ldr x3, [sp]                               // *...................................................................................................................................................................................................................                                                                            // gap(s) to follow
         lsr x27, x0, #5                            // ......................................................................................................................................*.............................................................................                                                                            // gap(s) to follow
@@ -1052,7 +999,7 @@ bignum_emontredc_8n_neon_precomp:
 
         sub count, count, #1
         cbnz count, bignum_emontredc_8n_neon_maddloop_neon
-        bignum_emontredc_8n_neon_inner_loop_postamble:
+bignum_emontredc_8n_neon_inner_loop_postamble:
         umulh x19, x6, x24                           // ..............*...........................................................................................................
         ldph x7, x9, sp, #cache_a23, t23             // .............*............................................................................................................
         adds x4, x21, x16                            // .*........................................................................................................................
@@ -1300,24 +1247,29 @@ bignum_emontredc_8n_neon_precomp:
         // stp x26, xzr, [sp, #16]                   // ........................................................................................................................*. || ..............................*
         // ldr x30, [sp, #8]                         // ................................................................................................................*......... || ............................*..
 
-        bignum_emontredc_8n_neon_outer_loop_end:
+bignum_emontredc_8n_neon_outer_loop_end:
 
-
-          bne bignum_emontredc_8n_neon_outerloop
-          neg x0, x28
+        bne bignum_emontredc_8n_neon_outerloop
+        neg x0, x28
 
 bignum_emontredc_8n_neon_end:
-           add sp, sp, #32
-           add sp, sp, #(6*16)
+        add sp, sp, #32
+        add sp, sp, #(6*16)
 
-           restore_vregs
+        ldr q8, [sp, #16*0]
+        ldr q9, [sp, #16*1]
+        ldr q10, [sp, #16*2]
+        ldr q11, [sp, #16*3]
+        ldr q12, [sp, #16*4]
+        ldr q13, [sp, #16*5]
+        ldr q14, [sp, #16*6]
+        ldr q15, [sp, #16*7]
+        ldp x29, x30, [sp, #(8*16)]
+        ldp x27, x28, [sp, #(9*16)]
+        ldp x25, x26, [sp, #(10*16)]
+        ldp x23, x24, [sp, #(11*16)]
+        ldp x21, x22, [sp, #(12*16)]
+        ldp x19, x20, [sp, #(13*16)]
+        add sp, sp, #(14*16)
 
-           ldp x29, x30, [sp, #(0*16)]
-           ldp x27, x28, [sp, #(1*16)]
-           ldp x25, x26, [sp, #(2*16)]
-           ldp x23, x24, [sp, #(3*16)]
-           ldp x21, x22, [sp, #(4*16)]
-           ldp x19, x20, [sp, #(5*16)]
-           add sp, sp, #(6*16)
-
-           ret
+        ret

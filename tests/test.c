@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#include <math.h>
 #include <time.h>
 #include <alloca.h>
 #include <string.h>
@@ -1324,6 +1323,7 @@ void reference_modexp(uint64_t k,uint64_t *res,
   bignum_demont(k,res,z,m);
 }
 
+
 // ****************************************************************************
 // Testing functions
 // ****************************************************************************
@@ -2556,112 +2556,6 @@ int test_bignum_copy(void)
   return 0;
 }
 
-int test_bignum_copy_row_from_table_specific(const char *name, uint64_t fixed_width,
-    int width_multiple_of_8,
-    void (*f)(uint64_t*, uint64_t*, uint64_t, uint64_t, uint64_t))
-{ uint64_t i, t;
-  // The height, width, height*width of table
-  uint64_t h, w, n;
-  printf("Testing %s with %d cases\n", name, tests);
-  int c;
-
-  for (t = 0; t < tests; ++t)
-   { // Use BUFFERSIZE instead of MAXSIZE because MAXSIZE is too small
-     if (fixed_width) w = fixed_width;
-     else {
-       w = (uint64_t) rand() % (uint64_t)sqrt((double)BUFFERSIZE);
-       if (width_multiple_of_8) w = w & ~7ull;
-     }
-
-     h = (uint64_t) rand() % (uint64_t)sqrt((double)BUFFERSIZE);
-     if (h == 0) ++h;
-     n = h * w;
-     uint64_t *table = malloc(n * sizeof(uint64_t));
-     for (i = 0; i < h; ++i)
-       random_bignum(w,&table[w * i]);
-
-     i = rand() % h;
-     reference_copy(w,b1,w,&table[w * i]);
-     f(b2, table, h, w, i);
-
-     c = reference_compare(w,b2,w,b1);
-     free(table);
-
-     if (c != 0)
-      { printf("### Disparity: [height %5"PRIu64", width %5"PRIu64"] "
-               "table [%5"PRIu64"*%5"PRIu64"] = ....0x%016"PRIx64" not ...0x%016"PRIx64"\n",
-               h, w, i, w, b2[0], b1[0]);
-        return 1;
-      }
-     else if (VERBOSE)
-      { printf("OK: [height %5"PRIu64", width %5"PRIu64"]", h, w);
-        if (n == 0) printf("\n");
-        else printf(" element [%5"PRIu64"*%5"PRIu64"] = .0x%016"PRIx64"\n",
-                    i, w, b2[0]);
-      }
-   }
-  printf("All OK\n");
-  return 0;
-}
-
-int test_bignum_copy_row_from_table(void)
-{
-// TODO: Once the x86 version of bignum_copy_row_from_table is verified,
-// remove this __ARM_NEON guard.
-#ifdef __ARM_NEON
-  return test_bignum_copy_row_from_table_specific("bignum_copy_row_from_table",
-      0, 0, bignum_copy_row_from_table);
-#else
-  return 1;
-#endif
-}
-
-int test_bignum_copy_row_from_table_8n_neon(void)
-{
-#ifdef __ARM_NEON
-  return test_bignum_copy_row_from_table_specific("bignum_copy_row_from_table_8n_neon",
-      0, 1, bignum_copy_row_from_table_8n_neon);
-#else
-  return 1;
-#endif
-}
-
-#ifdef __ARM_NEON
-void _bignum_copy_row_from_table_16_neon_wrapper(uint64_t *z, uint64_t *table,
-    uint64_t height, uint64_t width, uint64_t index)
-{ assert(width == 16);
-  bignum_copy_row_from_table_16_neon(z, table, height, index);
-}
-
-int test_bignum_copy_row_from_table_16_neon(void)
-{ return test_bignum_copy_row_from_table_specific(
-      "bignum_copy_row_from_table_16_neon", 16, 0,
-      _bignum_copy_row_from_table_16_neon_wrapper);
-}
-#else
-int test_bignum_copy_row_from_table_16_neon(void)
-{ return 1;
-}
-#endif
-
-#ifdef __ARM_NEON
-void _bignum_copy_row_from_table_32_neon_wrapper(uint64_t *z, uint64_t *table,
-    uint64_t height, uint64_t width, uint64_t index)
-{ assert(width == 32);
-  bignum_copy_row_from_table_32_neon(z, table, height, index);
-}
-
-int test_bignum_copy_row_from_table_32_neon(void)
-{ return test_bignum_copy_row_from_table_specific(
-      "bignum_copy_row_from_table_32_neon", 32, 0,
-      _bignum_copy_row_from_table_32_neon_wrapper);
-}
-#else
-int test_bignum_copy_row_from_table_32_neon(void)
-{ return 1;
-}
-#endif
-
 int test_bignum_ctd(void)
 { uint64_t t, k;
   printf("Testing bignum_ctd with %d cases\n",tests);
@@ -3485,8 +3379,8 @@ int test_bignum_emontredc_specific(const char *name, int is_8n,
     k = (unsigned)rand() % MAXSIZE;
     if (is_8n) {
       k = (k >> 3) << 3;
-      if (k == 0)
-        k = 8;
+      if (k <= 8)
+        k = 16;
     }
 
     random_bignum(k, b0);
@@ -3532,11 +3426,16 @@ int test_bignum_emontredc_8n(void)
                                         bignum_emontredc_8n);
 }
 
-int test_bignum_emontredc_8n_neon(void)
-{
+uint64_t _bignum_emontredc_8n_neon_withoutbuf(uint64_t k, uint64_t *z, uint64_t *m,
+                                          uint64_t w) {
+  uint64_t temp[1024];
+  return bignum_emontredc_8n_neon(k, z, m, w, temp);
+}
+
+int test_bignum_emontredc_8n_neon(void) {
 #ifdef __ARM_NEON
   return test_bignum_emontredc_specific("bignum_emontredc_8n_neon", 1,
-                                        bignum_emontredc_8n_neon);
+                                        _bignum_emontredc_8n_neon_withoutbuf);
 #else
   // Do not call the neon function to avoid a linking failure error.
   return 1;
@@ -6065,7 +5964,7 @@ int test_bignum_mul_specific
      random_bignum(p,b2);
      for (j = 0; j < p; ++j) b3[j] = b2[j] + 1;
      (*f)(b2,b0,b1);
-     reference_mul(p,b3,m,b0,n,b1);
+     reference_mul(m+n,b3,m,b0,n,b1); // Do not use p, but instead do the full multiplication
      c = reference_compare(p,b2,p,b3);
      if (c != 0)
       { printf("### Disparity: [sizes %4"PRIu64" x %4"PRIu64" -> %4"PRIu64"] "
@@ -11048,13 +10947,6 @@ int main(int argc, char *argv[])
 
   if (get_arch_name() == ARCH_AARCH64) {
     int neon = supports_neon();
-    // TODO: Once the x86 version of bignum_copy_row_from_table is verified, hoist
-    // this functionaltest out of this if branch and turn the condition into 'all'.
-    functionaltest(neon,"bignum_copy_row_from_table",test_bignum_copy_row_from_table);
-
-    functionaltest(neon,"bignum_copy_row_from_table_8n_neon",test_bignum_copy_row_from_table_8n_neon);
-    functionaltest(neon,"bignum_copy_row_from_table_16_neon",test_bignum_copy_row_from_table_16_neon);
-    functionaltest(neon,"bignum_copy_row_from_table_32_neon",test_bignum_copy_row_from_table_32_neon);
     functionaltest(neon,"bignum_emontredc_8n_neon",test_bignum_emontredc_8n_neon);
     functionaltest(neon,"bignum_kmul_16_32_neon", test_bignum_kmul_16_32_neon);
     functionaltest(neon,"bignum_kmul_32_64_neon", test_bignum_kmul_32_64_neon);

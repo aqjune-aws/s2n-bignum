@@ -288,7 +288,7 @@ extern uint64_t bignum_emontredc (uint64_t k, uint64_t *z, uint64_t *m, uint64_t
 // Inputs z[2*k], m[k], w; outputs function return (extra result bit) and z[2*k]
 extern uint64_t bignum_emontredc_8n (uint64_t k, uint64_t *z, uint64_t *m, uint64_t w);
 extern uint64_t bignum_emontredc_8n_neon (uint64_t k, uint64_t *z, uint64_t *m,
-                                          uint64_t w);
+                                          uint64_t w, uint64_t *temp);
 
 // Test bignums for equality, x = y
 // Inputs x[m], y[n]; output function return
