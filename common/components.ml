@@ -2774,6 +2774,16 @@ let (NONOVERLAPPING_TAC:tactic) =
     | Comb(Const("word",_),t) -> base I t
     | Comb(Comb(Const("word_add",_),t),_) -> base vl t
     | Comb(Comb(Const("+",_),t),_) -> base I t
+    | Comb(Comb(Const("word_sub",_),_),_) as t ->
+      if !components_print_log then
+        (Printf.printf "Info: NONOVERLAPPING_TAC's base doesn't consider word_sub (`%s`)\n"
+          (string_of_term t); f t)
+      else f t
+    | Comb(Comb(Const("-",_),_),_) as t ->
+      if !components_print_log then
+        (Printf.printf "Info: NONOVERLAPPING_TAC's base doesn't consider '-' (`%s`)\n"
+          (string_of_term t); f t)
+      else f t
     | t -> f t in base I in
   let pth_l,pth_r = W f_f_ (UNDISCH_ALL o
     MESON [NONOVERLAPPING_MODULO_SUBREGIONS; CONTAINED_MODULO_REFL; LE_REFL;
@@ -2977,6 +2987,12 @@ let (NONOVERLAPPING_TAC:tactic) =
 
   OVERRIDDEN_NONOVERLAPPING_TAC;;
 
+(* Example:
+  g `!(x1:int64). nonoverlapping_modulo (2 EXP 64)
+      (val x1,8) (val (word_add x1 (word 8)),8)`;;
+  e(STRIP_TAC THEN NONOVERLAPPING_TAC);;
+*)
+
 (* ------------------------------------------------------------------------- *)
 (* Automatically prove component orthogonality including memory.             *)
 (* ------------------------------------------------------------------------- *)
@@ -3022,6 +3038,12 @@ let ORTHOGONAL_COMPONENTS_TAC =
            [CONV_TAC(EQT_INTRO o VALID_COMPONENT_CONV); ALL_TAC]) THEN
    REPEAT(FIRST(map MATCH_MP_TAC (CONJUNCTS pth))) THEN
    NONOVERLAPPING_TAC);;
+
+(* Example:
+   g `!(x1:int64). orthogonal_components (bytes(x1,8))
+                                      (bytes(word_add x1 (word 8),8))`;;
+   e(REPEAT STRIP_TAC THEN ORTHOGONAL_COMPONENTS_TAC);;
+*)
 
 (* ------------------------------------------------------------------------- *)
 (* Now specific read-over-write of orthogonal components.                    *)
