@@ -970,7 +970,9 @@ let ASSERT_READ_BYTES128_EQ_JOIN64_TAC (addr:term) (stname:string): tactic =
     ]) (asl,g);;
 
 extra_word_CONV := [
-  REWRITE_ATLEASTONCE_CONV[WORD_MUL64_LO;WORD_MUL64_HI;WORD_BITMANIP_SIMP_LEMMAS;VAL_WORD_BIGDIGIT]]
+  GEN_REWRITE_CONV I [VAL_WORD_BIGDIGIT;
+      WORD_BITMANIP_SIMP_LEMMAS; WORD_MUL64_LO;
+      WORD_MUL64_HI]]
   @ (!extra_word_CONV);;
 
 g `!k z m w m_sub_precalc a n pc stackpointer.
@@ -1593,21 +1595,17 @@ e(SUBGOAL_THEN
   GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV) [VAL_EQ;WORD_ADD_0] THEN
   REPEAT STRIP_TAC);;
 
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--46));;
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (47--47));; (* stp x11, x25, [x1] *)
+time e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--47));; (* stp x11, x25, [x1] *)
 e(ASSERT_READ_BYTES128_EQ_JOIN64_TAC `zj:int64` "s47");;(* This cannot be hoisted. *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (48--50));; (* ldr q16, [x1] *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (51--62));; (* stp x17, x26, [sp, #32] *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (63--73));; (* ldp x23, x14, [x2, #16] *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (74--77));; (* ldp x8, x24, [x30, #16] *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (78--79));; (* ldr q9, [x2, #32]! *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (80--82));; (* ldr q13, [x2, #16] *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (83--122));;
-(* TODO: this takes too long time *)
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (123--123));; (* stp	x20, x26, [sp, #48] *)
-(*
-e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (124--131));; (* stp	x9, x26, [sp, #80] *)
-*)
+time e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (48--131));; 
+  (* 50: ldr q16, [x1] *)
+  (* 62: stp x17, x26, [sp, #32] *)
+  (* 73: ldp x23, x14, [x2, #16] *)
+  (* 77: ldp x8, x24, [x30, #16] *)
+  (* 79: ldr q9, [x2, #32]! *)
+  (* 82: ldr q13, [x2, #16] *)
+  (* 123: stp x20, x26, [sp, #48] *)
+  (* 131: stp	x9, x26, [sp, #80] *)
 
 (* val (read (memory :> bytes64 (word_add m_precalc (word (8 * 0)))) s73) =
  bigdigit (m_precalc_value n' (k4 - 1)) 0 /\
