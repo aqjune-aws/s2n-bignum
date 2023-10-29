@@ -328,8 +328,8 @@ let lemma2 = prove
   ASM_SIMP_TAC[VAL_WORD_SUB_CASES; GSYM REAL_OF_NUM_SUB] THEN
   REAL_ARITH_TAC);;
 
-let BIGNUM_EMONTREDC_8N_CORRECT = time prove
- (`!k z m w a n pc.
+(*let BIGNUM_EMONTREDC_8N_CORRECT = time prove*)
+g (`!k z m w a n pc.
         nonoverlapping (word pc,0x400) (z,8 * 2 * val k) /\
         nonoverlapping (m,8 * val k) (z,8 * 2 * val k) /\
         8 divides val k
@@ -350,8 +350,8 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
                         X12; X13; X14; X15; X16; X17; X19; X20;
                         X21; X22; X23; X24; X25; X26; X27; X28] ,,
              MAYCHANGE [memory :> bytes(z,8 * 2 * val k)] ,,
-             MAYCHANGE SOME_FLAGS)`,
-  W64_GEN_TAC `k:num` THEN
+             MAYCHANGE SOME_FLAGS)`);;
+e(W64_GEN_TAC `k:num` THEN
   MAP_EVERY X_GEN_TAC [`z:int64`; `m:int64`] THEN
   W64_GEN_TAC `w:num` THEN
   MAP_EVERY X_GEN_TAC [`a:num`; `n:num`; `pc:num`] THEN
@@ -583,9 +583,9 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
   BIGNUM_TERMRANGE_TAC `k + 4` `z1:num` THEN
   GHOST_INTRO_TAC `q1:num` `bignum_from_memory(z,4 * i)` THEN
   BIGNUM_TERMRANGE_TAC `4 * i` `q1:num` THEN
-  GLOBALIZE_PRECONDITION_TAC THEN
+  GLOBALIZE_PRECONDITION_TAC);;
 
-  ENSURES_SEQUENCE_TAC `pc + 0x3e0`
+e(ENSURES_SEQUENCE_TAC `pc + 0x3e0`
    `\s. read X2 s = m /\
         read X3 s = word w /\
         bignum_from_memory (m,k) s = n /\
@@ -623,11 +623,12 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
     REWRITE_TAC[lowdigits; highdigits; LEFT_ADD_DISTRIB; ADD_ASSOC] THEN
     REWRITE_TAC[ARITH_RULE `64 * 4 * i + 64 * k = 64 * k + 64 * 4 * i`] THEN
     SPEC_TAC(`64 * k + 64 * 4 * i`,`j:num`) THEN
-    REWRITE_TAC[EXP_ADD; MOD_MULT_MOD] THEN ARITH_TAC] THEN
+    REWRITE_TAC[EXP_ADD; MOD_MULT_MOD] THEN ARITH_TAC]);;
 
   (*** Now discard no-longer-relevant things outside the window ***)
 
-  MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN EXISTS_TAC
+(* unapplied - begin *)
+e(MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN EXISTS_TAC
    `MAYCHANGE [PC; X0; X1; X2; X4; X5; X6; X7; X8; X9; X10; X11; X12; X13;
      X14; X15; X16; X17; X19; X20; X21; X22; X23; X24; X25; X26; X27; X28] ,,
     MAYCHANGE [memory :> bytes(z',8 * (k + 4))] ,,
@@ -650,11 +651,12 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
   ENSURES_FORGET_COMPONENTS_TAC
    [`memory :> bytes (z,8 * 4 * i)`;
     `memory :>
-     bytes (word_add z' (word (8 * (k + 4))),8 * (k - 4 * (i + 1)))`] THEN
+     bytes (word_add z' (word (8 * (k + 4))),8 * (k - 4 * (i + 1)))`]);;
 
   (*** Get the cout < 2 before we forget too much context ***)
+(* unapplied - end *)
 
-  SUBGOAL_THEN `(n * w + 1 == 0) (mod (2 EXP 64)) ==> cout < 2`
+e(SUBGOAL_THEN `(n * w + 1 == 0) (mod (2 EXP 64)) ==> cout < 2`
   ASSUME_TAC THENL
    [DISCH_TAC THEN
     SUBGOAL_THEN
@@ -668,11 +670,12 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
       DISCH_THEN(MP_TAC o MATCH_MP (ARITH_RULE
        `d * (e * c + l):num < x ==> d * e * c < x`)) THEN
       REWRITE_TAC[LT_MULT_LCANCEL; EXP_EQ_0; ARITH_EQ]];
-    ALL_TAC] THEN
+    ALL_TAC]);;
 
   (*** Now forget more things; back up a few steps and forget i as well ***)
 
-  REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `a:num`) o concl)) THEN
+(* unapplied - begin *)
+e(REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `a:num`) o concl)) THEN
   REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `z:int64`) o concl)) THEN
   REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `q1:num`) o concl)) THEN
   REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `r1:num`) o concl)) THEN
@@ -699,10 +702,14 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
       ASM_REWRITE_TAC[ARITH_RULE `1 <= k - j <=> j < k`];
       VAL_INT64_TAC `k4 - i:num` THEN ASM_REWRITE_TAC[VAL_WORD_1] THEN
       UNDISCH_TAC `i:num < k4` THEN ARITH_TAC;
-      CONV_TAC WORD_RULE]] THEN
+      CONV_TAC WORD_RULE]]);;
 
-  ABBREV_TAC `wouter:int64 = word (k4 - i)` THEN
-  REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `i:num`) o concl)) THEN
+(* unapplied - end *)
+
+e(ABBREV_TAC `wouter:int64 = word (k4 - i)`);;
+
+(* unapplied - begin *)
+e(REPEAT(FIRST_X_ASSUM(K ALL_TAC o check (free_in `i:num`) o concl)) THEN
   POP_ASSUM_LIST(MP_TAC o end_itlist CONJ o rev) THEN
   MAP_EVERY SPEC_TAC
     [(`z1:num`,`a:num`); (`z':int64`,`z:int64`)] THEN
@@ -711,7 +718,8 @@ let BIGNUM_EMONTREDC_8N_CORRECT = time prove
   SUBGOAL_THEN `4 <= k` ASSUME_TAC THENL
    [SUBST1_TAC(SYM(ASSUME `4 * k4 = k`)) THEN UNDISCH_TAC `~(k4 = 0)` THEN
     ARITH_TAC;
-    ALL_TAC] THEN
+    ALL_TAC]);;
+(* unapplied - end *)
 
   (*** The initial Montgomery 4-block ***)
 
@@ -1212,3 +1220,4 @@ let BIGNUM_EMONTREDC_8N_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
     BIGNUM_EMONTREDC_8N_EXEC BIGNUM_EMONTREDC_8N_CORRECT
    `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28]` 80);;
+*)
