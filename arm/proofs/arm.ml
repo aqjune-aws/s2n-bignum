@@ -435,6 +435,9 @@ let ARM_VACCSTEP_TAC th aflag s =
   ARM_VERBOSE_STEP_TAC th s THEN
   (if aflag then TRY(ACCUMULATE_ARITH_TAC s THEN CLARIFY_TAC) else ALL_TAC);;
 
+(* excs: terms to exclude when applying ACCUMULATEX_ARITH_TAC
+         For example, if it is [`SP`], stack pointer registers are not
+         considered *)
 let ARM_XACCSTEP_TAC th excs aflag s =
   ARM_SINGLE_STEP_TAC th s THEN
   (if aflag then TRY(ACCUMULATEX_ARITH_TAC excs s THEN CLARIFY_TAC)

@@ -7,6 +7,8 @@
 (* Extended Montgomery reduction of arbitrary bignum.                        *)
 (* ========================================================================= *)
 
+needs "arm/proofs/base.ml";;
+
 (**** print_literal_from_elf "arm/fastmul/bignum_emontredc_8n_neon.o";;
  ****)
 
@@ -854,7 +856,7 @@ let BIGNUM_FROM_MEMORY_DIV2 = prove(`!a d n s.
         stp   t, c, [x30, #cache_m32]
 *)
 
-(* Returns (|x-y|, x-y >= 0) *)
+(* Returns (|x-y|:int64, x-y >= 0) *)
 let cdiff (x,y:term*term): term * term =
   let subres = subst [(x,`__t1__:num`);(y,`__t2__:num`)]
       `word_sub (word __t1__) (word __t2__):int64` in
@@ -863,6 +865,11 @@ let cdiff (x,y:term*term): term * term =
   let absdiff = subst [(cmpres,`__isnonneg__:bool`);(subres,`__sub__:int64`)]
       `if __isnonneg__ then (__sub__:int64) else word_neg __sub__` in
   (absdiff, cmpres);;
+
+(* Given two int64s w1 and w2, returns absolute difference of w1 and w2 in int64. *)
+let absdiff = REWRITE_RULE [WORD_VAL] (define
+  ((subst [fst (cdiff (`val (w1:int64)`,`val (w2:int64)`)),mk_var("__res__",`:int64`)]
+      `absdiff (w1:int64) (w2:int64) = (__res__:int64)`)));;
 
 (* Returns (|d|, d >= 0) where d = n[m_ofs_div_4*4 + i0] - n[m_ofs_div_4*4 + i1] *)
 let cdiff_from_bignum (n:term) (m_ofs_div_4:term) (i0:int) (i1:int): term * term =
@@ -969,11 +976,21 @@ let ASSERT_READ_BYTES128_EQ_JOIN64_TAC (addr:term) (stname:string): tactic =
       ALL_TAC
     ]) (asl,g);;
 
+(*
 extra_word_CONV := [
-  GEN_REWRITE_CONV I [VAL_WORD_BIGDIGIT;
+  GEN_REWRITE_CONV I [VAL_WORD_BIGDIGIT;GSYM absdiff;
       WORD_BITMANIP_SIMP_LEMMAS; WORD_MUL64_LO;
       WORD_MUL64_HI]]
+  @ (!extra_word_CONV);;*)
+(* NOTE: don't add VAL_WORD_BIGDIGIT because ACCUMULATEX_ARITH_TAC
+   relies on the existence of 'val'. See pth_mul_hi, etc in the file. *)
+extra_word_CONV := [
+  GEN_REWRITE_CONV I [WORD_BITMANIP_SIMP_LEMMAS; WORD_MUL64_LO;
+      WORD_MUL64_HI]]
   @ (!extra_word_CONV);;
+
+components_print_log := true;;
+arm_print_log := true;;
 
 g `!k z m w m_sub_precalc a n pc stackpointer.
         aligned 16 stackpointer /\
@@ -1533,15 +1550,16 @@ e(SUBGOAL_THEN
 e(REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES]);;
 e(ENSURES_INIT_TAC "s0");;
 
-(* Prepare 4 loads at zj *)
+(* Prepare 6 loads at zj *)
 e(SUBGOAL_THEN
-  `!i. i < 4 ==> bigdigit (bignum_from_memory (zj,k'+4) s0) i = bigdigit z1 i`
+  `!i. i < 6 ==> bigdigit (bignum_from_memory (zj,k'+4) s0) i = bigdigit z1 i`
   MP_TAC THENL [
   ASM_REWRITE_TAC[BIGNUM_FROM_MEMORY_BYTES] THEN NO_TAC;
   ALL_TAC] THEN
   CONV_TAC(LAND_CONV(EXPAND_CASES_CONV)) THEN
   REWRITE_TAC[BIGDIGIT_BIGNUM_FROM_MEMORY] THEN
   REWRITE_TAC[ARITH_RULE `0<k'+4/\1<k'+4/\2<k'+4/\3<k'+4`] THEN
+  REPEAT_N 2 (COND_CASES_TAC THENL [ALL_TAC; ASM_ARITH_TAC]) THEN
   GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
      [VAL_WORD_GALOIS; DIMINDEX_64; BIGDIGIT_BOUND] THEN
   CONV_TAC(LAND_CONV(ONCE_DEPTH_CONV NUM_MULT_CONV)) THEN
@@ -1576,10 +1594,7 @@ e(ASSERT_READ_BYTES128_EQ_JOIN64_TAC `word_add m (word 32):int64` "s0");;
 
 e(ASSERT_READ_BYTES128_EQ_JOIN64_TAC `word_add m (word 48):int64` "s0");;
 
-(*
-(* [read (memory :> bytes (m_precalc,8 * 12 * (k4 - 1))) s73 =
-m_precalc_value n' (k4 - 1)] *)
-*)
+(* m_precalc *)
 e(SUBGOAL_THEN
     `!i. i < 6 ==> bigdigit (bignum_from_memory (m_precalc, 12*(k4-1)) s0) i  =
                    bigdigit (m_precalc_value n' (k4-1)) i`
@@ -1595,9 +1610,50 @@ e(SUBGOAL_THEN
   GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV) [VAL_EQ;WORD_ADD_0] THEN
   REPEAT STRIP_TAC);;
 
-time e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (1--47));; (* stp x11, x25, [x1] *)
-e(ASSERT_READ_BYTES128_EQ_JOIN64_TAC `zj:int64` "s47");;(* This cannot be hoisted. *)
-time e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (48--131));; 
+(*print_goal_hyp_max_boxes := Some 10;;*)
+let e tac = refine(by(tac));;
+time e(ARM_XACCSTEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC [`SP`;`X1`;`X2`;`X30`] (1--47) (1--47));;
+time e(ASSERT_READ_BYTES128_EQ_JOIN64_TAC `zj:int64` "s47");; (* This cannot be hoisted. *)
+time e(ARM_XACCSTEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC [`SP`;`X1`;`X2`;`X30`] (48--154) (48--154));;
+e(ASSERT_READ_BYTES128_EQ_JOIN64_TAC `word_add zj (word 16):int64` "s154");; (* This cannot be hoisted. *)
+time e(ARM_XACCSTEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC [`SP`;`X1`;`X2`;`X30`] (155--212) (155--212));;
+
+(* read X1 s212 = word_add zj (word 32) *)
+(* Q: how can we build the mapping between old inst and new inst?
+   -> OCaml code..?! finally?? *)
+
+(* 3b4:	ba0c00cc 	adcs	x12, x6, x12 *)
+(* *)
+(*         read X4 s = word(bigdigit (bignum_from_memory(z,4) s) 0) /\
+        read X5 s = word(bigdigit (bignum_from_memory(z,4) s) 1) /\
+        read X6 s = word(bigdigit (bignum_from_memory(z,4) s) 2) /\
+        read X7 s = word(bigdigit (bignum_from_memory(z,4) s) 3) /\
+        ((n * w + 1 == 0) (mod (2 EXP 64))
+         ==> 2 EXP (64 * 4) *
+             bignum_of_wordlist
+              [read X12 s; read X13 s; read X14 s; read X15 s] =
+             bignum_from_memory(z,4) s * lowdigits n 4 + lowdigits a 4)*)
+
+(* z_precalc *)
+e(SUBGOAL_THEN
+    `!i. i < 6 ==> bigdigit (bignum_from_memory (word_add sp (word 32), 6) s0) i  =
+                   bigdigit (z_precalc_value z1) i`
+    MP_TAC);;
+  e(REWRITE_TAC[ARITH_RULE`6 = ((((1+1)+1)+1)+1)+1`; BIGNUM_FROM_MEMORY_STEP;
+    BIGNUM_FROM_MEMORY_SING]);;
+  e(ASM_REWRITE_TAC[]);;
+  e(RULE_ASSUM_TAC (REWRITE_RULE[GSYM absdiff]));;
+  e(ABBREV_TAC `z1_0 = bigdigit z1 0`);;
+  e(ABBREV_TAC `z1_1 = bigdigit z1 1`);;
+  e(ABBREV_TAC `z1_2 = bigdigit z1 2`);;
+  e(ABBREV_TAC `z1_3 = bigdigit z1 3`);;
+  e(ABBREV_TAC `n'_0 = bigdigit n' 0`);;
+  e(ABBREV_TAC `n'_1 = bigdigit n' 1`);;
+  e(ABBREV_TAC `n'_2 = bigdigit n' 2`);;
+  e(ABBREV_TAC `n'_3 = bigdigit n' 3`);;
+*)
+  
+  (* 47: stp x11, x25, [x1] *)
   (* 50: ldr q16, [x1] *)
   (* 62: stp x17, x26, [sp, #32] *)
   (* 73: ldp x23, x14, [x2, #16] *)
@@ -1606,6 +1662,16 @@ time e(ARM_STEPS_TAC BIGNUM_EMONTREDC_8N_NEON_EXEC (48--131));;
   (* 82: ldr q13, [x2, #16] *)
   (* 123: stp x20, x26, [sp, #48] *)
   (* 131: stp	x9, x26, [sp, #80] *)
+  (* 132: ldp	x17, x20, [sp, #48] *)
+  (* 154: stp	x12, x19, [x1, #16] *)
+  (* 156: ldr	q9, [x1, #16] *)
+  (* 165: stp	x10, x26, [sp, #96] *)
+  (* 178: ldp	x6, x5, [sp, #32] *)
+  (* 181: stp	x29, x26, [sp, #112] *)
+  (* 199: ldp	x20, x29, [x1, #32]! *)
+  (* 205: stp	x7, x26, [sp, #64] *)
+  (* 212: ldp	x24, x10, [x30], #96 *)
+
 
 (* val (read (memory :> bytes64 (word_add m_precalc (word (8 * 0)))) s73) =
  bigdigit (m_precalc_value n' (k4 - 1)) 0 /\
