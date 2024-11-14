@@ -42,7 +42,7 @@ let FLAGENCODING_11 = prove
   REWRITE_TAC[ARITH_RULE
    `4096 = 2 * 2 * 2 * 2 * 2 * 2 * 2 * 2 * 2 * 2 * 2 * 2`] THEN
   REWRITE_TAC[MOD_MULT_MOD] THEN REWRITE_TAC[DIV_DIV] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
+  CONV_TAC NUM_REDUCE_WEAK_CONV THEN
   ASM_REWRITE_TAC[MOD_2_CASES; GSYM NOT_ODD] THEN ARITH_TAC);;
 
 (* ------------------------------------------------------------------------- *)
@@ -219,7 +219,7 @@ let run_random_simulation () =
       match
        (REWRITE_TAC[regfile; CONS_11; FLAGENCODING_11; VAL_WORD_GALOIS] THEN
         REWRITE_TAC[DIMINDEX_64; DIMINDEX_128] THEN
-        CONV_TAC (ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
+        CONV_TAC (ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV) THEN
         REWRITE_TAC[SOME_FLAGS] THEN
         X86_SIM_TAC execth [1] THEN
         (* Deal with the BSWAP instruction *)
@@ -236,7 +236,7 @@ let run_random_simulation () =
           else
             let _,[_,gsd],_ =
              (REWRITE_TAC[regfile; CONS_11; FLAGENCODING_11; VAL_WORD_GALOIS] THEN
-              REWRITE_TAC[DIMINDEX_64; DIMINDEX_128] THEN CONV_TAC NUM_REDUCE_CONV THEN
+              REWRITE_TAC[DIMINDEX_64; DIMINDEX_128] THEN CONV_TAC NUM_REDUCE_WEAK_CONV THEN
               REWRITE_TAC[SOME_FLAGS]) ([], goal) in
              (print_qterm gsd; Format.print_newline(); false))
      | _,[],_ -> true in

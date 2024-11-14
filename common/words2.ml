@@ -64,7 +64,7 @@ let BYTELIST_OF_NUM_OF_BYTELIST = prove
 let NUM_OF_BYTELIST_OF_NUM_0 = prove
  (`!k. num_of_bytelist(bytelist_of_num k 0) = 0`,
   INDUCT_TAC THEN SIMP_TAC[num_of_bytelist; bytelist_of_num] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN ASM_REWRITE_TAC[VAL_WORD_0; ARITH]);;
+  CONV_TAC NUM_REDUCE_WEAK_CONV THEN ASM_REWRITE_TAC[VAL_WORD_0; ARITH]);;
 
 let NUM_OF_BYTELIST_OF_NUM = prove
  (`!k n. num_of_bytelist(bytelist_of_num k n) = n MOD (256 EXP k)`,
@@ -300,7 +300,7 @@ let read_word_n_eq_some = prove
       LENGTH_EQ_CONS; LEFT_AND_EXISTS_THM; RIGHT_AND_EXISTS_THM]) THEN
     CONV_TAC (ONCE_DEPTH_CONV UNWIND_CONV) THEN
     REWRITE_TAC [APPEND; CONS_11; num_of_bytelist] THEN
-    CONV_TAC (ONCE_DEPTH_CONV UNWIND_CONV THENC NUM_REDUCE_CONV) THEN
+    CONV_TAC (ONCE_DEPTH_CONV UNWIND_CONV THENC NUM_REDUCE_WEAK_CONV) THEN
     METIS_TAC []]);;
 
 let read_word_eq_some = prove
@@ -358,10 +358,10 @@ let READ_WORD_CONV =
     let cleanup dth pth =
       let m,w = (lhand F_F (rand o rand o lhand o rand))
         (dest_eq (concl pth)) in
-      let th = MATCH_MP (MATCH_MP pthc (NUM_REDUCE_CONV m)) dth in
+      let th = MATCH_MP (MATCH_MP pthc (NUM_REDUCE_WEAK_CONV m)) dth in
       let th = MATCH_MP th (TRANS
          (DIMINDEX_CONV (lhs (lhand (concl th))))
-         (SYM (NUM_REDUCE_CONV w))) in
+         (SYM (NUM_REDUCE_WEAK_CONV w))) in
       MATCH_MP th pth in
     let [pth8; _; _; _; pth4; _; pth2; _] = mk_pth 8 in
     cleanup read_int16 pth2,
@@ -376,7 +376,7 @@ let READ_WORD_CONV =
       DISCH_THEN (fun dth ->
         SUBGOAL_THEN `read_word_n n (APPEND (bytelist_of_num n a) l) =
           SOME (a MOD 256 EXP n, l)` (fun th ->
-          REWRITE_TAC [read_word; th; obind; CONV_RULE NUM_REDUCE_CONV
+          REWRITE_TAC [read_word; th; obind; CONV_RULE NUM_REDUCE_WEAK_CONV
             (REWRITE_RULE [dth; EXP_MULT] WORD_MOD_SIZE)]) THEN
         REWRITE_TAC [read_word_n_eq_some] THEN
         EXISTS_TAC `bytelist_of_num n a` THEN
@@ -386,7 +386,7 @@ let READ_WORD_CONV =
        read_word n (APPEND (bytelist_of_int n a) l) =
        SOME ((iword a:N word), l)`,
       DISCH_THEN (fun dth -> REWRITE_TAC [bytelist_of_int; MP th dth; iword;
-        INT_OF_NUM_POW; dth; EXP_MULT] THEN CONV_TAC NUM_REDUCE_CONV)) in
+        INT_OF_NUM_POW; dth; EXP_MULT] THEN CONV_TAC NUM_REDUCE_WEAK_CONV)) in
     W f_f_ (REWRITE_RULE [SYM read_int32] o
       C MATCH_MP (TRANS DIMINDEX_32 (ARITH_RULE `32 = 8 * 4`))) (th,th2) in
 

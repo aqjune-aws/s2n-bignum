@@ -221,7 +221,7 @@ let sha512su1 = define
 let SHA512H_RED_CONV =
         REWR_CONV sha512h THENC
         DEPTH_CONV (let_CONV) THENC
-        WORD_REDUCE_CONV;;
+        WORD_REDUCE_WEAK_CONV;;
 
 let SHA512H_REDUCE_CONV tm =
       match tm with
@@ -235,7 +235,7 @@ let SHA512H_REDUCE_CONV tm =
 let SHA512H2_RED_CONV =
         REWR_CONV sha512h2 THENC
         DEPTH_CONV (let_CONV) THENC
-        WORD_REDUCE_CONV;;
+        WORD_REDUCE_WEAK_CONV;;
 
 let SHA512H2_REDUCE_CONV tm =
       match tm with
@@ -249,7 +249,7 @@ let SHA512H2_REDUCE_CONV tm =
 let SHA512SU0_RED_CONV =
         REWR_CONV sha512su0 THENC
         DEPTH_CONV (let_CONV) THENC
-        WORD_REDUCE_CONV;;
+        WORD_REDUCE_WEAK_CONV;;
 
 let SHA512SU0_REDUCE_CONV tm =
   match tm with
@@ -261,7 +261,7 @@ let SHA512SU0_REDUCE_CONV tm =
 let SHA512SU1_RED_CONV =
         REWR_CONV sha512su1 THENC
         DEPTH_CONV (let_CONV) THENC
-        WORD_REDUCE_CONV;;
+        WORD_REDUCE_WEAK_CONV;;
 
 let SHA512SU1_REDUCE_CONV tm =
       match tm with

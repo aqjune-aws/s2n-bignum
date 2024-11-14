@@ -152,7 +152,7 @@ let tac execth cleanpost offset =
 
   FIRST_ASSUM(MP_TAC o MATCH_MP (ONCE_REWRITE_RULE[IMP_CONJ]
     NONOVERLAPPING_IMP_SMALL_RIGHT_ALT)) THEN
-  ANTS_TAC THENL [CONV_TAC NUM_REDUCE_CONV; DISCH_TAC] THEN
+  ANTS_TAC THENL [CONV_TAC NUM_REDUCE_WEAK_CONV; DISCH_TAC] THEN
 
   (*** Case split following the initial branch, m >= n case then m < n ***)
 

@@ -82,12 +82,12 @@ let PURE_BOUNDER_RULE =
       MESON[] `real_of_int(if p then m else n):real =
               if p then real_of_int m else real_of_int n`]
   and BIRATIONAL_RULE =
-    CONV_RULE (BINOP2_CONV (LAND_CONV REAL_RAT_REDUCE_CONV)
-                           (RAND_CONV REAL_RAT_REDUCE_CONV)) in
+    CONV_RULE (BINOP2_CONV (LAND_CONV REAL_RAT_REDUCE_WEAK_CONV)
+                           (RAND_CONV REAL_RAT_REDUCE_WEAK_CONV)) in
   let rule_const tm = let th = SPEC tm REAL_LE_REFL in CONJ th th
   and rule_cconst =
      let pth = REAL_ARITH `!x c:real. x = c ==> c <= x /\ x <= c` in
-     fun tm -> let th = REAL_RAT_REDUCE_CONV tm in
+     fun tm -> let th = REAL_RAT_REDUCE_WEAK_CONV tm in
                let tm' = rand(concl th) in
                if is_ratconst tm' then MP (SPECL [tm;tm'] pth) th
                else failwith ("BOUNDER_RULE: unhandled term: "
@@ -192,7 +192,7 @@ let PURE_BOUNDER_RULE =
       let m = floor_num(rat_of_term(rand(rand(concl th))) //
                         dest_numeral n) in
       let ith = SPECL [n; mk_numeral m] (rule th) in
-      MP ith (EQT_ELIM(REAL_RAT_REDUCE_CONV(lhand(concl ith))))
+      MP ith (EQT_ELIM(REAL_RAT_REDUCE_WEAK_CONV(lhand(concl ith))))
   and rule_nmod =
     let pth = prove
      (`!(l:real) u x.
@@ -262,7 +262,7 @@ let PURE_BOUNDER_RULE =
          (RAND_CONV(BINOP2_CONV (LAND_CONV(LAND_CONV ADJ_CONV))
                                 (RAND_CONV(LAND_CONV(LAND_CONV ADJ_CONV)))))
          (BINOP2_CONV (LAND_CONV ADJ_CONV) (RAND_CONV ADJ_CONV))) ith in
-      MP jth (EQT_ELIM(REAL_RAT_REDUCE_CONV(lhand(concl jth))))
+      MP jth (EQT_ELIM(REAL_RAT_REDUCE_WEAK_CONV(lhand(concl jth))))
   and rule_irem =
     let pth = prove
      (`!(l:real) u x.
@@ -329,16 +329,16 @@ let PURE_BOUNDER_RULE =
       REWRITE_TAC[GSYM int_le; REAL_OF_NUM_LE]) in
     let typeswitch_conv =
      (GEN_REWRITE_CONV I [pth_num] THENC
-     LAND_CONV(RAND_CONV NUM_REDUCE_CONV)) ORELSEC
+     LAND_CONV(RAND_CONV NUM_REDUCE_WEAK_CONV)) ORELSEC
     (GEN_REWRITE_CONV I [pth_lint] THENC
-     LAND_CONV(RAND_CONV INT_REDUCE_CONV) THENC
+     LAND_CONV(RAND_CONV INT_REDUCE_WEAK_CONV) THENC
      GEN_REWRITE_CONV TOP_DEPTH_CONV
       [int_of_num_th; int_neg_th; int_add_th; int_mul_th;
        int_sub_th; int_pow_th; int_abs_th; int_max_th; int_min_th]) in
     fun th ->
       try CONV_RULE typeswitch_conv th with Failure _ ->
       let th' = (try weaken_rule th with Failure _ -> th) in
-    CONV_RULE (LAND_CONV REAL_RAT_REDUCE_CONV) th'
+    CONV_RULE (LAND_CONV REAL_RAT_REDUCE_WEAK_CONV) th'
   and canonize_ubound =
     let weaken_rule = MATCH_MP REAL_LT_IMP_LE
     and pth_num,pth_int = (CONJ_PAIR o prove)
@@ -352,16 +352,16 @@ let PURE_BOUNDER_RULE =
       REAL_ARITH_TAC) in
     let typeswitch_conv =
      (GEN_REWRITE_CONV I [pth_num] THENC
-      RAND_CONV(NUM_REDUCE_CONV THENC REAL_RAT_REDUCE_CONV)) ORELSEC
+      RAND_CONV(NUM_REDUCE_WEAK_CONV THENC REAL_RAT_REDUCE_WEAK_CONV)) ORELSEC
     (GEN_REWRITE_CONV I [pth_int] THENC
-     RAND_CONV(RAND_CONV INT_REDUCE_CONV) THENC
+     RAND_CONV(RAND_CONV INT_REDUCE_WEAK_CONV) THENC
      GEN_REWRITE_CONV TOP_DEPTH_CONV
       [int_of_num_th; int_neg_th; int_add_th; int_mul_th;
        int_sub_th; int_pow_th; int_abs_th; int_max_th; int_min_th]) in
     fun th ->
       try CONV_RULE typeswitch_conv th with Failure _ ->
       let th' = (try weaken_rule th with Failure _ -> th) in
-    CONV_RULE (RAND_CONV REAL_RAT_REDUCE_CONV) th'
+    CONV_RULE (RAND_CONV REAL_RAT_REDUCE_WEAK_CONV) th'
   and default_lowerbounds =
     let valword_lowerbound = prove
      (`&(n MOD 18446744073709551616):real <= &(val(word n:int64))`,
@@ -387,7 +387,7 @@ let PURE_BOUNDER_RULE =
                            REAL_RAT_POW_CONV) THENC REAL_RAT_NEG_CONV)) th]
        with Failure _ -> []) @
       (try let th1 = rule_valword_lowerbound t in
-           let th2 = CONV_RULE(LAND_CONV(RAND_CONV NUM_REDUCE_CONV)) th1 in
+           let th2 = CONV_RULE(LAND_CONV(RAND_CONV NUM_REDUCE_WEAK_CONV)) th1 in
            [if is_ratconst(lhand(concl th2)) then th2 else failwith ""]
        with Failure _ -> [])
   and default_upperbounds =
@@ -460,20 +460,20 @@ let PURE_BOUNDER_RULE =
              REAL_RAT_SUB_CONV)) th1]
       with Failure _ -> []) @
      (try let th1 = rule_valword_upperbound t in
-          let th2 = CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_CONV)) th1 in
+          let th2 = CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_WEAK_CONV)) th1 in
           [if is_ratconst(rand(concl th2)) then th2 else failwith ""]
       with Failure _ -> []) @
      (try let th1 = rule_lmask_upperbound t in
-          let th2 = CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_CONV)) th1 in
+          let th2 = CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_WEAK_CONV)) th1 in
           [if is_ratconst(rand(concl th2)) then th2 else failwith ""]
       with Failure _ -> []) @
      (try let th1 = rule_rmask_upperbound t in
-          let th2 = CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_CONV)) th1 in
+          let th2 = CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_WEAK_CONV)) th1 in
           [if is_ratconst(rand(concl th2)) then th2 else failwith ""]
       with Failure _ -> []) @
      (try let th = PART_MATCH (lhand o rand) modular_upperbound t in
-          let th' = MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th)))) in
-           [CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_CONV)) th']
+          let th' = MP th (EQT_ELIM(NUM_REDUCE_WEAK_CONV(lhand(concl th)))) in
+           [CONV_RULE(RAND_CONV(RAND_CONV NUM_REDUCE_WEAK_CONV)) th']
       with Failure _ -> []) in
   fun ths ->
     let iths = filter (is_inequality o concl) ths in
@@ -545,8 +545,8 @@ let PURE_BOUNDER_RULE =
 let BOUNDER_RULE ths =
   let bounder = PURE_BOUNDER_RULE ths in
   fun tm -> let ith = (REAL_POLY_CONV THENC
-                       NUM_REDUCE_CONV THENC
-                       INT_REDUCE_CONV) tm in
+                       NUM_REDUCE_WEAK_CONV THENC
+                       INT_REDUCE_WEAK_CONV) tm in
             let bth = bounder (rand(concl ith)) in
             GEN_REWRITE_RULE
               (fun c -> BINOP2_CONV (RAND_CONV c) (LAND_CONV c))
@@ -599,7 +599,7 @@ let (PURE_BOUNDER_TAC:thm list -> tactic),(BOUNDER_TAC:thm list -> tactic) =
     CONV_TAC STANDARDIZE_INEQ_CONV THEN
     SHARPEN_INEQ_0_TAC THEN
     BASIC_BOUNDER_TAC baserule ths THEN
-    CONV_TAC REAL_RAT_REDUCE_CONV THEN NO_TAC in
+    CONV_TAC REAL_RAT_REDUCE_WEAK_CONV THEN NO_TAC in
   GEN_BOUNDER_TAC PURE_BOUNDER_RULE,GEN_BOUNDER_TAC BOUNDER_RULE;;
 
 (* ------------------------------------------------------------------------- *)
@@ -1252,14 +1252,14 @@ let ACCUMULATEX_ARITH_TAC =
           (fun th -> SUBST_ALL_TAC th THEN ASSUME_TAC th)))) gl) ORELSE
 
       (fun gl -> ((MATCH_LTH_TAC o check (matchfn o concl)) sth THEN
-       ANTS_TAC THENL [CONV_TAC NUM_REDUCE_CONV THEN NO_TAC; ALL_TAC] THEN
+       ANTS_TAC THENL [CONV_TAC NUM_REDUCE_WEAK_CONV THEN NO_TAC; ALL_TAC] THEN
        DISCH_THEN(X_CHOOSE_THEN (mk_var("mulhi_"^s,int64_ty))
         (X_CHOOSE_THEN (mk_var("mullo_"^s,int64_ty)) MP_TAC)) THEN
        DISCH_THEN(CONJUNCTS_THEN2 STRIP_ASSUME_TAC
         (REPEAT_TCL CONJUNCTS_THEN SUBST_ALL_TAC))) gl) ORELSE
 
       (fun gl -> ((MATCH_KTH_TAC o check (matchfn o concl)) sth THEN
-       ANTS_TAC THENL [CONV_TAC NUM_REDUCE_CONV THEN NO_TAC; ALL_TAC] THEN
+       ANTS_TAC THENL [CONV_TAC NUM_REDUCE_WEAK_CONV THEN NO_TAC; ALL_TAC] THEN
        DISCH_THEN(X_CHOOSE_THEN (mk_var("mulhi_"^s,int64_ty))
         (X_CHOOSE_THEN (mk_var("mullo_"^s,int64_ty)) MP_TAC)) THEN
        DISCH_THEN(CONJUNCTS_THEN2 STRIP_ASSUME_TAC
@@ -1267,7 +1267,7 @@ let ACCUMULATEX_ARITH_TAC =
           (fun th -> SUBST_ALL_TAC th THEN ASSUME_TAC th)))) gl) ORELSE
 
       (fun gl -> ((MATCH_ETH_TAC o check (matchfn o concl)) sth THEN
-       ANTS_TAC THENL [CONV_TAC NUM_REDUCE_CONV THEN NO_TAC; ALL_TAC] THEN
+       ANTS_TAC THENL [CONV_TAC NUM_REDUCE_WEAK_CONV THEN NO_TAC; ALL_TAC] THEN
        DISCH_THEN(X_CHOOSE_THEN (mk_var("mulhi_"^s,int64_ty))
         (X_CHOOSE_THEN (mk_var("mullo_"^s,int64_ty)) MP_TAC)) THEN
        CONV_TAC(LAND_CONV(ONCE_DEPTH_CONV NUM_SUB_CONV)) THEN

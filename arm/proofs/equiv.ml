@@ -64,7 +64,7 @@ let COMPONENT_READ_OVER_WRITE_LHS_TAC: tactic =
 let WRITE_ELEMENT_BYTES8 = prove(
   `!loc (z:(8)word) s. write (element loc) z s = write (bytes8 loc) z s`,
   REWRITE_TAC[bytes8;WRITE_COMPONENT_COMPOSE;asword;through;write;ARITH_RULE`1=SUC 0`;bytes;WORD_ADD_0;limb] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
+  CONV_TAC NUM_REDUCE_WEAK_CONV THEN
   IMP_REWRITE_TAC[DIV_1;MOD_LT] THEN
   REWRITE_TAC[WORD_VAL;ARITH_RULE`256=2 EXP 8`;VAL_BOUND;GSYM DIMINDEX_8]);;
 
@@ -1563,7 +1563,7 @@ let prove_correct_n execth core_execth (correct_th:thm)
                     (event_n_at_pc_th:thm): thm =
   let correct_th = prove_correct_barrier_appended correct_th core_execth in
   let to_eventually_th = REWRITE_RULE [fst execth;fst core_execth] event_n_at_pc_th in
-  let to_eventually_th = CONV_RULE (ONCE_DEPTH_CONV NUM_REDUCE_CONV) to_eventually_th in
+  let to_eventually_th = CONV_RULE (ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV) to_eventually_th in
   let to_eventually_th = REWRITE_RULE[
       eventually_n_at_pc;
       TAUT `(P==>(!x. Q x)) <=> (!x. P==>Q x)`;
@@ -1571,7 +1571,7 @@ let prove_correct_n execth core_execth (correct_th:thm)
     to_eventually_th in
   (* unfold LENGTH mc and LENGTH (APPEND .. )) *)
   let eventually_form =
-    (CONV_RULE (ONCE_DEPTH_CONV NUM_REDUCE_CONV) o
+    (CONV_RULE (ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV) o
      REWRITE_RULE[fst execth;fst core_execth;LENGTH_APPEND;BARRIER_INST_BYTES_LENGTH]) correct_th in
   let eventually_form = REWRITE_RULE[
       ensures;
@@ -1590,7 +1590,7 @@ let prove_correct_n execth core_execth (correct_th:thm)
     (* Reduce the step function, and LENGTH *. *)
     CONV_TAC (
       REWRITE_CONV[fst execth;fst core_execth;LENGTH_APPEND;BARRIER_INST_BYTES_LENGTH] THENC
-      ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
+      ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV) THEN
     (* use eventually_n_at_pc *)
     REWRITE_TAC[ensures_n] THEN REPEAT STRIP_TAC THEN
     REWRITE_TAC[GSYM CONJ_ASSOC] THEN
@@ -1599,7 +1599,7 @@ let prove_correct_n execth core_execth (correct_th:thm)
     (* Reduce the step function, and LENGTH *. *)
     CONV_TAC (
       REWRITE_CONV[fst execth;fst core_execth;LENGTH_APPEND;BARRIER_INST_BYTES_LENGTH] THENC
-      ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
+      ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV) THEN
     (ASM_MESON_TAC[ALL;NONOVERLAPPING_CLAUSES;NONOVERLAPPING_MODULO_SYM;
                    eventually_form] ORELSE
     (PRINT_TAC ("ASM_MESON could not prove this goal. eventually_form: `" ^
@@ -1713,7 +1713,7 @@ let EVENTUALLY_TAKE_STEP_RIGHT_FORALL_TAC exec_decode (k:int):tactic =
       ==> read PC s_final = word (pc + 616) /\ P s0 s_final`
     - target: `word (pc + X) = word (pc + Y)`  *)
   GEN_REWRITE_TAC (LAND_CONV o LAND_CONV o LAND_CONV) word_simp_lemmas THEN
-  CONV_TAC ((LAND_CONV o LAND_CONV o LAND_CONV) WORD_REDUCE_CONV) THEN
+  CONV_TAC ((LAND_CONV o LAND_CONV o LAND_CONV) WORD_REDUCE_WEAK_CONV) THEN
   REWRITE_TAC[] THEN
   ONCE_REWRITE_TAC[STEPS_STEP;STEPS_ONE] THEN
 
@@ -1856,7 +1856,7 @@ let PROVE_EVENTUALLY_IMPLIES_EVENTUALLY_N_TAC execth =
           EVENTUALLY_STEPS_EXISTS_STEP_TAC execth i THEN
           FIRST_X_ASSUM (fun th ->
             let res = MATCH_MP ath th in
-            ASSUME_TAC (CONV_RULE (ONCE_DEPTH_CONV NUM_REDUCE_CONV) res))
+            ASSUME_TAC (CONV_RULE (ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV) res))
         ] THEN CLARIFY_TAC) THEN
       ASM_ARITH_TAC (* last is: 'n < 0' *)
     ]);;

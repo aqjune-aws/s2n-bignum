@@ -1300,7 +1300,7 @@ let X86_MK_EXEC_RULE th0 =
   let th1 = AP_TERM `LENGTH:byte list->num` th0 in
   let th2 =
     (REWRITE_CONV [LENGTH_BYTELIST_OF_NUM; LENGTH_BYTELIST_OF_INT;
-      LENGTH; LENGTH_APPEND] THENC NUM_REDUCE_CONV) (rhs (concl th1)) in
+      LENGTH; LENGTH_APPEND] THENC NUM_REDUCE_WEAK_CONV) (rhs (concl th1)) in
   (* Length *)
   let execth1 = TRANS th1 th2 in
   (* Decode *)
@@ -1820,7 +1820,7 @@ let OPERAND_SIZE_CASES = prove
    (match (16,8) with
       (64,16) -> b  | (64,8) -> c
     | (32,16) -> e | (32,8) -> f  | (16,8) -> g) = g`,
-  CONV_TAC(TOP_DEPTH_CONV MATCH_CONV) THEN CONV_TAC NUM_REDUCE_CONV);;
+  CONV_TAC(TOP_DEPTH_CONV MATCH_CONV) THEN CONV_TAC NUM_REDUCE_WEAK_CONV);;
 
 let X86_EXECUTE =
   CONV_RULE (TOP_DEPTH_CONV let_CONV)
@@ -1882,7 +1882,7 @@ let BSID_SEMANTICS_CONV =
      (map GSYM [RAX;  RCX;  RDX;  RBX;  RSP;  RBP;  RSI;  RDI;
                 R8;   R9;  R10;  R11;  R12;  R13;  R14;  R15]) THENC
     ONCE_DEPTH_CONV WORD_VAL_CONV THENC
-    ONCE_DEPTH_CONV NUM_REDUCE_CONV THENC
+    ONCE_DEPTH_CONV NUM_REDUCE_WEAK_CONV THENC
     GEN_REWRITE_CONV ONCE_DEPTH_CONV [ARITH_RULE `n + 0 = n`] in
   fun tm ->
    (match tm with
@@ -2197,7 +2197,7 @@ let x86_POP_ALT = prove
         let p' = word_add p (word 8) in
         (RSP := p' ,,
          dest := x) s`,
-  REWRITE_TAC[x86_POP; DIMINDEX_64; bytes64] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[x86_POP; DIMINDEX_64; bytes64] THEN CONV_TAC NUM_REDUCE_WEAK_CONV THEN
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[READ_COMPONENT_COMPOSE; asword; through; read; write]);;
 
@@ -2209,7 +2209,7 @@ let x86_PUSH_ALT = prove
         (RSP := p' ,,
          memory :> bytes64 p' := x) s`,
   REWRITE_TAC[x86_PUSH; DIMINDEX_64; bytes64] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
+  CONV_TAC NUM_REDUCE_WEAK_CONV THEN
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[WRITE_COMPONENT_COMPOSE; asword; through; read; write; seq;
               assign]);;
@@ -2354,7 +2354,7 @@ let X86_THM =
         failwith ("X86_THM: Cannot decompose PC expression: " ^ (string_of_term (concl pc_th))) in
     CONV_RULE
       (ONCE_DEPTH_CONV
-        (REWR_CONV (GSYM ADD_ASSOC) THENC RAND_CONV NUM_REDUCE_CONV))
+        (REWR_CONV (GSYM ADD_ASSOC) THENC RAND_CONV NUM_REDUCE_WEAK_CONV))
       (MATCH_MP th (MATCH_MP (Option.get execth2.(pc_ofs)) loaded_mc_th));;
 
 let X86_ENSURES_SUBLEMMA_TAC =
@@ -2454,7 +2454,7 @@ let X86_CONV (decode_ths:thm option array) ths tm =
    ONCE_DEPTH_CONV
     (GEN_REWRITE_CONV I [GSYM WORD_ADD] THENC
      GEN_REWRITE_CONV (RAND_CONV o TOP_DEPTH_CONV) [GSYM ADD_ASSOC] THENC
-     RAND_CONV NUM_REDUCE_CONV) THENC
+     RAND_CONV NUM_REDUCE_WEAK_CONV) THENC
    TOP_DEPTH_CONV COMPONENT_WRITE_OVER_WRITE_CONV THENC
    GEN_REWRITE_CONV (SUB_COMPONENTS_CONV o TOP_DEPTH_CONV) ths THENC
    GEN_REWRITE_CONV TOP_DEPTH_CONV [WORD_VAL] THENC
@@ -2687,7 +2687,7 @@ let TWEAK_PC_OFFSET =
 
 let X86_SUBROUTINE_SIM_TAC (machinecode,execth,offset,submachinecode,subth) =
   let subimpth =
-    CONV_RULE NUM_REDUCE_CONV (REWRITE_RULE [LENGTH]
+    CONV_RULE NUM_REDUCE_WEAK_CONV (REWRITE_RULE [LENGTH]
       (MATCH_MP bytes_loaded_of_append3
         (TRANS machinecode (N_SUBLIST_CONV (SPEC_ALL submachinecode) offset
            (rhs(concl machinecode)))))) in
@@ -3025,7 +3025,7 @@ let WINDOWS_X86_WRAP_NOSTACK_TAC =
       1 -> 5 | 2 -> 8 | 3 -> 11 | 4 -> 14 | 5 -> 19 | 6 -> 24 | _ -> 0 in
     let interstate = "s"^string_of_int(prolog_len+1)
     and subimpth =
-      CONV_RULE NUM_REDUCE_CONV (REWRITE_RULE [LENGTH]
+      CONV_RULE NUM_REDUCE_WEAK_CONV (REWRITE_RULE [LENGTH]
         (MATCH_MP bytes_loaded_of_append3
           (TRANS winmc (N_SUBLIST_CONV
              (SPEC_ALL (X86_TRIM_EXEC_RULE stdmc)) pcoff
@@ -3092,7 +3092,7 @@ let WINDOWS_X86_WRAP_STACK_TAC =
       1 -> 5 | 2 -> 8 | 3 -> 11 | 4 -> 14 | 5 -> 19 | 6 -> 24 | _ -> 0 in
     let interstate = "s"^string_of_int(prolog_len+1)
     and subimpth =
-      CONV_RULE NUM_REDUCE_CONV (REWRITE_RULE [LENGTH]
+      CONV_RULE NUM_REDUCE_WEAK_CONV (REWRITE_RULE [LENGTH]
         (MATCH_MP bytes_loaded_of_append3
           (TRANS winmc (N_SUBLIST_CONV
              (SPEC_ALL (X86_TRIM_EXEC_RULE stdmc)) pcoff

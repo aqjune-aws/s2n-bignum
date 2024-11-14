@@ -92,7 +92,7 @@ let ARM_MK_EXEC_RULE th0: thm * (thm option array) =
   let th1 = AP_TERM `LENGTH:byte list->num` th0 in
   let th2 =
     (REWRITE_CONV [LENGTH_BYTELIST_OF_NUM; LENGTH_BYTELIST_OF_INT;
-      LENGTH; LENGTH_APPEND] THENC NUM_REDUCE_CONV) (rhs (concl th1)) in
+      LENGTH; LENGTH_APPEND] THENC NUM_REDUCE_WEAK_CONV) (rhs (concl th1)) in
   (* Length *)
   let execth1 = TRANS th1 th2 in
   (* Decode *)
@@ -162,7 +162,7 @@ let OFFSET_ADDRESS_CLAUSES = prove
    offset_address (Preimmediate_Offset w) s = w /\
    offset_address (Postimmediate_Offset w) s = word 0`,
   REWRITE_TAC[offset_address; word_shl; WORD_VAL] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[MULT_AC]);;
+  CONV_TAC NUM_REDUCE_WEAK_CONV THEN REWRITE_TAC[MULT_AC]);;
 
 (* ------------------------------------------------------------------------- *)
 (* Basic execution of ARM instruction into sequence of state updates.        *)
@@ -332,7 +332,7 @@ let NORMALIZE_ALIGNED_16_CONV =
     REPEAT STRIP_TAC THEN FIRST (map MATCH_MP_TAC
      (CONJUNCTS ALIGNED_WORD_ADD_EQ @ CONJUNCTS ALIGNED_WORD_SUB_EQ)) THEN
     ASM_REWRITE_TAC[ALIGNED_WORD; DIMINDEX_64] THEN
-    CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC DIVIDES_CONV) in
+    CONV_TAC NUM_REDUCE_WEAK_CONV THEN CONV_TAC DIVIDES_CONV) in
   let funs = map (PART_MATCH (lhs o rand)) (CONJUNCTS pth) in
   let conv tm =
     try let th = tryfind (fun f -> f tm) funs in
@@ -441,11 +441,11 @@ let ARM_CONV (decode_ths:thm option array) (ths:thm list) tm =
   GEN_REWRITE_CONV TOP_DEPTH_CONV [WRITE_RVALUE] THENC
   ONCE_REWRITE_CONV [WORD_SUB_ADD] THENC
   ONCE_DEPTH_CONV
-   (REWR_CONV (GSYM ADD_ASSOC) THENC RAND_CONV NUM_REDUCE_CONV) THENC
+   (REWR_CONV (GSYM ADD_ASSOC) THENC RAND_CONV NUM_REDUCE_WEAK_CONV) THENC
   ONCE_DEPTH_CONV
    (GEN_REWRITE_CONV I [GSYM WORD_ADD] THENC
     GEN_REWRITE_CONV (RAND_CONV o TOP_DEPTH_CONV) [GSYM ADD_ASSOC] THENC
-    RAND_CONV NUM_REDUCE_CONV) THENC
+    RAND_CONV NUM_REDUCE_WEAK_CONV) THENC
   TOP_DEPTH_CONV COMPONENT_WRITE_OVER_WRITE_CONV THENC
   GEN_REWRITE_CONV (SUB_COMPONENTS_CONV o TOP_DEPTH_CONV) ths THENC
   GEN_REWRITE_CONV TOP_DEPTH_CONV [WORD_VAL] THENC
@@ -694,7 +694,7 @@ let ARM_SUBROUTINE_SIM_TAC (machinecode,execth,offset,submachinecode,subth) =
                          (rhs(concl machinecode)))) in
     let len = rand (lhand (concl th)) in
     let th = REWRITE_RULE [
-      (REWRITE_CONV [LENGTH] THENC NUM_REDUCE_CONV) len] th in
+      (REWRITE_CONV [LENGTH] THENC NUM_REDUCE_WEAK_CONV) len] th in
     MP th (EQT_ELIM (NUM_DIVIDES_CONV (lhand (concl th)))) in
   (* Replace 'LENGTH .._mc' with its actual constant. This frequently appears
      at nonoverlapping criteria of subth. *)
@@ -1103,7 +1103,7 @@ let BL_TARGET_CONV =
         th; word_sx; IVAL_IWORD; WORD_VAL; WORD_IWORD; IWORD_IVAL;
         GSYM IWORD_INT_ADD; INT_SUB_ADD2] THEN
       CONV_TAC (ONCE_DEPTH_CONV DIMINDEX_CONV THENC
-        NUM_REDUCE_CONV THENC INT_REDUCE_CONV) THEN ASM_ARITH_TAC) THEN
+        NUM_REDUCE_WEAK_CONV THENC INT_REDUCE_WEAK_CONV) THEN ASM_ARITH_TAC) THEN
     let arith = ARITH_RULE `~(&2 = &0:int) /\ ~(&4 = &0:int)` in
     SUBGOAL_THEN `&tgt - &pc = ((&tgt - &pc) div &4) * &4` (fun th ->
       CONV_TAC (RAND_CONV (ONCE_REWRITE_CONV [th]))) THENL

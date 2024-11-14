@@ -690,7 +690,7 @@ let decode_encode_BL = prove (`decode (word (encode_BL n)) =
   REWRITE_TAC [FORALL_VAL_GEN; VAL_WORD; CONSPAT_pat_set; NILPAT_pat_set;
     word1; bitval] THEN
   CONV_TAC (DEPTH_CONV UNWIND_CONV THENC ONCE_DEPTH_CONV DIMINDEX_CONV THENC
-    NUM_REDUCE_CONV) THEN IMP_REWRITE_TAC [MOD_LT] THEN ARITH_TAC);;
+    NUM_REDUCE_WEAK_CONV) THEN IMP_REWRITE_TAC [MOD_LT] THEN ARITH_TAC);;
 
 let split_32_64 F =
   let a = F `:32` and b = F `:64` in
@@ -817,13 +817,13 @@ let DECODE_BITMASK_CONV =
     Array.init 64 (fun r -> Array.init 64 (fun s -> lazy (
       let r = mk_comb (`word:num->6 word`, mk_numeral (num r))
       and s = mk_comb (`word:num->6 word`, mk_numeral (num s)) in
-      CONV_RULE (WORD_REDUCE_CONV THENC
-        NUM_REDUCE_CONV THENC ONCE_DEPTH_CONV let_CONV THENC
-        NUM_REDUCE_CONV THENC ONCE_DEPTH_CONV let_CONV THENC
-        NUM_REDUCE_CONV THENC ONCE_DEPTH_CONV let_CONV THENC
-        NUM_REDUCE_CONV THENC REWRITE_CONV [
+      CONV_RULE (WORD_REDUCE_WEAK_CONV THENC
+        NUM_REDUCE_WEAK_CONV THENC ONCE_DEPTH_CONV let_CONV THENC
+        NUM_REDUCE_WEAK_CONV THENC ONCE_DEPTH_CONV let_CONV THENC
+        NUM_REDUCE_WEAK_CONV THENC ONCE_DEPTH_CONV let_CONV THENC
+        NUM_REDUCE_WEAK_CONV THENC REWRITE_CONV [
           WORD_OF_BITS_AS_WORD; IN_ELIM_THM; DIMINDEX_32; DIMINDEX_64] THENC
-        TRY_CONV (funpow 3 RAND_CONV (BINARY_NSUM_CONV NUM_REDUCE_CONV)))
+        TRY_CONV (funpow 3 RAND_CONV (BINARY_NSUM_CONV NUM_REDUCE_WEAK_CONV)))
       (REWRITE_RULE [word1; bitval]
         (SPECL [n; r; s] (INST_TYPE [ty,`:N`] decode_bitmask)))))))) in
   function
