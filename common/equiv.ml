@@ -366,6 +366,8 @@ let rec MK_MEMORY_READ_EQ_BIGDIGIT_CONV =
             THEN
             REWRITE_TAC[el 1 (CONJUNCTS READ_MEMORY_BYTESIZED_SPLIT)] THEN
             REWRITE_TAC[WORD_ADD_ASSOC_CONSTS] THEN
+            REWRITE_TAC[GSYM ADD_ASSOC] THEN
+            RULE_ASSUM_TAC (REWRITE_RULE[GSYM ADD_ASSOC]) THEN
             CONV_TAC (DEPTH_CONV NUM_ADD_CONV) THEN
             ASM_REWRITE_TAC[] THEN
             FAIL_TAC "could not synthesize bytes128 from join(bytes64,bytes64)") in
@@ -814,7 +816,7 @@ let READ_OVER_WRITE_MEMORY_BYTELIST =
       ==> read (memory :> bytelist (loc,LENGTH l))
         (write (memory :> bytelist (loc,LENGTH l)) l s) = l`,
   let read_write_mem_th =
-    ISPECL [`memory:(x86state,(64)word->(8)word)component`] READ_WRITE_VALID_COMPONENT in
+    ISPECL [`memory`] READ_WRITE_VALID_COMPONENT in
   REWRITE_TAC[component_compose] THEN
   REWRITE_TAC[read;write;o_THM] THEN
   IMP_REWRITE_TAC([read_write_mem_th] @ (!valid_component_thms)) THEN
