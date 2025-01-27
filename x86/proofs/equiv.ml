@@ -9,6 +9,7 @@
 
 needs "x86/proofs/base.ml";;
 needs "common/relational2.ml";;
+needs "common/equiv.ml";;
 
 (* ------------------------------------------------------------------------- *)
 (* Generic lemmas and tactics that are useful                                *)
@@ -199,7 +200,7 @@ let BYTES_LOADED_BARRIER_X86_STUCK = prove(
 
 (* A variant of X86_BASIC_STEP_TAC, but
    - targets eventually_n
-   - preserves 'arm s sname' at assumption *)
+   - preserves 'x86 s sname' at assumption *)
 let X86_N_BASIC_STEP_TAC =
   let x86_tm = `x86` and x86_ty = `:x86state` and one = `1:num` in
   fun decode_th sname store_inst_term_to (asl,w) ->
@@ -223,7 +224,19 @@ let X86_N_BASIC_STEP_TAC =
       X_GEN_TAC sv' THEN GEN_REWRITE_TAC LAND_CONV [eth] THEN
       REPEAT X86_UNDEFINED_CHOOSE_TAC]) (asl,w);;
 
-let X86_N_STEP_TAC (mc_length_th,decode_ths) subths sname =
+(* A variant of X86_STEP_TAC for equivalence checking.
+
+   If 'store_update_to' is Some ref, a list of
+   (`read .. = expr`) will be stored instead of added as assumptions.
+   It will store a pair of lists, where the first list is the output of
+   the instruction in `read .. = expr` form, and the second list is
+   auxiliary `read (memory :> reads...) = ..` equalities that were constructed
+   in order to formulate the main output, not to formulate the instruction
+   outputs.
+
+   TODO: add store_inst_term_to, like ARM_N_STEP_TAC *)
+let X86_N_STEP_TAC (mc_length_th,decode_ths) subths sname
+                  (store_update_to:(thm list * thm list) ref option) =
   (*** This does the basic decoding setup ***)
 
   X86_N_BASIC_STEP_TAC decode_ths sname None THEN
@@ -253,8 +266,29 @@ let X86_N_STEP_TAC (mc_length_th,decode_ths) subths sname =
     if thl = [] then ALL_TAC else
     MP_TAC(end_itlist CONJ thl) THEN
     ASSEMBLER_SIMPLIFY_TAC THEN
-    STRIP_TAC);;
 
+    let has_auxmems = ref false in
+    (** If there is an 'unsimplified' memory read on the right hand side,
+        try to synthesize an expression using bigdigit and use it. **)
+    DISCH_THEN (fun simplified_th (asl,w) ->
+      let res_th,newmems_th = DIGITIZE_MEMORY_READS simplified_th th (asl,w) in
+      (* MP_TAC res_th and newmems_th first, to drop their assumptions. *)
+      (MP_TAC res_th THEN
+      (match newmems_th with
+       | None -> (has_auxmems := false; ALL_TAC)
+       | Some ths -> (has_auxmems := true; MP_TAC ths))) (asl,w))
+    THEN
+
+    (* store it to a reference, or make them assumptions *)
+    W (fun _ ->
+      match store_update_to with
+      | None -> STRIP_TAC THEN (if !has_auxmems then STRIP_TAC else ALL_TAC)
+      | Some to_ref ->
+        if !has_auxmems then
+          DISCH_THEN (fun auxmems -> DISCH_THEN (fun res ->
+            to_ref := (CONJUNCTS res, CONJUNCTS auxmems); ALL_TAC))
+        else
+          DISCH_THEN (fun res -> to_ref := (CONJUNCTS res, []); ALL_TAC)));;
 
 (* A variant of X86_STEPS_TAC but uses DISCARD_OLDSTATE_AGGRESSIVELY_TAC
    instead. *)
@@ -296,7 +330,95 @@ let mk_equiv_bool_regs = define
 
 (* ------------------------------------------------------------------------- *)
 (* Tactics for proving equivalence of two partially different programs.      *)
+(* Renamed registers in the input programs should not affect the behavior of *)
+(* these tactics.                                                            *)
 (* ------------------------------------------------------------------------- *)
+
+(* A lock-step simulation.
+  This abbreviates the new expression(s) appearing on the new state
+  expression(s) of the right-side program, and checks whether
+  new expression(s) appearing on the left-side program are equivalent
+  to it. If equal, it proceeds and adds the equality between read state
+  and their abbreviated values as assumptions.
+
+  It forgets abbreviations that were used in the past. *)
+let X86_LOCKSTEP_TAC =
+  let update_eqs_prog1: (thm list * thm list) ref = ref ([],[]) in
+  let update_eqs_prog2: (thm list * thm list) ref = ref ([],[]) in
+
+  let the_sp = `RSP` in
+  let forget_expr (comp:term) = comp <> the_sp in
+
+  fun execth execth' (snum:int) (snum':int) (stname'_suffix:string)
+        (ignored_output_regs_left:term list)
+        (ignored_output_regs_right:term list) ->
+    let new_stname = "s" ^ (string_of_int snum) in
+    let new_stname' = "s" ^ (string_of_int snum') ^ stname'_suffix in
+
+    (* 1. One step on the left program. *)
+    (* Get the right program's current state name "s'" from
+       `eventually_n x86 n (\s. eventually_n x86 n' .. s') s`,
+       and stash assumptions over the right state. *)
+    (fun (asl,g) ->
+      (* Print log *)
+      Printf.printf "X86_LOCKSTEP_TAC (%d,%d)\n%!" snum snum';
+      Printf.printf "Running left...\n";
+      let cur_stname' = name_of (rand (snd ((dest_abs o rand o rator) g))) in
+      STASH_ASMS_OF_READ_STATES [cur_stname'] (asl,g)) THEN
+    X86_N_STEP_TAC execth [] new_stname (Some update_eqs_prog1) None THEN
+    (*cleanup assumptions that use old abbrevs*)
+    DISCARD_OLDSTATE_AGGRESSIVELY_TAC [new_stname] false THEN
+    RECOVER_ASMS_OF_READ_STATES THEN
+
+    (* 2. One step on the right program. *)
+    (fun (asl,g) -> Printf.printf "Running right...\n"; ALL_TAC (asl,g)) THEN
+    MATCH_MP_TAC EVENTUALLY_N_SWAP THEN
+    STASH_ASMS_OF_READ_STATES [new_stname] THEN
+    X86_N_STEP_TAC execth' [] new_stname' (Some update_eqs_prog2) None THEN
+    (*cleanup assumptions that use old abbrevs*)
+    DISCARD_OLDSTATE_AGGRESSIVELY_TAC [new_stname'] true THEN
+    (* .. and dead registers. *)
+    RECOVER_ASMS_OF_READ_STATES THEN
+    MATCH_MP_TAC EVENTUALLY_N_SWAP THEN
+
+    (* 3. Abbreviate expressions that appear in the new state expressions
+          created from step 2. *)
+    W (fun (asl,g) ->
+      let update_eqs_prog1_list,aux_mem_updates_prog1_list = !update_eqs_prog1 in
+      let update_eqs_prog2_list,aux_mem_updates_prog2_list = !update_eqs_prog2 in
+      if List.length update_eqs_prog1_list <> List.length update_eqs_prog2_list
+      then
+        (Printf.printf "Updated components mismatch:\n";
+         Printf.printf "\tprog1: ";
+         List.iter (fun th -> print_qterm (concl th)) update_eqs_prog1_list;
+         Printf.printf "\n\tprog2: ";
+         List.iter (fun th -> print_qterm (concl th)) update_eqs_prog2_list;
+         failwith "X86_LOCKSTEP_TAC")
+      else if List.length aux_mem_updates_prog1_list <>
+              List.length aux_mem_updates_prog2_list
+      then
+        (Printf.printf "Updated auxiliary memory components mismatch:\n";
+         Printf.printf "\tprog1: ";
+         List.iter (fun th -> print_qterm (concl th)) aux_mem_updates_prog1_list;
+         Printf.printf "\n\tprog2: ";
+         List.iter (fun th -> print_qterm (concl th)) aux_mem_updates_prog2_list;
+         failwith "X86_LOCKSTEP_TAC")
+      else
+        let eqs = zip update_eqs_prog1_list update_eqs_prog2_list in
+        MAP_EVERY ASSUME_TAC aux_mem_updates_prog1_list THEN
+        MAP_EVERY ASSUME_TAC aux_mem_updates_prog2_list THEN
+        MAP_EVERY
+          (fun (eq1,eq2) ->
+            let oc1:term option = get_read_component (concl eq1) in
+            let oc2:term option = get_read_component (concl eq2) in
+            match oc1,oc2 with
+            | Some comp1, Some comp2 ->
+              if mem comp1 ignored_output_regs_left &&
+                 mem comp2 ignored_output_regs_right
+              then ALL_TAC (* dead values *)
+              else ABBREV_READS_TAC (eq1,eq2) (forget_expr comp1)
+            | _ -> ALL_TAC)
+          eqs);;
 
 let EQUIV_INITIATE_TAC input_equiv_states_th =
   ENSURES2_INIT_TAC "s0" "s0'" THEN
@@ -329,3 +451,72 @@ let X86_N_STUTTER_RIGHT_TAC exec_th (snames:int list) (st_suffix:string)
     RECOVER_ASMS_OF_READ_STATES THEN
     MATCH_MP_TAC EVENTUALLY_N_SWAP THEN
     CLARIFY_TAC);;
+
+
+(* EQUIV_STEPS_TAC simulates two partially different programs and makes
+  abbreviations of the new symbolic expressions after each step.
+  Instructions are considered equivalent if they are alpha-equivalent.
+  It takes a list of 'action's that describe how the symbolic execution
+  engine must be run. Each action is consumed by EQUIV_STEP_TAC and
+  a proper tactic is taken.
+
+  Note that this tactic may remove assumptions on abbreviations if they are
+  considered unused.
+
+  TODO: implement dead_value_info_left and dead_value_info_right arguments
+  as Arm's EQUIV_STEP_TAC and use those.
+  TODO2: implement & use SIMPLIFY_MAYCHANGES_TAC as Arm's EQUIV_STEP_TAC does.
+*)
+
+let EQUIV_STEP_TAC action execth1 execth2: tactic =
+  let get_or_nil i (x:term list array option) =
+    match x with
+    | None -> []
+    | Some arr -> arr.(i) in
+
+  match action with
+  | ("equal",lstart,lend,rstart,rend) ->
+    assert (lend - lstart = rend - rstart);
+    REPEAT_I_N 0 (lend - lstart)
+      (fun i ->
+        let il,ir = (lstart+i),(rstart+i) in
+        time (X86_LOCKSTEP_TAC execth1 execth2 (il+1) (ir+1) "'"
+          (get_or_nil il dead_value_info_left)
+          (get_or_nil ir dead_value_info_right))
+        THEN (if i mod 20 = 0 then CLEAR_UNUSED_ABBREVS else ALL_TAC)
+        THEN CLARIFY_TAC)
+  | ("insert",lstart,lend,rstart,rend) ->
+    if lstart <> lend then failwith "insert's lstart and lend must be equal"
+    else begin
+      (if rend - rstart > 50 then
+        Printf.printf "Warning: too many instructions: insert %d~%d\n" rstart rend);
+      X86_N_STUTTER_RIGHT_TAC execth2 ((rstart+1)--rend) "'" dead_value_info_right
+        ORELSE (PRINT_TAC "insert failed" THEN PRINT_GOAL_TAC THEN NO_TAC)
+    end
+  | ("delete",lstart,lend,rstart,rend) ->
+    if rstart <> rend then failwith "delete's rstart and rend must be equal"
+    else begin
+      (if lend - lstart > 50 then
+        Printf.printf "Warning: too many instructions: delete %d~%d\n" lstart lend);
+      X86_N_STUTTER_LEFT_TAC execth1 ((lstart+1)--lend) dead_value_info_left
+        ORELSE (PRINT_TAC "delete failed" THEN PRINT_GOAL_TAC THEN NO_TAC)
+    end
+  | ("replace",lstart,lend,rstart,rend) ->
+    (if lend - lstart > 50 || rend - rstart > 50 then
+      Printf.printf "Warning: too many instructions: replace %d~%d %d~%d\n"
+          lstart lend rstart rend);
+    ((X86_N_STUTTER_LEFT_TAC execth1 ((lstart+1)--lend) dead_value_info_left
+     ORELSE (PRINT_TAC "replace failed: stuttering left" THEN PRINT_GOAL_TAC THEN NO_TAC))
+     THEN
+     (X86_N_STUTTER_RIGHT_TAC execth2 ((rstart+1)--rend) "'" dead_value_info_right
+      ORELSE (PRINT_TAC "replace failed: stuttering right" THEN PRINT_GOAL_TAC THEN NO_TAC)))
+  | (s,_,_,_,_) -> failwith ("Unknown action: " ^ s);;
+
+
+
+let EQUIV_STEPS_TAC actions execth1 execth2: tactic =
+  MAP_EVERY
+    (fun action ->
+      EQUIV_STEP_TAC action execth1 execth2 dead_value_info_left
+                     dead_value_info_right)
+    actions;;

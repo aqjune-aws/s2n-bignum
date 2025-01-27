@@ -618,8 +618,6 @@ let BIGNUM_MUL_8_16_CORE_EQUIV = time prove(
   EQUIV_INITIATE_TAC bignum_mul_8_16_equiv_input_states THEN
   REPEAT(FIRST_X_ASSUM BIGNUM_EXPAND_AND_DIGITIZE_TAC) THEN
   ASM_PROPAGATE_DIGIT_EQS_FROM_EXPANDED_BIGNUM_TAC THEN
-  (* necessary to run ldr qs. *)
-  COMBINE_READ_BYTES64_PAIRS_TAC THEN
 
   (* The main simulation part *)
   EQUIV_STEPS_TAC actions

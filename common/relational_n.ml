@@ -10,6 +10,10 @@
 (*                                Juneyoung Lee                              *)
 (* ========================================================================= *)
 
+needs "common/bignum.ml";;
+needs "common/components.ml";;
+needs "common/relational.ml";;
+
 (* ------------------------------------------------------------------------- *)
 (* A definition of steps and its properties.                                 *)
 (* ------------------------------------------------------------------------- *)
@@ -1200,3 +1204,479 @@ let ENSURES_N_WHILE_UP2_TAC, ENSURES_N_WHILE_DOWN2_TAC,
     MAP_EVERY EXISTS_TAC [a; b; pc1; pc2; iv; nsteps_pre; f_nsteps; nsteps_post] THEN
     BETA_TAC THEN
     CONJ_TAC THENL [MAYCHANGE_IDEMPOT_TAC'; ALL_TAC]);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Memory read expression rewriter. This is useful when there is no exactly  *)
+(* matching `read (memory :> bytesXX ...) = ..` equality in assumptions but  *)
+(* can be somehow inferred from it. MK_MEMORY_READ_EQ_BIGDIGIT_CONV examples *)
+(* demonstrate a few useful cases.                                           *)
+(* ------------------------------------------------------------------------- *)
+
+(* Given t which is `memory :> bytes (..)` or `memory :> bytes64 (..)`,
+   return the address, byte size and constructor name ("bytes64", "bytes", ...).
+   Note that this relies on the fact that both armstate and x86state structures
+   have the memory field. *)
+let get_memory_read_info (t:term): (term * term * string) option =
+  if not (is_binary ":>" t) then None else
+  let l,r = dest_binary ":>" t in
+  let lname,_ = dest_const l in
+  if lname <> "memory" then None else
+  let c,args = strip_comb r in
+  match fst (dest_const c) with
+  | "bytes64" ->
+    (* args is just a location *)
+    assert (List.length args = 1);
+    Some (List.hd args, `8`, "bytes64")
+  | "bytes128" ->
+    (* args is just a location *)
+    assert (List.length args = 1);
+    Some (List.hd args, `16`, "bytes128")
+  | "bytes" ->
+    (* args is (loc, len). *)
+    assert (List.length args = 1);
+    let a, sz = dest_pair (List.hd args) in
+    Some (a, sz, "bytes")
+  | _ -> (* don't know what it is *)
+    None;;
+
+let get_base_ptr_and_ofs (t:term): term * term =
+  try (* t is "word_add baseptr (word ofs)" *)
+    let baseptr,y = dest_binary "word_add" t in
+    let wordc, ofs = dest_comb y in
+    if name_of wordc <> "word" then failwith "not word" else
+    (baseptr, ofs)
+  with _ -> (t, mk_small_numeral 0);;
+
+assert (get_base_ptr_and_ofs `x:int64` = (`x:int64`,`0`));;
+assert (get_base_ptr_and_ofs `word_add x (word 32):int64` = (`x:int64`,`32`));;
+assert (get_base_ptr_and_ofs `word_add x (word (8*4)):int64` = (`x:int64`,`8*4`));;
+(* To get (x, 48) from this, WORD_ADD_ASSOC_CONST must be applied first. *)
+assert (get_base_ptr_and_ofs `word_add (word_add x (word 16)) (word 32):int64` =
+        (`word_add x (word 16):int64`, `32`));;
+assert (get_base_ptr_and_ofs `word_add x (word k):int64` = (`x:int64`, `k:num`));;
+
+let get_base_ptr_and_constofs (t:term): term * int =
+  let base,ofs = get_base_ptr_and_ofs t in
+  if is_numeral ofs then (base,dest_small_numeral ofs)
+  else
+    try
+      let ofs = rhs (concl (NUM_RED_CONV ofs)) in
+      (base,dest_small_numeral ofs)
+    with _ -> (t,0);;
+
+assert (get_base_ptr_and_constofs `word_add x (word (8*4)):int64` = (`x:int64`,32));;
+
+
+let digitize_memory_reads_log = ref false;;
+
+(** See the examples below.
+    Input: a term 'read (memory :> ...)' as well as assumptions list.
+    Returns: a pair of (the main rewrite rule theorem `t = ...`,
+      auxiliary equality rules on memory reads that were needed to derive the
+      equality but did not exist in the assumptions. **)
+let rec MK_MEMORY_READ_EQ_BIGDIGIT_CONV =
+  (* return (pointer, (baseptr and ofs), size, "constructor name", state var) *)
+  let get_full_info t =
+    match t with
+    | Comb (Comb (Const ("read", _), comp), state_var) ->
+      begin match get_memory_read_info comp with
+      | Some (x,size,constrname) ->
+        Some (x,get_base_ptr_and_ofs x,size,constrname,state_var)
+      | _ -> None
+      end
+    | _ -> None in
+
+  let const_num_opt (t:term): int option =
+    try if is_numeral t then Some (dest_small_numeral t)
+        else Some (dest_small_numeral (rhs (concl (NUM_RED_CONV t))))
+    with _ -> None in
+  let eight = `8` in
+  let rec divide_by_8 t: term option =
+    try Some (mk_small_numeral ((Option.get (const_num_opt t)) / 8))
+    with _ -> try
+      let l,r = dest_binary "*" t in
+      if l = eight then Some r else if r = eight then Some l else None
+    with _ -> try
+      let l,r = dest_binary "+" t in
+      match (divide_by_8 l),(divide_by_8 r) with
+      | Some l', Some r' -> Some (mk_binary "+" (l',r'))
+      | _ -> None
+    with _ -> try
+      let l,r = dest_binary "-" t in
+      match (divide_by_8 l),(divide_by_8 r) with
+      | Some l', Some r' -> Some (mk_binary "-" (l',r'))
+      | _ -> None
+    with _ -> None
+    in
+  let is_multiple_of_8 t = divide_by_8 t <> None in
+  let subtract_num t1 t2: term option =
+    if t2 = `0` then Some t1
+    else if t1 = t2 then Some `0`
+    else
+      (* returns: ((sym expr, coeff) list, constant) *)
+      let rec decompose_adds t: ((term * int) list) * int =
+        try ([], dest_small_numeral t) with _ ->
+        try let l,r = dest_binary "+" t in
+          let lsyms,lconst = decompose_adds l in
+          let rsyms,rconst = decompose_adds r in
+          let syms = itlist (fun (lsym,lcoeff) rsyms ->
+            if not (exists (fun (rsym,_) -> rsym=lsym) rsyms)
+            then rsyms @ [lsym,lcoeff]
+            else map (fun (rsym,rcoeff) ->
+              if rsym = lsym then (lsym,lcoeff + rcoeff) else (rsym,rcoeff))
+              rsyms) lsyms rsyms in
+          (syms,lconst+rconst) with _ ->
+        try (* note that num's subtraction is a bit complicated because
+               num cannot be negative. However, there is a chance
+               that even if the intermediate constants are negative the
+               final subtracted result is non-negative. Let's hope a good
+               luck and anticipate that SIMPLE_ARITH_TAC will solve it
+               in the end. *)
+          let l,r = dest_binary "-" t in
+          let lsyms,lconst = decompose_adds l in
+          let rsyms,rconst = decompose_adds r in
+          let syms = itlist (fun (lsym,lcoeff) rsyms ->
+            if not (exists (fun (rsym,_) -> rsym=lsym) rsyms)
+            then rsyms @ [lsym,lcoeff]
+            else map (fun (rsym,rcoeff) ->
+              if rsym = lsym then (lsym,lcoeff - rcoeff) else (rsym,-rcoeff))
+              rsyms) lsyms rsyms in
+          (syms,lconst-rconst) with _ ->
+        try let l,r = dest_binary "*" t in
+          let lconst = dest_small_numeral l in
+          let rsyms,rconst = decompose_adds r in
+          (map (fun (sym,coeff) -> (sym,coeff * lconst)) rsyms,
+           rconst * lconst)
+        with _ -> ([t,1],0)
+      in
+      let syms1,const1 = decompose_adds t1 in
+      let syms2,const2 = decompose_adds t2 in
+      if syms1 = syms2 && const1 >= const2
+      then Some (mk_small_numeral (const1 - const2))
+      else None in
+
+  let rec mk_word_add =
+    let rec num_add expr (imm:int) =
+      if is_numeral expr then
+        mk_small_numeral(imm + dest_small_numeral expr)
+      else if is_binary "+" expr then
+        let l,r = dest_binary "+" expr in
+        mk_binary "+" (l,num_add r imm)
+      else mk_binary "+" (expr,mk_small_numeral imm) in
+    let template = `word_add ptr (word ofs):int64` in
+    (fun ptrofs imm ->
+      if is_binary "word_add" ptrofs then
+        let ptr,ofs = dest_binary "word_add" ptrofs in
+        let ofs = mk_word_add ofs imm in
+        mk_binop `word_add:int64->int64->int64` ptr ofs
+      else if is_comb ptrofs && is_const (fst (dest_comb ptrofs)) &&
+              name_of (fst (dest_comb ptrofs)) = "word" then
+        let expr = snd (dest_comb ptrofs) in
+        mk_comb(`word:num->int64`,num_add expr imm)
+      else vsubst [ptrofs,`ptr:int64`;(mk_small_numeral imm),`ofs:num`] template) in
+  let mk_read_mem_bytes64 =
+    let template = ref None in
+    (fun ptrofs state_var ->
+      let temp = match !template with
+        | None -> begin
+            (* The 'memory' constant must be parsable at this point. It is either armstate
+               or x86state. *)
+            template := Some `read (memory :> bytes64 ptrofs)`;
+            !template
+          end
+        | Some t -> t in
+      mkcomb(vsubst [ptrofs,`ptrofs:int64`] template, state_var)) in
+  let mk_word_join_128 =
+    let wj = `word_join:int64->int64->int128` in
+    (fun high low -> (mk_comb ((mk_comb (wj,high)),low))) in
+
+  (* if ptrofs is word_add p (word_sub (word x) (word y)),
+      return 'word_add p (word (x - y))' *)
+  let canonicalize_word_add_sub ptrofs =
+    if not (is_binary "word_add" ptrofs) then None else
+    let w,the_rhs = dest_comb ptrofs in
+    let the_wordadd,base = dest_comb w in
+    if not (is_binary "word_sub" the_rhs) then None else
+    let x,y = dest_binary "word_sub" the_rhs in
+    if name_of (fst (dest_comb x)) <> "word" ||
+       name_of (fst (dest_comb y)) <> "word" then None else
+    let (the_word,x),y = dest_comb x,snd (dest_comb y) in
+    Some (mk_binop the_wordadd base (mk_comb(the_word,mk_binary "-" (x,y)))) in
+
+  fun (t:term) (assumptions:(string * thm) list): (thm * (thm list)) ->
+    match get_full_info t with
+    | Some (ptrofs,(ptr, ofs),size,constr_name,state_var) ->
+      (* if ptrofs is word_add p (word_sub (word x) (word y)), try to make it
+        'word_add p (word (x - y))' *)
+      let canon_wordsub_rule = ref None in
+      let ptr,ofs = match canonicalize_word_add_sub ptrofs with
+      | None -> ptr,ofs
+      | Some ptrofs' ->
+        try
+          let _ = canon_wordsub_rule := Some
+            (TAC_PROOF((assumptions,mk_eq(ptrofs,ptrofs')),
+              IMP_REWRITE_TAC[WORD_SUB2] THEN SIMPLE_ARITH_TAC)) in
+          get_base_ptr_and_ofs ptrofs'
+        with _ -> (ptr,ofs)
+      in
+
+      if not (is_multiple_of_8 ofs) then
+        failwith ("offset is not divisible by 8: `" ^ (string_of_term ofs) ^ "`") else
+      (if !digitize_memory_reads_log then
+        Printf.printf "digitizing read %s: (`%s`,`%s`), sz=`%s`\n"
+          constr_name (string_of_term ptr) (string_of_term ofs)
+          (string_of_term size));
+      let ofs_opt = const_num_opt ofs in
+
+      if constr_name = "bytes64" then
+        let _ = assert (size = eight) in
+        let larger_reads = List.filter_map (fun (_,ath) ->
+          try
+            let c = concl ath in
+            if not (is_eq c) then None else
+            let c = lhs c in
+            let c_access_info = get_full_info c in
+            begin match c_access_info with
+            | Some (ptrofs2,(ptr2,ofs2),size2,"bytes",state_var2) ->
+              begin
+              (if !digitize_memory_reads_log then
+                Printf.printf "read bytes assum: (`%s`,`%s`), sz=`%s`\n"
+                  (string_of_term ptr2) (string_of_term ofs2) (string_of_term size2));
+              if (ptr = ptr2 && state_var = state_var2 &&
+
+              begin match ofs_opt,(const_num_opt size2),(const_num_opt ofs2) with
+              | Some ofs,Some size2,Some ofs2 ->
+                (* everything is constant; easy to determine *)
+                (* size must be `8` here *)
+                ofs2 <= ofs && ofs + 8 <= ofs2 + size2
+              | Some ofs,None,Some ofs2 ->
+                (* offsets are constant! *)
+                (* size must be `8` here *)
+                not (ofs + 8 <= ofs2)
+              | _ -> true
+              end) then
+                Some (ath,Option.get c_access_info)
+              else None
+              end
+            | _ -> None
+            end
+          with _ ->
+            let _ = Printf.printf "Warning: MK_MEMORY_READ_EQ_BIGDIGIT_CONV: unexpected failure: `%s`\n" (string_of_term (concl ath))in
+            None) assumptions in
+        if larger_reads = []
+        then failwith ("No memory read assumption that encompasses `" ^ (string_of_term t) ^ "`") else
+        (if !digitize_memory_reads_log then (
+          Printf.printf "MK_MEMORY_READ_EQ_BIGDIGIT_CONV: found:\n";
+          List.iter (fun th,_ -> Printf.printf "  `%s`\n" (string_of_term (concl th))) larger_reads));
+
+        let extracted_reads = List.filter_map
+          (fun larger_read_th,(ptrofs2,(ptr2,ofs2),size2,_,_) ->
+          try
+            let larger_read = lhs (concl larger_read_th) in
+            if not (is_multiple_of_8 ofs2) then
+              let _ = if !digitize_memory_reads_log then
+                Printf.printf "not multiple of 8: `%s`\n"
+                  (string_of_term ofs2) in None else
+
+            let ofsdiff = subtract_num ofs ofs2 in
+            let reldigitofs = Option.bind ofsdiff divide_by_8 in
+            let nwords = divide_by_8 size2 in
+
+            begin match reldigitofs, nwords with
+            | Some reldigitofs, Some nwords ->
+
+              (* t = bigdigit t' ofs *)
+              let the_goal = mk_eq(t,mk_comb
+                (`word:num->int64`,list_mk_comb (`bigdigit`,[larger_read;reldigitofs]))) in
+              begin try
+
+                let eq_th = TAC_PROOF((assumptions,the_goal),
+                  (* If t was 'word_add ptr (word_sub ...)', convert it into
+                    'word_add (word (.. - ..))'. *)
+                  (match !canon_wordsub_rule with | None -> ALL_TAC
+                    | Some th -> REWRITE_TAC[th]) THEN
+                  SUBGOAL_THEN (subst [size2,`size2:num`;nwords,`nwords:num`] `8 * nwords = size2`) MP_TAC
+                  THENL [ ARITH_TAC; DISCH_THEN (LABEL_TAC "H_NWORDS") ] THEN
+                  USE_THEN "H_NWORDS" (fun hth -> REWRITE_TAC[REWRITE_RULE[hth]
+                    (SPECL [nwords;ptrofs2] (GSYM BIGNUM_FROM_MEMORY_BYTES))]) THEN
+                  REWRITE_TAC[BIGDIGIT_BIGNUM_FROM_MEMORY] THEN
+                  COND_CASES_TAC THENL [ALL_TAC; SIMPLE_ARITH_TAC (* index must be within bounds *) ] THEN
+                  (* read (memory :> bytes64 (expr1)) s =
+                     read (memory :> bytes64 (expr2)) s *)
+                  REWRITE_TAC[WORD_VAL; WORD_ADD_ASSOC_CONSTS; WORD_ADD_0;
+                      MULT_0; LEFT_SUB_DISTRIB; LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
+                  (* get the 'expr1 = expr2' *)
+                  AP_THM_TAC THEN AP_TERM_TAC THEN AP_TERM_TAC THEN AP_TERM_TAC
+                  THEN
+                  (SIMPLE_ARITH_TAC ORELSE
+                    (* strip word_add *)
+                    (AP_TERM_TAC THEN AP_TERM_TAC THEN SIMPLE_ARITH_TAC))) in
+                Some (REWRITE_RULE[larger_read_th] eq_th,[])
+              with _ ->
+                (if !digitize_memory_reads_log then
+                  Printf.printf "Could not prove `%s`\n" (string_of_term the_goal)); None
+              end
+            | _, _ -> begin
+              (if !digitize_memory_reads_log then
+              Printf.printf "cannot simplify offset difference or nwords; (`%s`-`%s`)/8, `%s`/8\n"
+                (string_of_term ofs) (string_of_term ofs2) (string_of_term size2));
+              None
+            end
+            end
+          with _ -> begin
+            Printf.printf "Warning: MK_MEMORY_READ_EQ_BIGDIGIT_CONV: failed while processing `%s`\n" (string_of_term (concl larger_read_th)); None
+          end) larger_reads in
+
+        let _ = if length extracted_reads > 1 then
+          Printf.printf "Warning: There are more than one memory read assumption that encompasses `%s`\n"
+              (string_of_term t) in
+        (if !digitize_memory_reads_log then begin
+          Printf.printf "MK_MEMORY_READ_EQ_BIGDIGIT_CONV: extracted:\n";
+          List.iter (fun th,_ ->
+            Printf.printf "  `%s`\n" (string_of_term (concl th))) extracted_reads
+        end);
+        List.hd extracted_reads
+
+      else if constr_name = "bytes128" then
+        (* bytes128 to word_join of two bytes64 reads *)
+        let readl = mk_read_mem_bytes64 ptrofs state_var in
+        let readh = mk_read_mem_bytes64 (mk_word_add ptrofs 8) state_var in
+        let construct_bigdigit_rule t =
+          match List.find_opt (fun _,asm -> let c = concl asm in is_eq c && lhs c = t) assumptions with
+          | None -> MK_MEMORY_READ_EQ_BIGDIGIT_CONV t assumptions
+          | Some (_,ath) -> (ath,[]) in
+        let readl_th,extra_ths1 = construct_bigdigit_rule readl in
+        let readh_th,extra_ths2 = construct_bigdigit_rule readh in
+        (* word_join readh_th readl_th *)
+        let the_goal =
+          let readl = rhs (concl readl_th) and readh = rhs (concl readh_th) in
+          mk_eq (t,mk_word_join_128 readh readl) in
+        let result =
+          let new_assums = readl_th::readh_th::(extra_ths1 @ extra_ths2) in
+          TAC_PROOF((map (fun th -> ("",th)) new_assums,the_goal),
+            ASM_REWRITE_TAC[el 1 (CONJUNCTS READ_MEMORY_BYTESIZED_SPLIT)] THEN
+            FAIL_TAC "could not synthesize bytes128 from join(bytes64,bytes64)") in
+        (* Eliminate the assumptions that are readl_th and readh_th, and put assumptions
+           that readl_th and readh_th were relying on. *)
+        let result = PROVE_HYP readh_th (PROVE_HYP readl_th result) in
+        (result, readl_th::readh_th::(extra_ths1 @ extra_ths2))
+
+      else failwith ("cannot deal with size `" ^ (string_of_term size) ^ "`")
+    | None -> failwith "not memory read";;
+
+(*** examples ***)
+(*
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 x) s`
+    ["",new_axiom `read (memory :> bytes (x:int64,32)) s = k`];;
+(* (|- read (memory :> bytes64 x) s = word (bigdigit k 0), []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word 16))) s`
+    ["",new_axiom `read (memory :> bytes (word_add x (word 8):int64,32)) s = k`];;
+(* (|- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word 16))) s`
+    ["",new_axiom `read (memory :> bytes (word_add x (word 8):int64,8 * 4)) s = k`];;
+(* (|- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word 16))) s`
+    ["",new_axiom `read (memory :> bytes (word_add x (word 8):int64,8 * n)) s = k`;
+     "",new_axiom `n > 3`];;
+(* (|- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word (8 * 2)))) s`
+    ["",new_axiom `read (memory :> bytes (word_add x (word (8 * 1)):int64,8 * n)) s = k`;
+     "",new_axiom `n > 3`];;
+(* (|- read (memory :> bytes64 (word_add x (word (8 * 2)))) s = word (bigdigit k 1), []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word (8 * 2)))) s`
+    ["",new_axiom `read (memory :> bytes (x:int64,8 * 2)) s = k`;
+     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 2)):int64,8 * n)) s = k2`;
+     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 4)):int64,8 * n)) s = k2`;
+     "",new_axiom `n > 3`];;
+(* (|- read (memory :> bytes64 (word_add x (word (8 * 2)))) s = word (bigdigit k2 0), []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word (8 * i)))) s`
+    ["",new_axiom `read (memory :> bytes (x:int64,8 * n)) s = k`;
+     "",new_axiom `i < n`];;
+(* (|- read (memory :> bytes64 (word_add x (word (8 * i)))) s =
+    word (bigdigit k i),
+ []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV
+    `read (memory :> bytes64 (word_add z (word (8 * (4 * k4 - 4) + 24)))) s`
+    ["",new_axiom `read (memory :> bytes (word_add z (word (8 * (4 * k4 - 4))),8 * 4)) s = a`;
+     "",new_axiom `read (memory :> bytes (z,8 * (4 * k4 - 4))) s = b`];;
+(* (|- read (memory :> bytes64 (word_add z (word (8 * (4 * k4 - 4) + 24)))) s =
+    word (bigdigit a 3),
+ []) *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV
+    `read (memory :> bytes64
+      (word_add m_precalc (word_sub (word (8 * 12 * (k4 - 1))) (word 8))))
+     s`
+    ["",new_axiom`read (memory :> bytes (m_precalc,8 * 12 * (k4 - 1))) s = k`;
+     "",new_axiom`1 < k4`];;
+(* (|- read
+    (memory :>
+     bytes64
+     (word_add m_precalc (word_sub (word (8 * 12 * (k4 - 1))) (word 8))))
+    s =
+    word (bigdigit k (12 * (k4 - 1) - 1)),
+ []) *)
+
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV
+  `read (memory :> bytes64 (word_add z (word (8 * 4 * (i' + 1) + 24)))) s`
+  ["",
+   new_axiom
+    `read (memory :> bytes (word_add z (word (8 * 4 * (i' + 1))),32)) s =
+     a`]
+
+** bytes128 **
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes128 (word_add x (word (8 * 2)))) s`
+    ["",new_axiom `read (memory :> bytes (x:int64,8 * 2)) s = k`;
+     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 2)):int64,8 * n)) s = k2`;
+     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 4)):int64,8 * n)) s = k2`;
+     "",new_axiom `n > 3`];;
+(* (|- read (memory :> bytes128 (word_add x (word (8 * 2)))) s =
+    word_join (word (bigdigit k2 1)) (word (bigdigit k2 0)),
+ [|- read (memory :> bytes64 (word_add x (word (8 * 2)))) s =
+     word (bigdigit k2 0);
+  |- read (memory :> bytes64 (word_add x (word 24))) s = word (bigdigit k2 1)])) *)
+*)
+
+(** DIGITIZE_MEMORY_READS will return (thm * (thm option)) where
+    1. the first thm is the simplified read statements using bigdigit and
+       conjoined with /\
+    2. newly constructed equalities between memory reads and bigdigits, returned
+       as the second component of MK_MEMORY_READ_EQ_BIGDIGIT_CONV, and conjoined
+       with /\. **)
+let DIGITIZE_MEMORY_READS th state_update_th =
+  fun (asl,w):(thm * (thm option)) ->
+    let new_memory_reads: thm list ref = ref [] in
+    let ths = map (fun th2 ->
+      try
+        (* rhs is the memory read to digitize *)
+        let the_rhs = rhs (concl th2) in
+        let th2',smaller_read_ths = MK_MEMORY_READ_EQ_BIGDIGIT_CONV the_rhs asl in
+        let _ = new_memory_reads := th2'::(smaller_read_ths @ !new_memory_reads) in
+        GEN_REWRITE_RULE RAND_CONV [th2'] th2
+      with _ -> th2) (CONJUNCTS th) in
+
+    (* new_memory_reads will still use the 'previous' state. update it. *)
+    new_memory_reads := map
+      (fun th -> try STATE_UPDATE_RULE state_update_th th with _ -> th)
+      !new_memory_reads;
+
+    let res_th = end_itlist CONJ ths in
+    let newmems_th = if !new_memory_reads = [] then None
+      else Some (end_itlist CONJ !new_memory_reads) in
+    let _ = if !digitize_memory_reads_log then
+       (Printf.printf "original th: %s\n" (string_of_term (concl th));
+        Printf.printf "rewritten th: %s\n" (string_of_term (concl res_th));
+        Printf.printf "new_memory_reads th: %s\n"
+          (if newmems_th = None then "None" else
+            ("Some " ^ (string_of_term (concl (Option.get newmems_th)))))) in
+    res_th,newmems_th;;
