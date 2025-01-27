@@ -10,7 +10,6 @@
 needs "arm/proofs/base.ml";;
 needs "arm/proofs/neon_helper.ml";;
 needs "common/relational2.ml";;
-needs "common/equiv.ml";;
 
 (* ------------------------------------------------------------------------- *)
 (* Generic lemmas and tactics that are useful                                *)
@@ -358,9 +357,6 @@ get_memory_read_info `memory :> bytes128 x`;; (* Some (`x`,`16`,"bytes128") *)
 get_memory_read_info `memory :> bytes (x, sz)`;; (* Some (`x`,`sz`,"bytes") *)
 get_memory_read_info `X0`;; (* None *)
 
-
-let WORD_SUB2 = MESON [WORD_SUB]
-  `y <= x ==> word_sub (word x) (word y):int64 = word (x - y)`;;
 
 (* ------------------------------------------------------------------------- *)
 (* eventually_n_at_pc states that if pre/postconditions at pc/pc2 are        *)

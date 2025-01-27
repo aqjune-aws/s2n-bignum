@@ -1268,6 +1268,9 @@ let get_base_ptr_and_constofs (t:term): term * int =
 assert (get_base_ptr_and_constofs `word_add x (word (8*4)):int64` = (`x:int64`,32));;
 
 
+let WORD_SUB2 = MESON [WORD_SUB]
+  `y <= x ==> word_sub (word x) (word y):int64 = word (x - y)`;;
+
 let digitize_memory_reads_log = ref false;;
 
 (** See the examples below.
@@ -1379,14 +1382,12 @@ let rec MK_MEMORY_READ_EQ_BIGDIGIT_CONV =
     let template = ref None in
     (fun ptrofs state_var ->
       let temp = match !template with
-        | None -> begin
-            (* The 'memory' constant must be parsable at this point. It is either armstate
-               or x86state. *)
-            template := Some `read (memory :> bytes64 ptrofs)`;
-            !template
-          end
+        | None -> let t = `read (memory :> bytes64 ptrofs)` in
+          (* The 'memory' constant must be parsable at this point. It is either armstate
+              or x86state. *)
+          (template := Some t; t)
         | Some t -> t in
-      mkcomb(vsubst [ptrofs,`ptrofs:int64`] template, state_var)) in
+      mk_comb(vsubst [ptrofs,`ptrofs:int64`] temp, state_var)) in
   let mk_word_join_128 =
     let wj = `word_join:int64->int64->int128` in
     (fun high low -> (mk_comb ((mk_comb (wj,high)),low))) in
@@ -1555,7 +1556,12 @@ let rec MK_MEMORY_READ_EQ_BIGDIGIT_CONV =
         let result =
           let new_assums = readl_th::readh_th::(extra_ths1 @ extra_ths2) in
           TAC_PROOF((map (fun th -> ("",th)) new_assums,the_goal),
-            ASM_REWRITE_TAC[el 1 (CONJUNCTS READ_MEMORY_BYTESIZED_SPLIT)] THEN
+            (if !digitize_memory_reads_log then PRINT_GOAL_TAC else ALL_TAC)
+            THEN
+            REWRITE_TAC[el 1 (CONJUNCTS READ_MEMORY_BYTESIZED_SPLIT)] THEN
+            REWRITE_TAC[WORD_ADD_ASSOC_CONSTS] THEN
+            CONV_TAC (DEPTH_CONV NUM_ADD_CONV) THEN
+            ASM_REWRITE_TAC[] THEN
             FAIL_TAC "could not synthesize bytes128 from join(bytes64,bytes64)") in
         (* Eliminate the assumptions that are readl_th and readh_th, and put assumptions
            that readl_th and readh_th were relying on. *)
