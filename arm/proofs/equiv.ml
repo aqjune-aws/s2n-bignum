@@ -9,7 +9,10 @@
 
 needs "arm/proofs/base.ml";;
 needs "arm/proofs/neon_helper.ml";;
-needs "common/relational2.ml";;
+needs "common/equiv.ml";;
+
+prove_conj_of_eq_reads_unfold_rules :=
+    aligned_bytes_loaded::!prove_conj_of_eq_reads_unfold_rules;;
 
 (* ------------------------------------------------------------------------- *)
 (* Generic lemmas and tactics that are useful                                *)
@@ -51,12 +54,6 @@ let NONOVERLAPPING_APPEND = prove(`!(x:int64) (y:int64) code code2 n.
   REPEAT STRIP_TAC THEN
   NONOVERLAPPING_TAC);;
 
-(* Given a goal whose conclusion is `read (write ...) .. = v`, apply
-   COMPONENT_READ_OVER_WRITE_CONV to its LHS. *)
-let COMPONENT_READ_OVER_WRITE_LHS_TAC: tactic =
-  fun (asl,g) ->
-    ONCE_REWRITE_TAC[COMPONENT_READ_OVER_WRITE_CONV (fst (dest_eq g))] (asl,g);;
-
 let WRITE_ELEMENT_BYTES8 = prove(
   `!loc (z:(8)word) s. write (element loc) z s = write (bytes8 loc) z s`,
   REWRITE_TAC[bytes8;WRITE_COMPONENT_COMPOSE;asword;through;write;ARITH_RULE`1=SUC 0`;bytes;WORD_ADD_0;limb] THEN
@@ -90,61 +87,6 @@ let READ_OVER_WRITE_BYTELIST =
         ORTHOGONAL_COMPONENTS_TAC
       ]
     ]);;
-
-let READ_OVER_WRITE_APPEND_BYTELIST =
-  prove(`!s (loc:int64) (l:((8)word)list) (l':((8)word)list).
-      LENGTH (APPEND l l') < 2 EXP 64
-      ==> read (bytelist (loc,LENGTH l))
-        (write (bytelist (loc,LENGTH (APPEND l l'))) (APPEND l l') s) = l`,
-    REPEAT GEN_TAC THEN
-    MAP_EVERY SPEC_TAC [
-      `loc:int64`,`loc:int64`;`s:(64)word->(8)word`,`s:(64)word->(8)word`;
-      `l:((8)word)list`,`l:((8)word)list`] THEN
-    MATCH_MP_TAC list_INDUCT THEN
-    CONJ_TAC THENL [
-      REWRITE_TAC[APPEND;LENGTH;READ_COMPONENT_COMPOSE;bytelist_clauses];
-
-      REPEAT GEN_TAC THEN STRIP_TAC THEN
-      REWRITE_TAC[APPEND;LENGTH;bytelist_clauses] THEN
-      REPEAT GEN_TAC THEN
-      GEN_REWRITE_TAC (ONCE_DEPTH_CONV o LAND_CONV) [ARITH_RULE`SUC n=1+n`] THEN
-      STRIP_TAC THEN
-      REWRITE_TAC[CONS_11] THEN
-      CONJ_TAC THENL [
-        REWRITE_TAC[element;write];
-
-        REWRITE_TAC[WRITE_ELEMENT_BYTES8] THEN
-        IMP_REWRITE_TAC[READ_WRITE_ORTHOGONAL_COMPONENTS] THEN
-        CONJ_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-        RULE_ASSUM_TAC(REWRITE_RULE[LENGTH_APPEND]) THEN
-        ORTHOGONAL_COMPONENTS_TAC
-      ]
-    ]);;
-
-let READ_OVER_WRITE_MEMORY_BYTELIST =
-  prove(`!s (loc:int64) (l:((8)word)list).
-      LENGTH l < 2 EXP 64
-      ==> read (memory :> bytelist (loc,LENGTH l))
-        (write (memory :> bytelist (loc,LENGTH l)) l s) = l`,
-  let read_write_mem_th =
-    ISPECL [`memory:(armstate,(64)word->(8)word)component`] READ_WRITE_VALID_COMPONENT in
-  REWRITE_TAC[component_compose] THEN
-  REWRITE_TAC[read;write;o_THM] THEN
-  IMP_REWRITE_TAC([read_write_mem_th] @ (!valid_component_thms)) THEN
-  REWRITE_TAC[READ_OVER_WRITE_BYTELIST]);;
-
-
-let READ_OVER_WRITE_MEMORY_APPEND_BYTELIST =
-  prove(`!s (loc:int64) (l:((8)word)list) (l':((8)word)list).
-      LENGTH (APPEND l l') < 2 EXP 64
-      ==> read (memory :> bytelist (loc,LENGTH l))
-        (write (memory :> bytelist (loc,LENGTH (APPEND l l'))) (APPEND l l') s) = l`,
-  let read_write_mem_th =
-    ISPECL [`memory:(armstate,(64)word->(8)word)component`] READ_WRITE_VALID_COMPONENT in
-  REWRITE_TAC[component_compose] THEN
-  REWRITE_TAC[read;write;o_THM] THEN
-  IMP_REWRITE_TAC([read_write_mem_th] @ (!valid_component_thms)) THEN
-  REWRITE_TAC[READ_OVER_WRITE_APPEND_BYTELIST]);;
 
 
 (* A convenient function that proves divisibility of an expression like
@@ -345,13 +287,6 @@ let ASSERT_NONOVERLAPPING_MODULO_TAC t core_exec =
     ALL_TAC];;
 
 
-let mk_fresh_temp_name =
-  let counter: int ref = ref 0 in
-  fun () ->
-    let i = !counter in
-    counter := (i + 1);
-    "temp_" ^ (string_of_int i);;
-
 get_memory_read_info `memory :> bytes64 x`;; (* Some (`x`,`8`,"bytes64") *)
 get_memory_read_info `memory :> bytes128 x`;; (* Some (`x`,`16`,"bytes128") *)
 get_memory_read_info `memory :> bytes (x, sz)`;; (* Some (`x`,`sz`,"bytes") *)
@@ -412,6 +347,9 @@ let barrier_inst_bytes = new_definition(`barrier_inst_bytes = bytelist_of_num 4 
 let BARRIER_INST_BYTES_LENGTH = prove(`LENGTH barrier_inst_bytes = 4`,
     REWRITE_TAC[barrier_inst_bytes;LENGTH_BYTELIST_OF_NUM]);;
 
+prove_conj_of_eq_reads_unfold_rules :=
+  BARRIER_INST_BYTES_LENGTH::!prove_conj_of_eq_reads_unfold_rules;;
+
 let BARRIER_INST_ARM_DECODE_NONEXIST = prove(`!s pc.
     aligned_bytes_loaded s (word pc) barrier_inst_bytes
       ==> ~(?inst. arm_decode s (word pc) inst)`,
@@ -468,9 +406,6 @@ let ALIGNED_BYTES_LOADED_BARRIER_ARM_STUCK = prove(
 (* ------------------------------------------------------------------------- *)
 (* Tactics for simulating a program whose postcondition is eventually_n.     *)
 (* ------------------------------------------------------------------------- *)
-
-let PRINT_TAC (s:string): tactic =
-  W (fun (asl,g) -> Printf.printf "%s\n%!" s; ALL_TAC);;
 
 (* A variant of ARM_BASIC_STEP_TAC, but
    - targets eventually_n
@@ -568,12 +503,6 @@ let ARM_N_STEP_TAC (mc_length_th,decode_th) subths sname
         else
           DISCH_THEN (fun res -> to_ref := (CONJUNCTS res, []); ALL_TAC)));;
 
-let get_read_component (targ:term): term option =
-  let targ = if is_eq targ then lhand targ else targ in
-  match targ with
-  | Comb(Comb(Const("read",_),comp),_) -> Some comp
-  | _ -> None;;
-
 (* Remove `read c s = ..` where c is a register containing a dead value. *)
 let DISCARD_REGS_WITH_DEAD_VALUE_TAC (dead_regs:term list) =
   fun (asl,w) ->
@@ -605,59 +534,6 @@ let ARM_N_STEPS_TAC th snums stname_suffix stnames_no_discard dead_value_info =
       | Some arr -> DISCARD_REGS_WITH_DEAD_VALUE_TAC (arr.(s-1))
       end)
     snums;;
-
-(* Given readth,readth2 = (`|- read c s = e1`, `|- read c' s' = e2`),
-   prove e1 = e2 using WORD_RULE, abbreviate e1 and e2 as a
-   fresh variable, and assume the abbreviated readth and readth2 as well as
-   `e1 = freshvar` (if forget_expr is false).
-   If forget_expr is set, do not add 'e1 = abbrev_var' as an assumption.
-   Note that forget_expr is rarely false; it is false in special cases
-   like when `c` is the SP register.
-   For flag reads, which are simply `|- read ...`, just assumes them.
-*)
-let ABBREV_READS_TAC (readth,readth2:thm*thm) (forget_expr:bool):tactic =
-  W(fun (asl,g) ->
-    let eq,eq2 = concl readth,concl readth2 in
-    if not (is_eq eq)
-    then (* the flag reads case *)
-      MAP_EVERY STRIP_ASSUME_TAC [readth;readth2]
-    else
-      (* eq is: `read elem s = e` *)
-      let lhs,rhs = dest_eq eq in
-      let _,rhs2 = dest_eq eq2 in
-      (* If lhs is PC update, don't abbrevate it. Or, if rhs is already a
-        variable, don't abbreviate it again. Don't try to prove the rhs of
-        eq2. *)
-      if is_read_pc lhs || is_var rhs
-      then MAP_EVERY STRIP_ASSUME_TAC [readth;readth2]
-      else
-        let vname = mk_fresh_temp_name() in
-        let _ = if !arm_print_log then
-          Printf.printf "Abbreviating `%s` (which is `%s`) as \"%s\".. (forget_expr: %b)\n"
-            (string_of_term rhs) (string_of_term lhs) vname forget_expr
-          in
-
-        let readth2 =
-          (if rhs2 = rhs then readth2 else
-          try
-            let r = WORD_RULE (mk_eq(rhs2,rhs)) in
-            let _ = if !arm_print_log then
-              Printf.printf "\t- Abbreviating `%s` as \"%s\" as well\n"
-                (string_of_term rhs2) vname in
-            REWRITE_RULE[r] readth2
-          with _ ->
-            Printf.printf "\t- Error: WORD_RULE could not prove `%s = %s`\n"
-              (string_of_term rhs2) (string_of_term rhs);
-            failwith "ABBREV_READS_TAC") in
-        (* Now introduce abbreviated writes, eventually *)
-        let fresh_var = mk_var (vname,type_of rhs) in
-        let abbrev_th = prove(mk_exists(fresh_var,mk_eq(rhs,fresh_var)),
-          EXISTS_TAC rhs THEN REFL_TAC) in
-        CHOOSE_THEN (fun abbrev_th ->
-            ASSUME_TAC (REWRITE_RULE[abbrev_th] readth) THEN
-            ASSUME_TAC (REWRITE_RULE[abbrev_th] readth2) THEN
-            (if forget_expr then ALL_TAC else ASSUME_TAC abbrev_th))
-          abbrev_th);;
 
 
 
@@ -1286,73 +1162,6 @@ let SIMPLIFY_MAYCHANGES_TAC =
           UNDISCH_THEN (concl asm) (K ALL_TAC)))
       mcs);;
 
-(* Clear unused abbreviations in assumptions.
-   Do not clear it if its name ends with "DO_NOT_CLEAR". *)
-let CLEAR_UNUSED_ABBREVS =
-  fun (asl,w) ->
-    (* asl_with_flags: (keep it?, (abbrev var, asm name, th)) array *)
-    let asl_with_flags = ref (Array.of_list (map
-      (fun (asmname,th) -> true, (None, asmname, th)) asl)) in
-
-    (* From assumptions, find those that abbreviates to the_var *)
-    let find_indices (the_var:term): int list =
-      let res = ref [] in
-      for i = 0 to Array.length !asl_with_flags - 1 do
-        let _,(abbrev_var,_,_) = !asl_with_flags.(i) in
-        if abbrev_var = Some the_var then
-          res := i::!res
-      done;
-      !res in
-
-    (* do BFS to mark assumptions that must not be cleared *)
-    let alive_queue = ref [] in
-    for i = 0 to Array.length !asl_with_flags - 1 do
-      let _,(_,asmname,th) = !asl_with_flags.(i) in
-      let dummy_ref = ref "" in
-      if reads_state (concl th) dummy_ref then
-        (* assumptions that read states should not be removed *)
-        alive_queue := i::!alive_queue
-      else if is_eq (concl th) && is_var (rand (concl th)) &&
-              not (String.ends_with ~suffix:"DO_NOT_CLEAR" asmname) then
-        (* if th is 'e = var', mark it as initially dead & extract rhs var *)
-        !asl_with_flags.(i) <- (false, (Some (rand (concl th)), asmname, th))
-      else
-        (* if th is not 'e = var', don't remove this because
-           we don't know what this is *)
-        alive_queue := i::!alive_queue
-    done;
-
-    (* Start BFS *)
-    while List.length !alive_queue <> 0 do
-      let i = List.hd !alive_queue in
-      alive_queue := List.tl !alive_queue;
-      let itm = !asl_with_flags.(i) in
-      if fst itm then begin
-        (* mark i'th item as alive, and propagate this aliveness to the
-           used variables *)
-        !asl_with_flags.(i) <- (true, snd itm);
-        let _,_,asm = snd itm in
-        let freevars = frees (concl asm) in
-        List.iter (fun fvar ->
-            let next_asms = find_indices fvar in
-            alive_queue := !alive_queue @ next_asms)
-          freevars
-      end
-    done;
-
-    let new_asl = ref [] in
-    for i = Array.length !asl_with_flags - 1 downto 0 do
-      let is_alive,(_,name,th) = !asl_with_flags.(i) in
-      if is_alive then
-        new_asl := (name,th)::!new_asl
-    done;
-
-    Printf.printf "CLEAR_UNUSED_ABBREVS: cleared %d/%d assumptions\n%!"
-      (List.length asl - List.length !new_asl) (List.length asl);
-
-    ALL_TAC (!new_asl,w);;
-
-
 (* EQUIV_STEPS_TAC simulates two partially different programs and makes
   abbreviations of the new symbolic expressions after each step.
   Instructions are considered equivalent if they are alpha-equivalent.
@@ -1430,40 +1239,6 @@ let EQUIV_STEPS_TAC ?dead_value_info_left ?dead_value_info_right
 (* Tactics for proving equivalence of two programs that have reordered       *)
 (* instructions.                                                             *)
 (* ------------------------------------------------------------------------- *)
-
-(* Given eqth = (`|- read c s = rhs`), abbreviate rhs as a fresh variable.
-   assume the abbreviated eqth, and add the abbreviation `rhs = fresh_var`
-   to append_to.
-   append_to is a list of `rhs = fresh_var` equalities.
-   The abbreviated formula `rhs = x_fresh` is not added as assumption.
-*)
-let ABBREV_READ_TAC (eqth:thm) (append_to:thm list ref):tactic =
-  W(fun (asl,g) ->
-    let eq = concl eqth in
-    if not (is_eq eq) then
-      (Printf.printf "ABBREV_READ_TAC: not equality, passing..: `%s`\n"
-          (string_of_term eq);
-       ASSUME_TAC eqth) else
-    (* eq is: `read elem s = e` *)
-    let lhs,rhs = dest_eq eq in
-    (* If lhs is PC update, don't abbrevate it *)
-    if is_read_pc lhs then ASSUME_TAC eqth
-    else
-      if get_read_component lhs = None then failwith "LHS is not read ..?" else
-      let vname = mk_fresh_temp_name() in
-      if !arm_print_log then begin
-        Printf.printf "Abbreviating `%s` (which is `%s`) as \"%s\"..\n"
-            (string_of_term rhs) (string_of_term lhs) vname
-      end;
-
-      let fresh_var = mk_var (vname,type_of rhs) in
-      let abbrev_th = prove(mk_exists(fresh_var,mk_eq(rhs,fresh_var)),
-        EXISTS_TAC rhs THEN REFL_TAC) in
-      CHOOSE_THEN (fun abbrev_th ->
-        ASSUME_TAC (REWRITE_RULE[abbrev_th] eqth) THEN
-        (fun (asl,g) ->
-          append_to := abbrev_th::!append_to;
-          ALL_TAC(asl,g))) abbrev_th);;
 
 (* Simulate an instruction of the left program and assign fresh variables
     to the RHSes of new state equations (`read c s = RHS`).
@@ -1685,64 +1460,6 @@ let ARM_N_STEPS_AND_REWRITE_TAC execth (snums:int list) (inst_map: int list)
 (* Tactics that do not perform symbolic execution but are necessary to       *)
 (* initiate/finalize program equivalence proofs.                             *)
 (* ------------------------------------------------------------------------- *)
-
-(* An ad-hoc tactic for proving a goal
-    `read c1 s = .. /\ read c2 s = .. /\ ...`. This also accepts
-   a clause which is a predicate 'aligned_bytes_loaded'.
-   Clauses which cannot not be proven with this tactic will remain as a goal. *)
-let PROVE_CONJ_OF_EQ_READS_TAC execth =
-  (* Given a goal `read c (updated state) = e`, EXPAND_RHS_TAC tries to find assumption
-     `e' = e`. If there are multiple such assumptions. find
-     `read c' s' = e` such that the 'root' state of updated state is s', and
-     and expands e as follows: `read c (updated state) = read c' s'`.
-     If e is a variable and there is `e' = e`, just use this regardless of s'. *)
-  let EXPAND_RHS_TAC: tactic =
-    (* t must be always `read ...` or a state variable *)
-    let rec get_root_state t =
-      if is_comb t then get_root_state (snd (dest_comb t))
-      else if is_var t then t
-      else failwith ("get_root_state: unknown form: " ^ (string_of_term t)) in
-    fun (asl,w) ->
-      let rhs_expr = rhs w in
-      let eqths = filter (fun _,th -> let c = concl th in
-        is_eq c && rhs c = rhs_expr) asl in
-      match eqths with
-      | [] -> failwith "PROVE_CONJ_OF_EQ_READS_TAC"
-      | (_,eqth)::[] ->       GEN_REWRITE_TAC RAND_CONV [GSYM eqth] (asl,w)
-      | eqths ->
-        let state = get_root_state (lhs w) in
-        let _,eqth = find (fun _,th -> let c = concl th in
-          let the_lhs = lhs c in snd (dest_comb the_lhs) = state) eqths in
-        GEN_REWRITE_TAC RAND_CONV [GSYM eqth] (asl,w) in
-
-  REPEAT CONJ_TAC THEN
-  let main_tac =
-    (* for register updates *)
-    (REPEAT COMPONENT_READ_OVER_WRITE_LHS_TAC THEN
-      (REFL_TAC ORELSE (ASM_REWRITE_TAC[] THEN NO_TAC))) ORELSE
-    (* for register updates, with rhses abbreviated *)
-    (EXPAND_RHS_TAC THEN REPEAT COMPONENT_READ_OVER_WRITE_LHS_TAC THEN REFL_TAC)
-    ORELSE
-    (* for memory updates *)
-    (ASM_REWRITE_TAC[aligned_bytes_loaded;bytes_loaded] THEN
-      (EXPAND_RHS_TAC THEN
-       ((REWRITE_TAC[LENGTH_APPEND;fst execth;BARRIER_INST_BYTES_LENGTH;
-                     PAIR_EQ;BIGNUM_FROM_MEMORY_BYTES] THEN
-         REPEAT CONJ_TAC THEN READ_OVER_WRITE_ORTHOGONAL_TAC) ORELSE
-        (* sometimes the rewrites are not necessary.. *)
-        READ_OVER_WRITE_ORTHOGONAL_TAC))
-      (* sometimes EXPAND_RHS_TAC is not necessary.. *)
-      ORELSE
-        (REWRITE_TAC[LENGTH_APPEND;fst execth;BARRIER_INST_BYTES_LENGTH;
-                     PAIR_EQ;BIGNUM_FROM_MEMORY_BYTES] THEN
-        REPEAT CONJ_TAC THEN READ_OVER_WRITE_ORTHOGONAL_TAC)) ORELSE
-    (* for aligned_bytes_loaded *)
-    (ASM_REWRITE_TAC[aligned_bytes_loaded;bytes_loaded] THEN
-      (MATCH_MP_TAC READ_OVER_WRITE_MEMORY_APPEND_BYTELIST ORELSE
-      MATCH_MP_TAC READ_OVER_WRITE_MEMORY_BYTELIST) THEN
-      REWRITE_TAC[LENGTH_APPEND;fst execth;BARRIER_INST_BYTES_LENGTH] THEN
-      ARITH_TAC) in
-  TRY (main_tac ORELSE (MATCH_MP_TAC EQ_SYM THEN main_tac));;
 
 (* Prove goals like
    `?pc. nonoverlapping_modulo (2 EXP 64) (pc,36) (val addr_out,32) /\

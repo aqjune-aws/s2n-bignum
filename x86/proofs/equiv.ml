@@ -8,59 +8,7 @@
 (* ========================================================================= *)
 
 needs "x86/proofs/base.ml";;
-needs "common/relational2.ml";;
 needs "common/equiv.ml";;
-
-(* ------------------------------------------------------------------------- *)
-(* Generic lemmas and tactics that are useful                                *)
-(* ------------------------------------------------------------------------- *)
-
-let WRITE_ELEMENT_BYTES8 = prove(
-  `!loc (z:(8)word) s. write (element loc) z s = write (bytes8 loc) z s`,
-  REWRITE_TAC[bytes8;WRITE_COMPONENT_COMPOSE;asword;through;write;ARITH_RULE`1=SUC 0`;bytes;WORD_ADD_0;limb] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
-  IMP_REWRITE_TAC[DIV_1;MOD_LT] THEN
-  REWRITE_TAC[WORD_VAL;ARITH_RULE`256=2 EXP 8`;VAL_BOUND;GSYM DIMINDEX_8]);;
-
-let READ_OVER_WRITE_BYTELIST =
-  prove(`!s (loc:int64) (l:((8)word)list).
-      LENGTH l < 2 EXP 64
-      ==> read (bytelist (loc,LENGTH l))
-        (write (bytelist (loc,LENGTH l)) l s) = l`,
-    REPEAT GEN_TAC THEN
-    MAP_EVERY SPEC_TAC [
-      `loc:int64`,`loc:int64`;`s:(64)word->(8)word`,`s:(64)word->(8)word`;
-      `l:((8)word)list`,`l:((8)word)list`] THEN
-    MATCH_MP_TAC list_INDUCT THEN
-    CONJ_TAC THENL [
-      REWRITE_TAC[LENGTH;READ_COMPONENT_COMPOSE;bytelist_clauses];
-
-      REPEAT GEN_TAC THEN STRIP_TAC THEN
-      REWRITE_TAC[LENGTH;bytelist_clauses] THEN
-      REPEAT GEN_TAC THEN STRIP_TAC THEN
-      REWRITE_TAC[CONS_11] THEN
-      CONJ_TAC THENL [
-        REWRITE_TAC[element;write];
-
-        REWRITE_TAC[WRITE_ELEMENT_BYTES8] THEN
-        IMP_REWRITE_TAC[READ_WRITE_ORTHOGONAL_COMPONENTS] THEN
-        CONJ_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-        ORTHOGONAL_COMPONENTS_TAC
-      ]
-    ]);;
-
-let READ_OVER_WRITE_MEMORY_BYTELIST =
-  prove(`!s (loc:int64) (l:((8)word)list).
-      LENGTH l < 2 EXP 64
-      ==> read (memory :> bytelist (loc,LENGTH l))
-        (write (memory :> bytelist (loc,LENGTH l)) l s) = l`,
-  let read_write_mem_th =
-    ISPECL [`memory:(x86state,(64)word->(8)word)component`] READ_WRITE_VALID_COMPONENT in
-  REWRITE_TAC[component_compose] THEN
-  REWRITE_TAC[read;write;o_THM] THEN
-  IMP_REWRITE_TAC([read_write_mem_th] @ (!valid_component_thms)) THEN
-  REWRITE_TAC[READ_OVER_WRITE_BYTELIST]);;
-
 
 (* ------------------------------------------------------------------------- *)
 (* eventually_n_at_pc states that if pre/postconditions at pc/pc2 are        *)
@@ -138,6 +86,9 @@ let BARRIER_INST_DECODE_NONE = prove(`!l. decode (APPEND barrier_inst_bytes l) =
 
 let BARRIER_INST_BYTES_LENGTH = prove(`LENGTH barrier_inst_bytes = 2`,
     REWRITE_TAC[barrier_inst_bytes;LENGTH] THEN ARITH_TAC);;
+
+prove_conj_of_eq_reads_unfold_rules :=
+  BARRIER_INST_BYTES_LENGTH::!prove_conj_of_eq_reads_unfold_rules;;
 
 let BYTES_LOADED_BARRIER_X86_STUCK = prove(
   `!s s' pc. bytes_loaded s (word pc) barrier_inst_bytes /\
@@ -224,6 +175,7 @@ let X86_N_BASIC_STEP_TAC =
       X_GEN_TAC sv' THEN GEN_REWRITE_TAC LAND_CONV [eth] THEN
       REPEAT X86_UNDEFINED_CHOOSE_TAC]) (asl,w);;
 
+
 (* A variant of X86_STEP_TAC for equivalence checking.
 
    If 'store_update_to' is Some ref, a list of
@@ -232,14 +184,13 @@ let X86_N_BASIC_STEP_TAC =
    the instruction in `read .. = expr` form, and the second list is
    auxiliary `read (memory :> reads...) = ..` equalities that were constructed
    in order to formulate the main output, not to formulate the instruction
-   outputs.
-
-   TODO: add store_inst_term_to, like ARM_N_STEP_TAC *)
+   outputs. *)
 let X86_N_STEP_TAC (mc_length_th,decode_ths) subths sname
-                  (store_update_to:(thm list * thm list) ref option) =
+                  (store_update_to:(thm list * thm list) ref option)
+                  (store_inst_term_to: term ref option)  =
   (*** This does the basic decoding setup ***)
 
-  X86_N_BASIC_STEP_TAC decode_ths sname None THEN
+  X86_N_BASIC_STEP_TAC decode_ths sname store_inst_term_to THEN
 
   (*** This part shows the code isn't self-modifying ***)
 
@@ -291,14 +242,16 @@ let X86_N_STEP_TAC (mc_length_th,decode_ths) subths sname
           DISCH_THEN (fun res -> to_ref := (CONJUNCTS res, []); ALL_TAC)));;
 
 (* A variant of X86_STEPS_TAC but uses DISCARD_OLDSTATE_AGGRESSIVELY_TAC
-   instead. *)
+   instead.
+   TODO: receive dead value info & use it, as X86_N_STEPS_TAC does *)
 let X86_N_STEPS_TAC th snums stname_suffix stnames_no_discard =
   let stnames = List.map (fun s -> s ^ stname_suffix) (statenames "s" snums) in
   MAP_EVERY (fun stname ->
-    time (X86_N_STEP_TAC th [] stname) THEN
+    time (X86_N_STEP_TAC th [] stname None) None THEN
           DISCARD_OLDSTATE_AGGRESSIVELY_TAC (stname::stnames_no_discard)
             false)
           stnames;;
+
 
 (* ------------------------------------------------------------------------- *)
 (* Definitions for stating program equivalence.                              *)
@@ -328,6 +281,7 @@ let mk_equiv_bool_regs = define
      (mk_equiv_bool_regs regs (s1,s2) /\
       exists (a:bool). read reg s1 = a /\ read reg s2 = a))`;;
 
+
 (* ------------------------------------------------------------------------- *)
 (* Tactics for proving equivalence of two partially different programs.      *)
 (* Renamed registers in the input programs should not affect the behavior of *)
@@ -349,9 +303,7 @@ let X86_LOCKSTEP_TAC =
   let the_sp = `RSP` in
   let forget_expr (comp:term) = comp <> the_sp in
 
-  fun execth execth' (snum:int) (snum':int) (stname'_suffix:string)
-        (ignored_output_regs_left:term list)
-        (ignored_output_regs_right:term list) ->
+  fun execth execth' (snum:int) (snum':int) (stname'_suffix:string) ->
     let new_stname = "s" ^ (string_of_int snum) in
     let new_stname' = "s" ^ (string_of_int snum') ^ stname'_suffix in
 
@@ -413,10 +365,7 @@ let X86_LOCKSTEP_TAC =
             let oc2:term option = get_read_component (concl eq2) in
             match oc1,oc2 with
             | Some comp1, Some comp2 ->
-              if mem comp1 ignored_output_regs_left &&
-                 mem comp2 ignored_output_regs_right
-              then ALL_TAC (* dead values *)
-              else ABBREV_READS_TAC (eq1,eq2) (forget_expr comp1)
+              ABBREV_READS_TAC (eq1,eq2) (forget_expr comp1)
             | _ -> ALL_TAC)
           eqs);;
 
@@ -480,9 +429,7 @@ let EQUIV_STEP_TAC action execth1 execth2: tactic =
     REPEAT_I_N 0 (lend - lstart)
       (fun i ->
         let il,ir = (lstart+i),(rstart+i) in
-        time (X86_LOCKSTEP_TAC execth1 execth2 (il+1) (ir+1) "'"
-          (get_or_nil il dead_value_info_left)
-          (get_or_nil ir dead_value_info_right))
+        time (X86_LOCKSTEP_TAC execth1 execth2 (il+1) (ir+1) "'")
         THEN (if i mod 20 = 0 then CLEAR_UNUSED_ABBREVS else ALL_TAC)
         THEN CLARIFY_TAC)
   | ("insert",lstart,lend,rstart,rend) ->
@@ -490,7 +437,7 @@ let EQUIV_STEP_TAC action execth1 execth2: tactic =
     else begin
       (if rend - rstart > 50 then
         Printf.printf "Warning: too many instructions: insert %d~%d\n" rstart rend);
-      X86_N_STUTTER_RIGHT_TAC execth2 ((rstart+1)--rend) "'" dead_value_info_right
+      X86_N_STUTTER_RIGHT_TAC execth2 ((rstart+1)--rend) "'"
         ORELSE (PRINT_TAC "insert failed" THEN PRINT_GOAL_TAC THEN NO_TAC)
     end
   | ("delete",lstart,lend,rstart,rend) ->
@@ -498,25 +445,245 @@ let EQUIV_STEP_TAC action execth1 execth2: tactic =
     else begin
       (if lend - lstart > 50 then
         Printf.printf "Warning: too many instructions: delete %d~%d\n" lstart lend);
-      X86_N_STUTTER_LEFT_TAC execth1 ((lstart+1)--lend) dead_value_info_left
+      X86_N_STUTTER_LEFT_TAC execth1 ((lstart+1)--lend)
         ORELSE (PRINT_TAC "delete failed" THEN PRINT_GOAL_TAC THEN NO_TAC)
     end
   | ("replace",lstart,lend,rstart,rend) ->
     (if lend - lstart > 50 || rend - rstart > 50 then
       Printf.printf "Warning: too many instructions: replace %d~%d %d~%d\n"
           lstart lend rstart rend);
-    ((X86_N_STUTTER_LEFT_TAC execth1 ((lstart+1)--lend) dead_value_info_left
+    ((X86_N_STUTTER_LEFT_TAC execth1 ((lstart+1)--lend)
      ORELSE (PRINT_TAC "replace failed: stuttering left" THEN PRINT_GOAL_TAC THEN NO_TAC))
      THEN
-     (X86_N_STUTTER_RIGHT_TAC execth2 ((rstart+1)--rend) "'" dead_value_info_right
+     (X86_N_STUTTER_RIGHT_TAC execth2 ((rstart+1)--rend) "'"
       ORELSE (PRINT_TAC "replace failed: stuttering right" THEN PRINT_GOAL_TAC THEN NO_TAC)))
   | (s,_,_,_,_) -> failwith ("Unknown action: " ^ s);;
-
 
 
 let EQUIV_STEPS_TAC actions execth1 execth2: tactic =
   MAP_EVERY
     (fun action ->
-      EQUIV_STEP_TAC action execth1 execth2 dead_value_info_left
-                     dead_value_info_right)
+      EQUIV_STEP_TAC action execth1 execth2)
     actions;;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Tactics for proving equivalence of two programs that have reordered       *)
+(* instructions.                                                             *)
+(* ------------------------------------------------------------------------- *)
+
+(* Simulate an instruction of the left program and assign fresh variables
+    to the RHSes of new state equations (`read c s = RHS`).
+    store_to is a list of `RHS = assigned_fresh_var` theorems.
+    The equations on assigned fresh variables (`RHS = assigned_fresh_var`)
+    do not appear as assumptions.
+*)
+
+let is_store_inst (t:term) =
+  let rec is_part_of_memory t =
+    if is_const t then name_of t = "memory"
+    else if is_binary ":>" t then is_part_of_memory (lhand t)
+    else false in
+  can (find_term (fun t -> is_comb t &&
+    let c,args = strip_comb t in
+    name_of c = "write" && is_part_of_memory (hd args))) t;;
+
+
+let X86_N_STEP_AND_ABBREV_TAC =
+  let update_eqs_prog = ref ([],[]) in
+  let inst_term = ref `T` in
+  fun execth (new_stname) (store_to:thm list ref)
+             (regs_to_avoid_abbrev: term list)->
+    (* Stash the right program's state equations first *)
+    (fun (asl,g) ->
+      let cur_stname' = name_of (rand (snd ((dest_abs o rand o rator) g))) in
+      STASH_ASMS_OF_READ_STATES [cur_stname'] (asl,g)) THEN
+    (* One step on the left program *)
+    X86_N_STEP_TAC execth [] new_stname (Some update_eqs_prog) (Some inst_term) THEN
+    DISCARD_OLDSTATE_AGGRESSIVELY_TAC [new_stname] false THEN
+    RECOVER_ASMS_OF_READ_STATES THEN
+    (* Abbreviate RHSes of the new state equations *)
+    W (fun (asl,g) ->
+      let update_eqs_prog_list, update_aux_mem_eqs_list = !update_eqs_prog in
+      (* Do not abbreviate auxiliary memory read outputs. Pretend that these
+         equations were already given before simulation :) This avoids control
+         flow-dependent behavior of abbreviation. *)
+      MAP_EVERY ASSUME_TAC update_aux_mem_eqs_list THEN
+
+      (* avoid abbreviation of output of registers in regs_to_avoid_abbrev *)
+      let update_eqs_noabbrev_list, update_eqs_prog_list =
+        partition (fun th ->  (* th: `read X s = ...` *)
+            let c = concl th in is_eq c &&
+              mem (hd (snd (strip_comb (lhs c)))) regs_to_avoid_abbrev)
+          update_eqs_prog_list in
+      MAP_EVERY ASSUME_TAC update_eqs_noabbrev_list THEN
+
+      if is_store_inst !inst_term then
+        (* Do not abbreviate the expressions of values stored to the memory;
+           conceptually they are not outputs. *)
+        MAP_EVERY ASSUME_TAC update_eqs_prog_list
+      else
+        MAP_EVERY
+          (fun th -> (* th: `read X s = ...` *) ABBREV_READ_TAC th store_to)
+          update_eqs_prog_list);;
+
+(* store_to is a reference to list of state numbers and abbreviations.
+   It is initialized as empty when this tactic starts.
+   Unlike X86_N_STEP_AND_ABBREV_TAC, the equations on assigned fresh variables
+    (`RHS = assigned_fresh_var`) are added as assumptions. *)
+let X86_N_STEPS_AND_ABBREV_TAC execth (snums:int list)
+    (store_to: (int * thm) list ref)
+    (regs_to_avoid_abbrev: (term list) list option):tactic =
+  let regs_to_avoid_abbrev =
+    match regs_to_avoid_abbrev with
+    | Some l -> l | None -> replicate [] (length snums) in
+  if length regs_to_avoid_abbrev <> length snums
+  then failwith "regs_to_avoid_abbrev: length of snums and regs_to_avoid_abbrev mismatch" else
+
+  W (fun (asl,g) -> store_to := []; ALL_TAC) THEN
+  (* Stash the right program's state equations first *)
+  (fun (asl,g) ->
+    let pat = term_match []
+      `eventually_n x86 n0 (\s'. eventually_n x86 n1 P s0) s1` in
+    let _,assigns,_ = pat g in
+    let cur_stname = name_of
+      (fst (List.find (fun a,b -> b=`s0:x86state`) assigns)) in
+    STASH_ASMS_OF_READ_STATES [cur_stname] (asl,g)) THEN
+  MAP_EVERY
+    (fun n,regs_to_avoid_abbrev ->
+      let stname = "s" ^ (string_of_int n) in
+      let store_to_n = ref [] in
+      (fun (asl,g) ->
+        let _ = Printf.printf "Stepping to state %s..\n%!" stname in
+        ALL_TAC (asl,g)) THEN
+      X86_N_STEP_AND_ABBREV_TAC execth stname store_to_n regs_to_avoid_abbrev THEN
+      (fun (asl,g) ->
+        store_to := (map (fun x -> (n,x)) !store_to_n) @ !store_to;
+        if !x86_print_log then begin
+          Printf.printf "%d new abbreviations (%d in total)\n%!"
+            (List.length !store_to_n) (List.length !store_to)
+        end;
+        ALL_TAC (asl,g)) THEN
+      CLARIFY_TAC)
+    (zip snums regs_to_avoid_abbrev) THEN
+  RECOVER_ASMS_OF_READ_STATES;;
+
+(* For the right program. abbrevs must be generated by X86_N_STEPS_AND_ABBREV_TAC. *)
+let X86_N_STEPS_AND_REWRITE_TAC execth (snums:int list) (inst_map: int list)
+      (abbrevs: (int * thm) list ref)
+      (regs_to_avoid_abbrev: (term list) list option)
+      : tactic =
+  (* Warning: no nested call of X86_N_STEPS_AND_REWRITE_TAC *)
+  let abbrevs_cpy:(int * thm) list ref = ref [] in
+
+  let regs_to_avoid_abbrev =
+    match regs_to_avoid_abbrev with
+    | Some l -> l | None -> replicate [] (length snums) in
+  if length regs_to_avoid_abbrev <> length snums
+  then failwith "regs_to_avoid_abbrev: length of snums and regs_to_avoid_abbrev mismatch" else
+
+  (* Stash the left program's state equations first *)
+  (fun (asl,g) ->
+    abbrevs_cpy := !abbrevs;
+    let cur_stname = name_of (rand g) in
+    STASH_ASMS_OF_READ_STATES [cur_stname] (asl,g)) THEN
+  MAP_EVERY
+    (fun n,regs_to_avoid_abbrev ->
+      let stname = "s" ^ (string_of_int n) ^ "'" in
+      let new_state_eq = ref ([],[]) in
+      let inst_term = ref `T` in
+      W (fun (asl,g) ->
+        let _ = Printf.printf "Stepping to state %s.. (has %d remaining abbrevs)\n%!"
+            stname (List.length !abbrevs_cpy) in
+        ALL_TAC) THEN
+      MATCH_MP_TAC EVENTUALLY_N_SWAP THEN
+      X86_N_STEP_TAC execth [] stname (Some new_state_eq) (Some inst_term) THEN
+      DISCARD_OLDSTATE_AGGRESSIVELY_TAC [stname] false THEN
+      MATCH_MP_TAC EVENTUALLY_N_SWAP THEN
+      (fun (asl,g) ->
+        let n_at_lprog = List.nth inst_map (n-1) in
+        let abbrevs_for_st_n, leftover = List.partition (fun (n',t)->n'=n_at_lprog) !abbrevs_cpy in
+        let _ = abbrevs_cpy := leftover in
+
+        (* new_state_eqs is the updated state components of the 'right' program
+           instruction, which are outputs of the instruction.
+           new_aux_mem_eqs are auxiliary equations between memory read and their
+           right hand sides that are automatically inferred. They are not
+           outputs of the instruction. *)
+        let new_state_eqs, new_aux_mem_eqs = !new_state_eq in
+
+        (if !x86_print_log then begin
+          Printf.printf "X86_N_STEPS_AND_REWRITE_TAC: new_state_eqs:\n";
+          List.iter (fun t -> Printf.printf "    `%s`\n" (string_of_term (concl t))) new_state_eqs;
+          Printf.printf "X86_N_STEPS_AND_REWRITE_TAC: new_aux_mem_eqs:\n";
+          List.iter (fun t -> Printf.printf "    `%s`\n" (string_of_term (concl t))) new_aux_mem_eqs;
+        end);
+
+        (* Reading flags may not have 'read flag s = ..' form, but just
+            'read flag s' or '~(read flag s)'. They don't need to be rewritten.
+           Also, 'read PC' should not be rewritten as well. Collect them
+           separately. *)
+        let new_state_eqs_norewrite,new_state_eqs =
+          List.partition
+            (fun th -> not (is_eq (concl th)) || (is_read_pc (lhs (concl th))))
+          new_state_eqs in
+
+        (* filter out regs from new_state_eqs that are regs_to_avoid_abbrev.
+           If the instruction is a store instruction, do not abbreviate
+           expressions of values that are stored to the memory because
+           they are not outputs. *)
+        let new_state_eqs_noabbrev, new_state_eqs =
+          if is_store_inst !inst_term then new_state_eqs,[]
+          else partition
+            (fun th ->
+              let updating_comp = hd (snd (strip_comb (lhs (concl th)))) in
+              mem updating_comp regs_to_avoid_abbrev)
+            new_state_eqs in
+
+        if List.length abbrevs_for_st_n = List.length new_state_eqs then
+          (* For each `read c sn = rhs`, replace rhs with abbrev *)
+          let new_state_eqs = List.filter_map
+            (fun new_state_eq ->
+              let rhs = rhs (concl new_state_eq) in
+              (* Find 'rhs = abbrev' from the left program's  updates. *)
+              match List.find_opt
+                (fun (_,th') -> lhs (concl th') = rhs)
+                abbrevs_for_st_n with
+              | Some (_,rhs_to_abbrev) ->
+                (try
+                  Some (GEN_REWRITE_RULE RAND_CONV [rhs_to_abbrev] new_state_eq)
+                with _ ->
+                  (Printf.printf "Failed to proceed.\n";
+                    Printf.printf "- rhs: `%s`\n" (string_of_term rhs);
+                    Printf.printf "- rhs_to_abbrev: `%s`\n" (string_of_thm rhs_to_abbrev);
+                    failwith "X86_N_STEPS_AND_REWRITE_TAC"))
+              | None -> begin
+                (* This case happens when new_state_eq already has abbreviated RHS *)
+                (if !x86_print_log then begin
+                  Printf.printf "X86_N_STEPS_AND_REWRITE_TAC: abbrevs_for_st_n does not have matching abbreviation for this: `%s`\n" (string_of_term rhs);
+                end);
+                None
+              end)
+            new_state_eqs in
+          (if !x86_print_log then begin
+            Printf.printf "X86_N_STEPS_AND_REWRITE_TAC: updated new_state_eqs:\n";
+            List.iter (fun t -> Printf.printf "    `%s`\n" (string_of_term (concl t))) new_state_eqs;
+            Printf.printf "X86_N_STEPS_AND_REWRITE_TAC: new_state_eqs_noabbrev\n";
+            List.iter (fun t -> Printf.printf "    `%s`\n" (string_of_term (concl t))) new_state_eqs_noabbrev;
+            Printf.printf "X86_N_STEPS_AND_REWRITE_TAC: new_state_eqs_norewrite\n";
+            List.iter (fun t -> Printf.printf "    `%s`\n" (string_of_term (concl t))) new_state_eqs_norewrite;
+          end);
+          MAP_EVERY ASSUME_TAC (new_aux_mem_eqs @ new_state_eqs_norewrite @
+                                new_state_eqs_noabbrev @
+                                new_state_eqs) (asl,g)
+        else
+          (Printf.printf "State number %d: length mismatch: %d <> %d\n"
+            n (List.length new_state_eqs) (List.length abbrevs_for_st_n);
+          Printf.printf "  new state eq:\n";
+          List.iter (fun t -> Printf.printf "    %s\n" (string_of_term (concl t))) new_state_eqs;
+          Printf.printf "  old state eq:\n";
+          List.iter (fun (_,t) -> Printf.printf "    %s\n" (string_of_term (concl t))) abbrevs_for_st_n;
+          failwith "X86_N_STEPS_AND_REWRITE_TAC")) THEN CLARIFY_TAC)
+    (zip snums regs_to_avoid_abbrev) THEN
+  RECOVER_ASMS_OF_READ_STATES THEN
+  CLARIFY_TAC;;

@@ -2489,6 +2489,8 @@ let is_read_rip t =
   | Comb (Comb (Const ("read", _), Const ("RIP", _)), _) -> true
   | _ -> false;;
 
+(* For compatibility with is_read_pc in Arm *)
+let is_read_pc = is_read_rip;;
 
 (*** decode_ths is an array from int offset i to
  ***   Some `|- !s pc. bytes_loaded s pc *_mc
