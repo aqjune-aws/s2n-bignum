@@ -362,14 +362,17 @@ let rec MK_MEMORY_READ_EQ_BIGDIGIT_CONV =
         let result =
           let new_assums = readl_th::readh_th::(extra_ths1 @ extra_ths2) in
           TAC_PROOF((map (fun th -> ("",th)) new_assums,the_goal),
-            (if !equiv_print_log then PRINT_GOAL_TAC else ALL_TAC)
-            THEN
             REWRITE_TAC[el 1 (CONJUNCTS READ_MEMORY_BYTESIZED_SPLIT)] THEN
             REWRITE_TAC[WORD_ADD_ASSOC_CONSTS] THEN
             REWRITE_TAC[GSYM ADD_ASSOC] THEN
             RULE_ASSUM_TAC (REWRITE_RULE[GSYM ADD_ASSOC]) THEN
+            RULE_ASSUM_TAC (CONV_RULE (DEPTH_CONV NUM_ADD_CONV)) THEN
             CONV_TAC (DEPTH_CONV NUM_ADD_CONV) THEN
             ASM_REWRITE_TAC[] THEN
+            (if !equiv_print_log then
+              (PRINT_TAC "could not synthesize bytes128 from join(bytes64,bytes64)" THEN
+               PRINT_GOAL_TAC) else ALL_TAC)
+            THEN
             FAIL_TAC "could not synthesize bytes128 from join(bytes64,bytes64)") in
         (* Eliminate the assumptions that are readl_th and readh_th, and put assumptions
            that readl_th and readh_th were relying on. *)
@@ -380,48 +383,48 @@ let rec MK_MEMORY_READ_EQ_BIGDIGIT_CONV =
     | None -> failwith "not memory read";;
 
 (*** examples ***)
-(*
+
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 x) s`
-    ["",new_axiom `read (memory :> bytes (x:int64,32)) s = k`];;
-(* (|- read (memory :> bytes64 x) s = word (bigdigit k 0), []) *)
+    ["",mk_fthm([], `read (memory :> bytes (x:int64,32)) s = k`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 x) s = word (bigdigit k 0), []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word 16))) s`
-    ["",new_axiom `read (memory :> bytes (word_add x (word 8):int64,32)) s = k`];;
-(* (|- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
+    ["",mk_fthm([], `read (memory :> bytes (word_add x (word 8):int64,32)) s = k`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word 16))) s`
-    ["",new_axiom `read (memory :> bytes (word_add x (word 8):int64,8 * 4)) s = k`];;
-(* (|- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
+    ["",mk_fthm([], `read (memory :> bytes (word_add x (word 8):int64,8 * 4)) s = k`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word 16))) s`
-    ["",new_axiom `read (memory :> bytes (word_add x (word 8):int64,8 * n)) s = k`;
-     "",new_axiom `n > 3`];;
-(* (|- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
+    ["",mk_fthm([], `read (memory :> bytes (word_add x (word 8):int64,8 * n)) s = k`);
+     "",mk_fthm([], `n > 3`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add x (word 16))) s = word (bigdigit k 1), []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word (8 * 2)))) s`
-    ["",new_axiom `read (memory :> bytes (word_add x (word (8 * 1)):int64,8 * n)) s = k`;
-     "",new_axiom `n > 3`];;
-(* (|- read (memory :> bytes64 (word_add x (word (8 * 2)))) s = word (bigdigit k 1), []) *)
+    ["",mk_fthm([], `read (memory :> bytes (word_add x (word (8 * 1)):int64,8 * n)) s = k`);
+     "",mk_fthm([], `n > 3`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add x (word (8 * 2)))) s = word (bigdigit k 1), []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word (8 * 2)))) s`
-    ["",new_axiom `read (memory :> bytes (x:int64,8 * 2)) s = k`;
-     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 2)):int64,8 * n)) s = k2`;
-     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 4)):int64,8 * n)) s = k2`;
-     "",new_axiom `n > 3`];;
-(* (|- read (memory :> bytes64 (word_add x (word (8 * 2)))) s = word (bigdigit k2 0), []) *)
+    ["",mk_fthm([], `read (memory :> bytes (x:int64,8 * 2)) s = k`);
+     "",mk_fthm([], `read (memory :> bytes (word_add x (word (8 * 2)):int64,8 * n)) s = k2`);
+     "",mk_fthm([], `read (memory :> bytes (word_add x (word (8 * 4)):int64,8 * n)) s = k2`);
+     "",mk_fthm([], `n > 3`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add x (word (8 * 2)))) s = word (bigdigit k2 0), []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes64 (word_add x (word (8 * i)))) s`
-    ["",new_axiom `read (memory :> bytes (x:int64,8 * n)) s = k`;
-     "",new_axiom `i < n`];;
-(* (|- read (memory :> bytes64 (word_add x (word (8 * i)))) s =
+    ["",mk_fthm ([],`read (memory :> bytes (x:int64,8 * n)) s = k`);
+     "",mk_fthm ([],`i < n`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add x (word (8 * i)))) s =
     word (bigdigit k i),
  []) *)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV
     `read (memory :> bytes64 (word_add z (word (8 * (4 * k4 - 4) + 24)))) s`
-    ["",new_axiom `read (memory :> bytes (word_add z (word (8 * (4 * k4 - 4))),8 * 4)) s = a`;
-     "",new_axiom `read (memory :> bytes (z,8 * (4 * k4 - 4))) s = b`];;
-(* (|- read (memory :> bytes64 (word_add z (word (8 * (4 * k4 - 4) + 24)))) s =
+    ["",mk_fthm([], `read (memory :> bytes (word_add z (word (8 * (4 * k4 - 4))),8 * 4)) s = a`);
+     "",mk_fthm([], `read (memory :> bytes (z,8 * (4 * k4 - 4))) s = b`)];;
+(* (_FALSITY_ |- read (memory :> bytes64 (word_add z (word (8 * (4 * k4 - 4) + 24)))) s =
     word (bigdigit a 3),
  []) *)
 
@@ -429,37 +432,62 @@ MK_MEMORY_READ_EQ_BIGDIGIT_CONV
     `read (memory :> bytes64
       (word_add m_precalc (word_sub (word (8 * 12 * (k4 - 1))) (word 8))))
      s`
-    ["",new_axiom`read (memory :> bytes (m_precalc,8 * 12 * (k4 - 1))) s = k`;
-     "",new_axiom`1 < k4`];;
-(* (|- read
+    ["",mk_fthm([],`read (memory :> bytes (m_precalc,8 * 12 * (k4 - 1))) s = k`);
+     "",mk_fthm([],`1 < k4`)];;
+(* (_FALSITY_
+ |- read
     (memory :>
      bytes64
      (word_add m_precalc (word_sub (word (8 * 12 * (k4 - 1))) (word 8))))
     s =
     word (bigdigit k (12 * (k4 - 1) - 1)),
- []) *)
-
+ [])
+*)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV
   `read (memory :> bytes64 (word_add z (word (8 * 4 * (i' + 1) + 24)))) s`
-  ["",
-   new_axiom
-    `read (memory :> bytes (word_add z (word (8 * 4 * (i' + 1))),32)) s =
-     a`]
+  ["", mk_fthm([],`read (memory :> bytes (word_add z (word (8 * 4 * (i' + 1))),32)) s =
+     a`)];;
+(* (_FALSITY_
+ |- read (memory :> bytes64 (word_add z (word (8 * 4 * (i' + 1) + 24)))) s =
+    word (bigdigit a 3),
+ [])
+*)
 
-** bytes128 **
+(** bytes128 **)
 
 MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes128 (word_add x (word (8 * 2)))) s`
-    ["",new_axiom `read (memory :> bytes (x:int64,8 * 2)) s = k`;
-     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 2)):int64,8 * n)) s = k2`;
-     "",new_axiom `read (memory :> bytes (word_add x (word (8 * 4)):int64,8 * n)) s = k2`;
-     "",new_axiom `n > 3`];;
-(* (|- read (memory :> bytes128 (word_add x (word (8 * 2)))) s =
+    ["",mk_fthm ([],`read (memory :> bytes (x:int64,8 * 2)) s = k`);
+     "",mk_fthm ([],`read (memory :> bytes (word_add x (word (8 * 2)):int64,8 * n)) s = k2`);
+     "",mk_fthm ([],`read (memory :> bytes (word_add x (word (8 * 4)):int64,8 * n)) s = k2`);
+     "",mk_fthm ([],`n > 3`)];;
+(* (_FALSITY_
+ |- read (memory :> bytes128 (word_add x (word (8 * 2)))) s =
     word_join (word (bigdigit k2 1)) (word (bigdigit k2 0)),
- [|- read (memory :> bytes64 (word_add x (word (8 * 2)))) s =
+ [_FALSITY_
+  |- read (memory :> bytes64 (word_add x (word (8 * 2)))) s =
      word (bigdigit k2 0);
-  |- read (memory :> bytes64 (word_add x (word 24))) s = word (bigdigit k2 1)])) *)
+  _FALSITY_
+  |- read (memory :> bytes64 (word_add x (word (8 * 2 + 8)))) s =
+     word (bigdigit k2 1)])
 *)
+
+MK_MEMORY_READ_EQ_BIGDIGIT_CONV `read (memory :> bytes128 (word_add m (word ((8 * 4 * i + 32) + 16)))) s`
+    ["",mk_fthm ([],`read (memory :> bytes64 (word_add m (word ((8 * 4 * i + 32) + 24))))
+      s =
+      k1`);
+     "",mk_fthm ([],`read (memory :> bytes64 (word_add m (word ((8 * 4 * i + 32) + 16))))
+      s =
+      k2`)];;
+(* (_FALSITY_
+ |- read (memory :> bytes128 (word_add m (word ((8 * 4 * i + 32) + 16)))) s =
+    word_join k1 k2,
+ [_FALSITY_
+  |- read (memory :> bytes64 (word_add m (word ((8 * 4 * i + 32) + 16)))) s =
+     k2;
+  _FALSITY_
+  |- read (memory :> bytes64 (word_add m (word ((8 * 4 * i + 32) + 24)))) s =
+     k1]) *)
 
 (** DIGITIZE_MEMORY_READS will return (thm * (thm option)) where
     1. the first thm is the simplified read statements using bigdigit and
