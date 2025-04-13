@@ -85,7 +85,7 @@ let INIT_CONST_TIME = prove(
       finish]]);;
 
 let COPYLOOP_CONST_TIME = prove(
-  `!pc k z n x es.
+  `forall pc k z n x es.
     k < 2 EXP 64 /\ n < 2 EXP 64 /\ ~(0 = MIN n k) /\
     nonoverlapping (word pc, 0x40) (z, 8 * k)
     ==> ensures_n arm
@@ -173,7 +173,7 @@ let COPYLOOP_CONST_TIME = prove(
     REWRITE_TAC[NSUM_CONST_NUMSEG] THEN ASM_ARITH_TAC]);;
 
 let PADDING_CONST_TIME = prove(
-  `!pc k z n x es.
+  `forall pc k z n x es.
     k < 2 EXP 64 /\ n < 2 EXP 64
     ==> ensures_n arm
       (\s. aligned_bytes_loaded s (word pc) bignum_copy_mc /\ read PC s = word (pc + 0x24) /\
@@ -198,7 +198,7 @@ let PADDING_CONST_TIME = prove(
     ASM_REWRITE_TAC [GSYM NOT_LE]]);;
 
 let PADLOOP_CONST_TIME = prove(
-  `!pc k z n x es.
+  `forall pc k z n x es.
     k < 2 EXP 64 /\ n < 2 EXP 64 /\ ~(k <= MIN n k) /\
     nonoverlapping (word pc, 0x40) (z, 8 * k)
     ==> ensures_n arm
@@ -391,3 +391,6 @@ let BIGNUM_COPY_CONSTTIME = prove(
       FINAL_HOARE_TRIPLE_TAC PADLOOP_CONST_TIME
     ]
   ]);;
+
+Printf.printf "BIGNUM_COPY_CONSTTIME (ensures_n version) proven correct: %s\n"
+  (string_of_thm BIGNUM_COPY_CONSTTIME);;

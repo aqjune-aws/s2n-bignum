@@ -2144,7 +2144,7 @@ let CORE_INV_P25519_CORRECT_AND_CONSTTIME = time prove
         EventStore (word_add stackpointer (word 16),16);
         EventStore (stackpointer,16)])
        es))`]
-     LOCAL_WORD_DIVSTEP59_CORRECT) THEN
+     LOCAL_WORD_DIVSTEP59_CORRECT_AND_CONSTTIME) THEN
     REWRITE_TAC[SOME_FLAGS; ARITH_RULE `874 = 605 + 269`] THEN
     ARM_N_BIGSTEP_TAC CORE_INV_P25519_EXEC "s4" THEN
     FIRST_X_ASSUM(MP_TAC o check (is_imp o concl)) THEN
@@ -2935,7 +2935,7 @@ let CORE_INV_P25519_CORRECT_AND_CONSTTIME = time prove
         EventLoad (x, 16);
         EventStore (word_add stackpointer (word 16), 16);
         EventStore (stackpointer, 16)]) es))`]
-   LOCAL_WORD_DIVSTEP59_CORRECT) THEN
+   LOCAL_WORD_DIVSTEP59_CORRECT_AND_CONSTTIME) THEN
   REWRITE_TAC[SOME_FLAGS; ARITH_RULE `710 = 605 + 105`] THEN
   ARM_N_BIGSTEP_TAC CORE_INV_P25519_EXEC "s4" THEN
   FIRST_X_ASSUM(MP_TAC o check (is_imp o concl)) THEN
@@ -3553,6 +3553,14 @@ let CORE_INV_P25519_CORRECT_AND_CONSTTIME = time prove
   DISCH_THEN(MP_TAC o end_itlist CONJ o DESUM_RULE o CONJUNCTS) THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN REAL_INTEGER_TAC);;
 
+Printf.printf "CORE_INV_P25519_CORRECT_AND_CONSTTIME proven correct: %s\n"
+  (string_of_thm CORE_INV_P25519_CORRECT_AND_CONSTTIME);;
+Printf.printf "  This theorem states that the body of bignum_inv_p25519";;
+Printf.printf " excluding the callee-save register spills and reloads and";;
+Printf.printf " ret (which is, instructions in [0xc, 0x1010]) have the";;
+Printf.printf " expected functional behavior *and* uarch event trace list";;
+Printf.printf " only depending on public information.\n";;
+
 (* ------------------------------------------------------------------------- *)
 (* Inducing multiple variants of functional correctness proofs from the      *)
 (* functional correctness + constant-time property proof.                    *)
@@ -3586,7 +3594,7 @@ let CORE_INV_P25519_CORRECT = time prove
           (\s. 0x21cd)`,
   DROP_EVENTS_COND_TAC CORE_INV_P25519_CORRECT_AND_CONSTTIME);;
 
-let ORIGINAL_CORE_INV_P25519_CORRECT = time prove
+let CORE_INV_P25519_CORRECT_ORIGINAL = time prove
  (`forall z x n pc stackpointer.
         aligned 16 stackpointer /\
         ALL (nonoverlapping (stackpointer,128))
@@ -3611,7 +3619,7 @@ let ORIGINAL_CORE_INV_P25519_CORRECT = time prove
            MAYCHANGE [events])`,
   ENSURES_N_ENSURES_TAC CORE_INV_P25519_CORRECT);;
 
-let ORIGINAL_BIGNUM_INV_P25519_CORRECT = time prove
+let BIGNUM_INV_P25519_CORRECT_ORIGINAL = time prove
  (`forall z x n pc stackpointer.
         aligned 16 stackpointer /\
         ALL (nonoverlapping (stackpointer,128))
@@ -3642,13 +3650,13 @@ let ORIGINAL_BIGNUM_INV_P25519_CORRECT = time prove
       (bignum_inv_p25519_mc,BIGNUM_INV_P25519_EXEC,0xc,
        (GEN_REWRITE_CONV RAND_CONV [bignum_inv_p25519_mc] THENC TRIM_LIST_CONV)
        `TRIM_LIST (12,16) bignum_inv_p25519_mc`,
-       ORIGINAL_CORE_INV_P25519_CORRECT)
+       CORE_INV_P25519_CORRECT_ORIGINAL)
       [`read X0 s`; `read X1 s`;
        `read (memory :> bytes(read X1 s,8 * 4)) s`;
        `pc + 0xc`; `stackpointer:int64`] 1 THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]);;
 
-let ORIGINAL_BIGNUM_INV_P25519_SUBROUTINE_CORRECT = time prove
+let BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL = time prove
  (`forall z x n pc stackpointer returnaddress.
         aligned 16 stackpointer /\
         ALL (nonoverlapping (word_sub stackpointer (word 160),160))
@@ -3668,5 +3676,8 @@ let ORIGINAL_BIGNUM_INV_P25519_SUBROUTINE_CORRECT = time prove
               MAYCHANGE [memory :> bytes(z,8 * 4);
                     memory :> bytes(word_sub stackpointer (word 160),160)])`,
   ARM_ADD_RETURN_STACK_TAC
-   BIGNUM_INV_P25519_EXEC ORIGINAL_BIGNUM_INV_P25519_CORRECT
+   BIGNUM_INV_P25519_EXEC BIGNUM_INV_P25519_CORRECT_ORIGINAL
    `[X19;X20;X21;X22]` 160);;
+
+Printf.printf "BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL proven correct: %s\n"
+  (string_of_thm BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL);;

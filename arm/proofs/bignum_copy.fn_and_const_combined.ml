@@ -301,6 +301,8 @@ let BIGNUM_COPY_CORRECT_AND_CONSTTIME = prove
     REWRITE_TAC[NSUM_CONST_NUMSEG] THEN ASM_ARITH_TAC
   ]);;
 
+Printf.printf "BIGNUM_COPY_CORRECT_AND_CONSTTIME proven correct: %s\n"
+  (string_of_thm BIGNUM_COPY_CORRECT_AND_CONSTTIME);;
 
 (* ------------------------------------------------------------------------- *)
 (* Inducing multiple variants of functional correctness proofs from the      *)
@@ -321,11 +323,12 @@ let BIGNUM_COPY_CORRECT = prove
        (\s. read PC s = word (pc + 0x3c) /\
             bignum_from_memory (z,val k) s = lowdigits a (val k))
        (MAYCHANGE [PC; X2; X4; X5] ,, MAYCHANGE SOME_FLAGS ,,
-        MAYCHANGE [memory :> bignum(z,val k)])
+        MAYCHANGE [memory :> bignum(z,val k)] ,,
+        MAYCHANGE [events])
        (\s. 4 * val k + MIN (val n) (val k) + 6)`,
   DROP_EVENTS_COND_TAC BIGNUM_COPY_CORRECT_AND_CONSTTIME);;
 
-let BIGNUM_COPY_SUBROUTINE_CORRECT = prove
+let BIGNUM_COPY_SUBROUTINE_CORRECT_ENSURESN = prove
  (`forall k z n x a pc returnaddress.
      nonoverlapping (word pc,0x40) (z,8 * val k) /\
      (x = z \/ nonoverlapping(x,8 * MIN (val n) (val k)) (z,8 * val k))
@@ -343,7 +346,7 @@ let BIGNUM_COPY_SUBROUTINE_CORRECT = prove
   REWRITE_TAC[ARITH_RULE `a + b + 7 = (a + b + 6) + 1`] THEN
   ARM_N_ADD_RETURN_NOSTACK_TAC BIGNUM_COPY_EXEC BIGNUM_COPY_CORRECT);;
 
-let ORIGINAL_BIGNUM_COPY_SUBROUTINE_CORRECT = prove
+let BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL = prove
  (`forall k z n x a pc returnaddress.
      nonoverlapping (word pc,0x40) (z,8 * val k) /\
      (x = z \/ nonoverlapping(x,8 * MIN (val n) (val k)) (z,8 * val k))
@@ -357,7 +360,10 @@ let ORIGINAL_BIGNUM_COPY_SUBROUTINE_CORRECT = prove
                 bignum_from_memory (z,val k) s =  lowdigits a (val k))
            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
             MAYCHANGE [memory :> bignum(z,val k)])`,
-  ENSURES_N_ENSURES_TAC BIGNUM_COPY_SUBROUTINE_CORRECT);;
+  ENSURES_N_ENSURES_TAC BIGNUM_COPY_SUBROUTINE_CORRECT_ENSURESN);;
+
+Printf.printf "BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL proven correct: %s\n"
+  (string_of_thm BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL);;
 
 
 (* ------------------------------------------------------------------------- *)
@@ -393,3 +399,6 @@ let BIGNUM_COPY_CONSTTIME = prove
   ASM_REWRITE_TAC[] THEN
   DISCH_THEN (fun th -> DISCH_THEN (MP_TAC o MATCH_MP COMBINE_ENSURES_N_ENSURES2 o CONJ th)) THEN
   MATCH_MP_TAC ENSURES2_WEAKEN THEN SIMP_TAC[SUBSUMED_REFL]);;
+
+Printf.printf "BIGNUM_COPY_CONSTTIME (ensures2 version) proven correct: %s\n"
+  (string_of_thm BIGNUM_COPY_CONSTTIME);;

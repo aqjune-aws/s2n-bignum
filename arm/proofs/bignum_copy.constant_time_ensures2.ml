@@ -223,8 +223,8 @@ let PADLOOP_CONST_TIME = prove(
     (* counter 2 *)
     REWRITE_TAC [NSUM_CONST_NUMSEG] THEN ASM_ARITH_TAC]);;
 
-let COPY_CONST_TIME = prove(
-  `!pc k z n x.
+let BIGNUM_COPY_CONSTTIME = prove(
+  `forall pc k z n x.
     k < 2 EXP 64 /\ n < 2 EXP 64 /\
     nonoverlapping (word pc, 0x40) (z, 8 * k) /\ nonoverlapping (word pc, 0x40) (z, 8 * k)
     ==> ensures2 arm
@@ -281,3 +281,6 @@ let COPY_CONST_TIME = prove(
     REWRITE_TAC [];
     ASM_REWRITE_TAC [] THEN
     IMP_REWRITE_TAC [PADLOOP_CONST_TIME]]);;
+
+Printf.printf "BIGNUM_COPY_CONSTTIME (ensures2 version) proven correct: %s\n"
+  (string_of_thm BIGNUM_COPY_CONSTTIME);;

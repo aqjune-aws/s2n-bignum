@@ -387,6 +387,12 @@ UNOPT_OBJ = p256/unopt/bignum_montmul_p256_base.o \
 
 OBJ = $(POINT_OBJ) $(BIGNUM_OBJ)
 
+# CAV'25 targets
+CAV25_PROOFS = proofs/bignum_inv_p25519.fn_and_const_combined.ml \
+               proofs/bignum_copy.constant_time_ensures2.ml \
+               proofs/bignum_copy.constant_time_ensures_n.ml \
+               proofs/bignum_copy.fn_and_const_combined.ml
+
 # Tutorial assembly files
 
 TUTORIAL_PROOFS = $(wildcard tutorial/*.ml)
@@ -422,7 +428,13 @@ HOLDIR?=$(HOME)/hol-light
 HOLLIGHT:=$(HOLDIR)/hol.sh
 
 PROOF_BINS = $(OBJ:.o=.native)
+PROOF_BINS_CAV25 = \
+      curve25519/bignum_inv_p25519.fn_and_const_combined.native \
+      generic/bignum_copy.constant_time_ensures2.native \
+      generic/bignum_copy.constant_time_ensures_n.native \
+      generic/bignum_copy.fn_and_const_combined.native
 PROOF_LOGS = $(OBJ:.o=.correct)
+PROOF_LOGS_CAV25 = $(PROOF_BINS_CAV25:.native=.correct)
 TUTORIAL_PROOF_BINS = $(TUTORIAL_PROOFS:.ml=.native)
 TUTORIAL_PROOF_LOGS = $(TUTORIAL_PROOFS:.ml=.correct)
 
@@ -432,6 +444,12 @@ proofs/simulator.native: proofs/simulator.ml ; ../tools/build-proof.sh proofs/si
 
 .SECONDEXPANSION:
 %.native: proofs/$$(*F).ml %.o ; ../tools/build-proof.sh "$<" "$(HOLLIGHT)" "$@"
+
+# For CAV 25 AE
+curve25519/bignum_inv_p25519.fn_and_const_combined.native: proofs/bignum_inv_p25519.fn_and_const_combined.ml ; ../tools/build-proof.sh "$<" "$(HOLLIGHT)" "$@"
+generic/bignum_copy.constant_time_ensures2.native: proofs/bignum_copy.constant_time_ensures2.ml ; ../tools/build-proof.sh "$<" "$(HOLLIGHT)" "$@"
+generic/bignum_copy.constant_time_ensures_n.native: proofs/bignum_copy.constant_time_ensures_n.ml ; ../tools/build-proof.sh "$<" "$(HOLLIGHT)" "$@"
+generic/bignum_copy.fn_and_const_combined.native: proofs/bignum_copy.fn_and_const_combined.ml ; ../tools/build-proof.sh "$<" "$(HOLLIGHT)" "$@"
 
 # Run them and print the standard output+error at *.correct
 
@@ -502,10 +520,16 @@ build_proofs: $(UNOPT_OBJ) $(PROOF_BINS)
 # Conservatively check that there is no redefinition of "check_axioms"
 # '-I' excludes binary files (*.native).
 	! grep -RI "check_axioms" . ../common/ --exclude="Makefile"
+build_proofs-cav25: generic/bignum_copy.o curve25519/bignum_inv_p25519.o $(PROOF_BINS_CAV25)
+# Conservatively check that there is no redefinition of "check_axioms"
+# '-I' excludes binary files (*.native).
+	! grep -RI "check_axioms" . ../common/ --exclude="Makefile"
 build_tutorial: $(TUTORIAL_OBJ) $(TUTORIAL_PROOF_BINS);
 run_proofs: build_proofs $(PROOF_LOGS);
+run_proofs-cav25: build_proofs-cav25 $(PROOF_LOGS_CAV25);
 
 proofs: run_proofs ; ../tools/count-proofs.sh .
+proofs-cav25: run_proofs-cav25
 tutorial: build_tutorial $(TUTORIAL_PROOF_LOGS);
 
 # Always run sematest regardless of dependency check
