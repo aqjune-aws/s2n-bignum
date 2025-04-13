@@ -11,6 +11,11 @@
 (*      (uint64_t k, uint64_t *z, uint64_t n, uint64_t *x);                  *)
 (*                                                                           *)
 (* Standard ARM ABI: X0 = k, X1 = z, X2 = n, X3 = x                          *)
+(*                                                                           *)
+(* This file tries to prove the combined statement of functional correctness *)
+(* and constant time properties at once, then induce the original functional *)
+(* correctness statements of bignum_copy.ml and also the constant time prop- *)
+(* erty statement in the relational Hoare triple form.                       *)
 (* ========================================================================= *)
 
 needs "arm/proofs/base.ml";;
@@ -296,6 +301,14 @@ let BIGNUM_COPY_CORRECT_AND_CONSTTIME = prove
     REWRITE_TAC[NSUM_CONST_NUMSEG] THEN ASM_ARITH_TAC
   ]);;
 
+
+(* ------------------------------------------------------------------------- *)
+(* Inducing multiple variants of functional correctness proofs from the      *)
+(* functional correctness + constant-time property proof.                    *)
+(* The 'ensures' variants of functional correctnesses are syntactically equal*)
+(* to those in bignum_copy.ml.                                               *)
+(* ------------------------------------------------------------------------- *)
+
 let BIGNUM_COPY_CORRECT = prove
  (`forall k z n x a pc.
  nonoverlapping (word pc,0x40) (z,8 * val k) /\
@@ -308,8 +321,7 @@ let BIGNUM_COPY_CORRECT = prove
        (\s. read PC s = word (pc + 0x3c) /\
             bignum_from_memory (z,val k) s = lowdigits a (val k))
        (MAYCHANGE [PC; X2; X4; X5] ,, MAYCHANGE SOME_FLAGS ,,
-        MAYCHANGE [memory :> bignum(z,val k)] ,,
-        MAYCHANGE [events])
+        MAYCHANGE [memory :> bignum(z,val k)])
        (\s. 4 * val k + MIN (val n) (val k) + 6)`,
   DROP_EVENTS_COND_TAC BIGNUM_COPY_CORRECT_AND_CONSTTIME);;
 
@@ -326,29 +338,12 @@ let BIGNUM_COPY_SUBROUTINE_CORRECT = prove
            (\s. read PC s = returnaddress /\
                 bignum_from_memory (z,val k) s =  lowdigits a (val k))
            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
-            MAYCHANGE [memory :> bignum(z,val k)] ,,
-            MAYCHANGE [events])
+            MAYCHANGE [memory :> bignum(z,val k)])
            (\s. 4 * val k + MIN (val n) (val k) + 7)`,
   REWRITE_TAC[ARITH_RULE `a + b + 7 = (a + b + 6) + 1`] THEN
   ARM_N_ADD_RETURN_NOSTACK_TAC BIGNUM_COPY_EXEC BIGNUM_COPY_CORRECT);;
 
-let BIGNUM_COPY_CORRECT_ENSURES = prove
- (`forall k z n x a pc.
-     nonoverlapping (word pc,0x40) (z,8 * val k) /\
-     (x = z \/ nonoverlapping (x,8 * MIN (val n) (val k)) (z,8 * val k))
-     ==> ensures arm
-           (\s. aligned_bytes_loaded s (word pc) bignum_copy_mc /\
-                read PC s = word pc /\
-                C_ARGUMENTS [k; z; n; x] s /\
-                bignum_from_memory (x,val n) s = a)
-           (\s. read PC s = word (pc + 0x3c) /\
-                bignum_from_memory (z,val k) s = lowdigits a (val k))
-           (MAYCHANGE [PC; X2; X4; X5] ,, MAYCHANGE SOME_FLAGS ,,
-            MAYCHANGE [memory :> bignum(z,val k)] ,,
-            MAYCHANGE [events])`,
-  ENSURES_N_ENSURES_TAC BIGNUM_COPY_CORRECT);;
-
-let BIGNUM_COPY_SUBROUTINE_CORRECT_ENSURES = prove
+let ORIGINAL_BIGNUM_COPY_SUBROUTINE_CORRECT = prove
  (`forall k z n x a pc returnaddress.
      nonoverlapping (word pc,0x40) (z,8 * val k) /\
      (x = z \/ nonoverlapping(x,8 * MIN (val n) (val k)) (z,8 * val k))
@@ -361,9 +356,14 @@ let BIGNUM_COPY_SUBROUTINE_CORRECT_ENSURES = prove
            (\s. read PC s = returnaddress /\
                 bignum_from_memory (z,val k) s =  lowdigits a (val k))
            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
-            MAYCHANGE [memory :> bignum(z,val k)] ,,
-            MAYCHANGE [events])`,
+            MAYCHANGE [memory :> bignum(z,val k)])`,
   ENSURES_N_ENSURES_TAC BIGNUM_COPY_SUBROUTINE_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Inducing the ensures2 version of constant-time proof from the functional  *)
+(* correctness + constant-time property proof.                               *)
+(* ------------------------------------------------------------------------- *)
 
 let BIGNUM_COPY_CONSTTIME = prove
  (`exists f_es. forall k:int64 z:int64 n:int64 x:int64 a1:num a2:num pc1 pc2 es1 es2.

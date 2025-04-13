@@ -48,6 +48,10 @@ let ENSURES_N_BIGNUM_TERMRANGE_TAC =
      (SPECL [k; m] pth);;
 
 
+(* ------------------------------------------------------------------------- *)
+(* ensures_n version of ARM symbolic simulation tactics                      *)
+(* ------------------------------------------------------------------------- *)
+
 let ARM_N_SIM_TAC execth stnames ?(rewrite_read_pc=false) =
   REWRITE_TAC(!simulation_precanon_thms) THEN
   ENSURES_N_INIT_TAC "s0" THEN
@@ -161,3 +165,99 @@ let ARM_N_ADD_RETURN_NOSTACK_TAC =
        (can (term_match [] `read PC s = a \/ Q` o concl)))) THEN
       ARM_N_STEPS_TAC execth [1] "" [] None THEN
       ENSURES_N_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]];;
+
+
+let ARM_N_VERBOSE_STEP_TAC (exth1,exth2) sname g =
+  Format.print_string("Stepping to state "^sname); Format.print_newline();
+  ARM_N_STEP_TAC (exth1,exth2) [] sname None g;;
+
+let ARM_N_SINGLE_STEP_TAC th s =
+  time (ARM_N_VERBOSE_STEP_TAC th s None) THEN
+  DISCARD_OLDSTATE_TAC s THEN
+  CLARIFY_TAC;;
+
+let ARM_N_GEN_ACCSTEP_TAC acc_preproc th aflag s =
+  ARM_N_SINGLE_STEP_TAC th s THEN
+  (if aflag then acc_preproc THEN TRY(ACCUMULATE_ARITH_TAC s THEN CLARIFY_TAC)
+   else ALL_TAC);;
+
+let ARM_N_GEN_ACCSTEPS_TAC acc_preproc th anums snums =
+  MAP_EVERY
+    (fun n ->
+      let state_name = "s"^string_of_int n in
+      ARM_N_GEN_ACCSTEP_TAC (acc_preproc state_name) th (mem n anums) state_name)
+    snums;;
+
+let ARM_N_ACCSTEPS_TAC th anums snums =
+  ARM_N_GEN_ACCSTEPS_TAC (fun _ -> ALL_TAC) th anums snums;;
+
+let ARM_N_QUICKSTEP_TAC th pats =
+  let pats' =
+   [`nonoverlapping_modulo a b c`; `aligned_bytes_loaded a b c`;
+    `MAYCHANGE a b c`; `(a ,, b) c d`; `read PC s = x`; `steps arm i s0 si`] @ pats in
+  fun s -> time (ARM_N_VERBOSE_STEP_TAC th s None) THEN
+           DISCARD_NONMATCHING_ASSUMPTIONS pats' THEN
+           DISCARD_OLDSTATE_TAC s THEN CLARIFY_TAC;;
+
+let ARM_N_QUICKSTEPS_TAC th pats snums =
+  MAP_EVERY (ARM_N_QUICKSTEP_TAC th pats) (statenames "s" snums);;
+
+let ARM_N_QUICKSIM_TAC execth pats snums =
+  REWRITE_TAC(!simulation_precanon_thms) THEN
+  ENSURES_N_INIT_TAC "s0" THEN ARM_N_QUICKSTEPS_TAC execth pats snums THEN
+  ENSURES_N_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN ASM_REWRITE_TAC[];;
+
+(* ------------------------------------------------------------------------- *)
+(* Introduce a new ghost variable for a state component in "ensures_n".      *)
+(* ------------------------------------------------------------------------- *)
+
+let ENSURES_N_GHOST_INTRO_TAC =
+  let pth = prove
+   (`!f P step post frame fn.
+         (!a. ensures_n step (\s. P s a /\ f s = a) post frame fn)
+         ==> ensures_n step (\s. P s (f s)) post frame fn`,
+    REPEAT GEN_TAC THEN REWRITE_TAC[ensures_n] THEN
+    GEN_REWRITE_TAC LAND_CONV [SWAP_FORALL_THM] THEN
+    REWRITE_TAC[IMP_CONJ_ALT; FORALL_UNWIND_THM1]) in
+  fun t comp ->
+    MP_TAC(ISPEC comp pth) THEN
+    CONV_TAC(LAND_CONV(ONCE_DEPTH_CONV BETA_CONV)) THEN
+    DISCH_THEN MATCH_MP_TAC THEN X_GEN_TAC t THEN
+    GEN_REWRITE_TAC (RATOR_CONV o LAND_CONV o ABS_CONV o TOP_DEPTH_CONV)
+     [GSYM CONJ_ASSOC];;
+
+(* ------------------------------------------------------------------------- *)
+(* Simulate through a lemma in ?- ensures_n step P Q C ==> eventually_n R s  *)
+(* ------------------------------------------------------------------------- *)
+
+let (ARM_N_BIGSTEP_TAC:(thm*thm option array)->string->tactic) =
+  let lemma = prove
+   (`P s /\ (!s':S. Q s' /\ C s s' ==> eventually_n step n2 R s')
+     ==> ensures_n step P Q C (\s. n1) ==> eventually_n step (n1 + n2) R s`,
+    STRIP_TAC THEN GEN_REWRITE_TAC LAND_CONV [ensures_n] THEN
+    DISCH_THEN(MP_TAC o SPEC `s:S`) THEN ASM_REWRITE_TAC[] THEN
+    MATCH_MP_TAC(MESON[]
+     `(!s:S n1. eventually_n step n1 P s ==> eventually_n step (n1 + n2) Q s)
+      ==> eventually_n step n1 P s ==> eventually_n step (n1 + n2) Q s`) THEN
+    GEN_REWRITE_TAC I [EVENTUALLY_N_IMP_EVENTUALLY_N] THEN
+    ASM_REWRITE_TAC[]) in
+  fun (execth1,_) sname (asl,w) ->
+    let sv = mk_var(sname,type_of(rand(rand w))) in
+    (GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+      (!simulation_precanon_thms) THEN
+     MATCH_MP_TAC lemma THEN CONJ_TAC THENL
+      [BETA_TAC THEN ASM_REWRITE_TAC[];
+       BETA_TAC THEN X_GEN_TAC sv THEN
+       REPEAT(DISCH_THEN(CONJUNCTS_THEN2 STRIP_ASSUME_TAC MP_TAC)) THEN
+       GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV) [MAYCHANGE; SEQ_ID] THEN
+       GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV) [GSYM SEQ_ASSOC] THEN
+       GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV) [ASSIGNS_SEQ] THEN
+       GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV) [ASSIGNS_THM] THEN
+       REWRITE_TAC[LEFT_IMP_EXISTS_THM] THEN REPEAT GEN_TAC THEN
+       NONSELFMODIFYING_STATE_UPDATE_TAC
+        (MATCH_MP aligned_bytes_loaded_update execth1) THEN
+       ASSUMPTION_STATE_UPDATE_TAC THEN
+       MAYCHANGE_STATE_UPDATE_TAC THEN
+       DISCH_THEN(K ALL_TAC) THEN DISCARD_OLDSTATE_TAC sname])
+    (asl,w);;

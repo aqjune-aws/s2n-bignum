@@ -5,6 +5,16 @@
 
 (* ========================================================================= *)
 (* Copying (with truncation or extension) bignums                            *)
+(*                                                                           *)
+(* Input x[n]; output z[k]                                                   *)
+(*    extern void bignum_copy                                                *)
+(*      (uint64_t k, uint64_t *z, uint64_t n, uint64_t *x);                  *)
+(*                                                                           *)
+(* Standard ARM ABI: X0 = k, X1 = z, X2 = n, X3 = x                          *)
+(*                                                                           *)
+(* This file tries to prove the constant time property of bignum_copy()      *)
+(* by stating the property for each basic block in the ensures_n form, then  *)
+(* composes these triples to prove the full statement.                       *)
 (* ========================================================================= *)
 
 needs "arm/proofs/base.ml";;
