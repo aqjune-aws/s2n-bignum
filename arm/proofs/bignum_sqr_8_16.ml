@@ -1148,6 +1148,9 @@ let BIGNUM_SQR_8_16_CORE_EQUIV = time prove(equiv_goal,
 
 extra_word_CONV := _org_extra_word_CONV;;
 
+Printf.printf "(CAV25) BIGNUM_SQR_8_16_CORE_EQUIV proven correct: %s\n"
+  (string_of_thm BIGNUM_SQR_8_16_CORE_EQUIV);;
+
 
 let event_n_at_pc_goal = mk_eventually_n_at_pc_statement_simple
   `nonoverlapping (word pc:int64,

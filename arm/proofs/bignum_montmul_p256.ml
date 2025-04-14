@@ -1640,6 +1640,8 @@ let BIGNUM_MONTMUL_P256_CORE_EQUIV = prove(equiv_goal,
     (BIGNUM_MONTMUL_P256_UNOPT_CORE_EXEC,BIGNUM_MONTMUL_P256_INTERM1_CORE_EXEC,
      BIGNUM_MONTMUL_P256_CORE_EXEC));;
 
+Printf.printf "(CAV25) BIGNUM_MONTMUL_P256_CORE_EQUIV proven correct: %s\n"
+  (string_of_thm BIGNUM_MONTMUL_P256_CORE_EQUIV);;
 
 
 (******************************************************************************

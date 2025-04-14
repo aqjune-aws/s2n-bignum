@@ -1680,6 +1680,9 @@ let BIGNUM_MONTSQR_P384_CORE_EQUIV = time prove(equiv_goal,
     (BIGNUM_MONTSQR_P384_UNOPT_CORE_EXEC,BIGNUM_MONTSQR_P384_INTERM1_CORE_EXEC,
      BIGNUM_MONTSQR_P384_CORE_EXEC));;
 
+Printf.printf "(CAV25) BIGNUM_MONTSQR_P384_CORE_EQUIV proven correct: %s\n"
+  (string_of_thm BIGNUM_MONTSQR_P384_CORE_EQUIV);;
+
 
 (******************************************************************************
           Inducing BIGNUM_MONTSQR_P384_SUBROUTINE_CORRECT

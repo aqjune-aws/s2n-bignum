@@ -391,7 +391,22 @@ OBJ = $(POINT_OBJ) $(BIGNUM_OBJ)
 CAV25_PROOFS = proofs/bignum_inv_p25519.fn_and_const_combined.ml \
                proofs/bignum_copy.constant_time_ensures2.ml \
                proofs/bignum_copy.constant_time_ensures_n.ml \
-               proofs/bignum_copy.fn_and_const_combined.ml
+               proofs/bignum_copy.fn_and_const_combined.ml \
+               proofs/bignum_mul_8_16.ml \
+               proofs/bignum_sqr_8_16.ml \
+               proofs/bignum_emontredc_8n_cdiff.ml \
+               proofs/bignum_montmul_p256.ml \
+               proofs/bignum_montmul_p384.ml \
+               proofs/bignum_montmul_p521.ml \
+               proofs/bignum_montsqr_p256.ml \
+               proofs/bignum_montsqr_p384.ml \
+               proofs/bignum_montsqr_p521.ml \
+               proofs/bignum_mul_p521.ml \
+               proofs/bignum_sqr_p521.ml \
+               proofs/p256_montjadd.ml \
+               proofs/p256_montjdouble.ml \
+               proofs/p384_montjadd.ml \
+               proofs/p384_montjdouble.ml
 
 # Tutorial assembly files
 
@@ -432,7 +447,23 @@ PROOF_BINS_CAV25 = \
       curve25519/bignum_inv_p25519.fn_and_const_combined.native \
       generic/bignum_copy.constant_time_ensures2.native \
       generic/bignum_copy.constant_time_ensures_n.native \
-      generic/bignum_copy.fn_and_const_combined.native
+      generic/bignum_copy.fn_and_const_combined.native \
+      fastmul/bignum_mul_8_16.native \
+      fastmul/bignum_sqr_8_16.native \
+      fastmul/bignum_emontredc_8n_cdiff.native \
+      p256/bignum_montmul_p256.native \
+      p384/bignum_montmul_p384.native \
+      p521/bignum_montmul_p521.native \
+      p256/bignum_montsqr_p256.native \
+      p384/bignum_montsqr_p384.native \
+      p521/bignum_montsqr_p521.native \
+      p521/bignum_mul_p521.native \
+      p521/bignum_sqr_p521.native \
+      p256/p256_montjadd.native \
+      p256/p256_montjdouble.native \
+      p384/p384_montjadd.native \
+      p384/p384_montjdouble.native
+
 PROOF_LOGS = $(OBJ:.o=.correct)
 PROOF_LOGS_CAV25 = $(PROOF_BINS_CAV25:.native=.correct)
 TUTORIAL_PROOF_BINS = $(TUTORIAL_PROOFS:.ml=.native)

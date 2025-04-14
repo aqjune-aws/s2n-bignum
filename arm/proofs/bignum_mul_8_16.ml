@@ -1443,6 +1443,9 @@ let BIGNUM_MUL_8_16_CORE_EQUIV = time prove(
 
 extra_word_CONV := _org_extra_word_CONV;;
 
+Printf.printf "(CAV25) BIGNUM_MUL_8_16_CORE_EQUIV proven correct: %s\n"
+  (string_of_thm BIGNUM_MUL_8_16_CORE_EQUIV);;
+
 (** Now we will prove that bignum_mul_8_16 is correct using
     BIGNUM_MUL_8_16_CORE_EQUIV and BIGNUM_MUL_8_16_UNOPT_CORE_CORRECT.
 

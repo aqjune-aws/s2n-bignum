@@ -1966,6 +1966,9 @@ let BIGNUM_SQR_P521_CORE_EQUIV = time prove(equiv_goal,
     sqr_p521_eqout_TRANS
     (BIGNUM_SQR_P521_UNOPT_CORE_EXEC,BIGNUM_SQR_P521_INTERM1_CORE_EXEC,BIGNUM_SQR_P521_CORE_EXEC));;
 
+Printf.printf "(CAV25) BIGNUM_SQR_P521_CORE_EQUIV proven correct: %s\n"
+  (string_of_thm BIGNUM_SQR_P521_CORE_EQUIV);;
+
 
 (******************************************************************************
           Inducing BIGNUM_SQR_P521_SUBROUTINE_CORRECT

@@ -3553,7 +3553,7 @@ let CORE_INV_P25519_CORRECT_AND_CONSTTIME = time prove
   DISCH_THEN(MP_TAC o end_itlist CONJ o DESUM_RULE o CONJUNCTS) THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN REAL_INTEGER_TAC);;
 
-Printf.printf "CORE_INV_P25519_CORRECT_AND_CONSTTIME proven correct: %s\n"
+Printf.printf "(CAV25) CORE_INV_P25519_CORRECT_AND_CONSTTIME proven correct: %s\n"
   (string_of_thm CORE_INV_P25519_CORRECT_AND_CONSTTIME);;
 Printf.printf "  This theorem states that the body of bignum_inv_p25519";;
 Printf.printf " excluding the callee-save register spills and reloads and";;
@@ -3679,5 +3679,5 @@ let BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL = time prove
    BIGNUM_INV_P25519_EXEC BIGNUM_INV_P25519_CORRECT_ORIGINAL
    `[X19;X20;X21;X22]` 160);;
 
-Printf.printf "BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL proven correct: %s\n"
+Printf.printf "(CAV25) BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL proven correct: %s\n"
   (string_of_thm BIGNUM_INV_P25519_SUBROUTINE_CORRECT_ORIGINAL);;

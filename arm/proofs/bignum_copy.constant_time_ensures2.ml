@@ -282,5 +282,5 @@ let BIGNUM_COPY_CONSTTIME = prove(
     ASM_REWRITE_TAC [] THEN
     IMP_REWRITE_TAC [PADLOOP_CONST_TIME]]);;
 
-Printf.printf "BIGNUM_COPY_CONSTTIME (ensures2 version) proven correct: %s\n"
+Printf.printf "(CAV25) BIGNUM_COPY_CONSTTIME (ensures2 version) proven correct: %s\n"
   (string_of_thm BIGNUM_COPY_CONSTTIME);;

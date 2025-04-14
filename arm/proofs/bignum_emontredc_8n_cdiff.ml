@@ -8440,6 +8440,9 @@ let MAINLOOP_EQUIV = prove(equiv_goal,
     IMP_REWRITE_TAC[SUB_ADD] THEN SIMPLE_ARITH_TAC
   ]);;
 
+Printf.printf "(CAV25) MAINLOOP_EQUIV proven correct: %s\n"
+  (string_of_thm MAINLOOP_EQUIV);;
+
 
 (* ========================================================================= *)
 (*       Derive the correctness of the optimized loop using equiv and        *)

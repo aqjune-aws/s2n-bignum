@@ -301,7 +301,7 @@ let BIGNUM_COPY_CORRECT_AND_CONSTTIME = prove
     REWRITE_TAC[NSUM_CONST_NUMSEG] THEN ASM_ARITH_TAC
   ]);;
 
-Printf.printf "BIGNUM_COPY_CORRECT_AND_CONSTTIME proven correct: %s\n"
+Printf.printf "(CAV25) BIGNUM_COPY_CORRECT_AND_CONSTTIME proven correct: %s\n"
   (string_of_thm BIGNUM_COPY_CORRECT_AND_CONSTTIME);;
 
 (* ------------------------------------------------------------------------- *)
@@ -362,7 +362,7 @@ let BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL = prove
             MAYCHANGE [memory :> bignum(z,val k)])`,
   ENSURES_N_ENSURES_TAC BIGNUM_COPY_SUBROUTINE_CORRECT_ENSURESN);;
 
-Printf.printf "BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL proven correct: %s\n"
+Printf.printf "(CAV25) BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL proven correct: %s\n"
   (string_of_thm BIGNUM_COPY_SUBROUTINE_CORRECT_ORIGINAL);;
 
 
@@ -400,5 +400,5 @@ let BIGNUM_COPY_CONSTTIME = prove
   DISCH_THEN (fun th -> DISCH_THEN (MP_TAC o MATCH_MP COMBINE_ENSURES_N_ENSURES2 o CONJ th)) THEN
   MATCH_MP_TAC ENSURES2_WEAKEN THEN SIMP_TAC[SUBSUMED_REFL]);;
 
-Printf.printf "BIGNUM_COPY_CONSTTIME (ensures2 version) proven correct: %s\n"
+Printf.printf "(CAV25) BIGNUM_COPY_CONSTTIME (ensures2 version) proven correct: %s\n"
   (string_of_thm BIGNUM_COPY_CONSTTIME);;

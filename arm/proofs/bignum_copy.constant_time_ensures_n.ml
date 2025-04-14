@@ -392,5 +392,5 @@ let BIGNUM_COPY_CONSTTIME = prove(
     ]
   ]);;
 
-Printf.printf "BIGNUM_COPY_CONSTTIME (ensures_n version) proven correct: %s\n"
+Printf.printf "(CAV25) BIGNUM_COPY_CONSTTIME (ensures_n version) proven correct: %s\n"
   (string_of_thm BIGNUM_COPY_CONSTTIME);;

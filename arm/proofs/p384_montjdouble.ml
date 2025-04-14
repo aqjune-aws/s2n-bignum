@@ -2650,6 +2650,9 @@ let P384_MONTJDOUBLE_EQUIV = time prove(equiv_goal,
 
 orthogonal_components_conv_custom_cache := fun _ -> None;;
 
+Printf.printf "(CAV25) P384_MONTJDOUBLE_EQUIV proven correct: %s\n"
+  (string_of_thm P384_MONTJDOUBLE_EQUIV);;
+
 
 let event_n_at_pc_goal = mk_eventually_n_at_pc_statement
     `aligned 16 (stackpointer:int64) /\

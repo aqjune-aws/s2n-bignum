@@ -2669,6 +2669,8 @@ let BIGNUM_MONTMUL_P521_CORE_EQUIV = time prove(equiv_goal,
     (BIGNUM_MONTMUL_P521_UNOPT_CORE_EXEC,BIGNUM_MONTMUL_P521_INTERM1_CORE_EXEC,
      BIGNUM_MONTMUL_P521_CORE_EXEC));;
 
+Printf.printf "(CAV25) BIGNUM_MONTMUL_P521_CORE_EQUIV proven correct: %s\n"
+  (string_of_thm BIGNUM_MONTMUL_P521_CORE_EQUIV);;
 
 
 (******************************************************************************
