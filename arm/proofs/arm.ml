@@ -1174,3 +1174,20 @@ let ADRP_ADD_FOLD = prove(`forall (pc:int64) (x:int64).
 
   REWRITE_TAC[adrp_within_bounds] THEN
   BITBLAST_TAC);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* In-bound-ness of memory access                                            *)
+(* ------------------------------------------------------------------------- *)
+
+let memory_inbounds = new_definition `
+  memory_inbounds (e2:(armevent)list) (ranges:(int64#num)list) <=>
+    ALL (\(e:armevent). match e with
+      | EventLoad (adr,sz) ->
+        EX (\range. contained_modulo
+            (2 EXP 64) (val adr, sz) (val (FST range), SND range)) ranges
+      | EventStore (adr,sz) ->
+        EX (\range. contained_modulo
+            (2 EXP 64) (val adr, sz) (val (FST range), SND range)) ranges
+      | _ -> true) e2`;;
+
