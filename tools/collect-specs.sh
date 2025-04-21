@@ -17,3 +17,4 @@ cd $s2n_bignum_arch > /dev/null
 # An env. var for sorting
 export LC_ALL=C
 grep 'let [A-Z_0-9]*_SUBROUTINE_CORRECT' ${filepat} | cut -f2 -d' ' | sort
+grep 'let [A-Z_0-9]*_SUBROUTINE_SAFE' ${filepat} | cut -f2 -d' ' | sort

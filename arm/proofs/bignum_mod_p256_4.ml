@@ -116,3 +116,53 @@ let BIGNUM_MOD_P256_4_SUBROUTINE_CORRECT = time prove
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
            MAYCHANGE [memory :> bignum(z,4)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_MOD_P256_4_EXEC BIGNUM_MOD_P256_4_CORRECT);;
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/equiv.ml";;
+
+let BIGNUM_MOD_P256_4_SUBROUTINE_SAFE = time prove
+ (`exists f_events. !z x e pc returnaddress.
+      nonoverlapping (word pc,0x40) (z,8 * 4)
+      ==> ensures2 arm
+           (\(s1,s2).
+                aligned_bytes_loaded s1 (word pc) bignum_mod_p256_4_mc /\
+                read PC s1 = word pc /\
+                aligned_bytes_loaded s2 (word pc) bignum_mod_p256_4_mc /\
+                read PC s2 = word pc /\
+                read X30 s1 = returnaddress /\
+                read X30 s2 = returnaddress /\
+                C_ARGUMENTS [z; x] s1 /\
+                C_ARGUMENTS [z; x] s2 /\
+                read events s1 = e /\
+                read events s2 = e)
+           (\(s1,s2). exists e2.
+                read PC s1 = returnaddress /\
+                read PC s2 = returnaddress /\
+                e2 = f_events z x pc returnaddress /\
+                read events s1 = APPEND e2 e /\
+                read events s2 = APPEND e2 e /\
+                memory_inbounds e2 [(z,32);(x,32)])
+          (\s s'. T) (\s. 16) (\s. 16)`,
+  X_META_EXISTS_TAC `f_events:int64->int64->num->int64->(armevent)list` THEN
+  REWRITE_TAC[C_ARGUMENTS;NONOVERLAPPING_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES2_INIT_TAC "s0" "s0'" THEN
+  ARM_N_STUTTER_LEFT_TAC BIGNUM_MOD_P256_4_EXEC (1--16) None THEN
+  ARM_N_STUTTER_RIGHT_TAC BIGNUM_MOD_P256_4_EXEC (1--16) "'" None THEN
+  REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  X_META_EXISTS_TAC `e2:(armevent)list` THEN
+  CONJ_TAC THENL [MATCH_MP_TAC EQ_SYM THEN UNIFY_REFL_TAC; ALL_TAC] THEN
+  CONJ_TAC THENL [
+    CONV_TAC (LAND_CONV CONS_TO_APPEND_CONV) THEN
+    AP_THM_TAC THEN AP_TERM_TAC THEN UNIFY_REFL_TAC;
+    ALL_TAC
+  ] THEN
+  CONJ_TAC THENL [ REWRITE_TAC[APPEND] THEN NO_TAC; ALL_TAC ] THEN
+  (* memory_inbounds *)
+  REWRITE_TAC[memory_inbounds;ALL;EX] THEN
+  REPEAT CONJ_TAC THEN
+    (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE CONTAINED_TAC)));;
