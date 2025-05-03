@@ -3061,3 +3061,20 @@ let SM2_MONTJMIXADD_SUBROUTINE_CORRECT = time prove
                       memory :> bytes(word_sub stackpointer (word 208),208)])`,
   ARM_ADD_RETURN_STACK_TAC SM2_MONTJMIXADD_EXEC
    SM2_MONTJMIXADD_CORRECT `[X19; X20]` 208);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "sm2_montjmixadd" subroutine_signatures)
+    SM2_MONTJMIXADD_SUBROUTINE_CORRECT
+    SM2_MONTJMIXADD_EXEC;;
+
+let SM2_MONTJMIXADD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC SM2_MONTJMIXADD_EXEC);;

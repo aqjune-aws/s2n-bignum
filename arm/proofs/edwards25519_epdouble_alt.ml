@@ -1576,3 +1576,20 @@ let EDWARDS25519_EPDOUBLE_ALT_SUBROUTINE_CORRECT = time prove
                       memory :> bytes(word_sub stackpointer (word 176),176)])`,
   ARM_ADD_RETURN_STACK_TAC EDWARDS25519_EPDOUBLE_ALT_EXEC
     EDWARDS25519_EPDOUBLE_ALT_CORRECT `[X19; X20]` 176);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "edwards25519_epdouble_alt" subroutine_signatures)
+    EDWARDS25519_EPDOUBLE_ALT_SUBROUTINE_CORRECT
+    EDWARDS25519_EPDOUBLE_ALT_EXEC;;
+
+let EDWARDS25519_EPDOUBLE_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC EDWARDS25519_EPDOUBLE_ALT_EXEC);;

@@ -165,3 +165,20 @@ let EDWARDS25519_ENCODE_SUBROUTINE_CORRECT = time prove
            MAYCHANGE [memory :> bytes(z,32)])`,
   ARM_ADD_RETURN_NOSTACK_TAC EDWARDS25519_ENCODE_EXEC
     EDWARDS25519_ENCODE_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "edwards25519_encode" subroutine_signatures)
+    EDWARDS25519_ENCODE_SUBROUTINE_CORRECT
+    EDWARDS25519_ENCODE_EXEC;;
+
+let EDWARDS25519_ENCODE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC EDWARDS25519_ENCODE_EXEC);;

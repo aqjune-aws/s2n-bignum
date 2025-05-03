@@ -668,3 +668,20 @@ let WORD_RECIP_SUBROUTINE_CORRECT = prove
                 &2 pow 128 / &(val a) <= &2 pow 64 + &(val(C_RETURN s)) + &1))
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC WORD_RECIP_EXEC WORD_RECIP_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "word_recip" subroutine_signatures)
+    WORD_RECIP_SUBROUTINE_CORRECT
+    WORD_RECIP_EXEC;;
+
+let WORD_RECIP_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC WORD_RECIP_EXEC);;

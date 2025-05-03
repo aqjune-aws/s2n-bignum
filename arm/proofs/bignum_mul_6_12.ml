@@ -583,3 +583,20 @@ let BIGNUM_MUL_6_12_SUBROUTINE_CORRECT = prove
  ARM_ADD_RETURN_STACK_TAC
    BIGNUM_MUL_6_12_EXEC BIGNUM_MUL_6_12_CORRECT
    `[X19;X20]` 16);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_mul_6_12" subroutine_signatures)
+    BIGNUM_MUL_6_12_SUBROUTINE_CORRECT
+    BIGNUM_MUL_6_12_EXEC;;
+
+let BIGNUM_MUL_6_12_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MUL_6_12_EXEC);;
