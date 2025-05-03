@@ -2722,3 +2722,20 @@ let SM2_MONTJADD_ALT_SUBROUTINE_CORRECT = time prove
                       memory :> bytes(word_sub stackpointer (word 224),224)])`,
   ARM_ADD_RETURN_STACK_TAC SM2_MONTJADD_ALT_EXEC
    SM2_MONTJADD_ALT_CORRECT `[]` 224);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "sm2_montjadd_alt" subroutine_signatures)
+    SM2_MONTJADD_ALT_SUBROUTINE_CORRECT
+    SM2_MONTJADD_ALT_EXEC;;
+
+let SM2_MONTJADD_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC SM2_MONTJADD_ALT_EXEC);;

@@ -64,3 +64,20 @@ let BIGNUM_NONZERO_4_SUBROUTINE_CORRECT = prove
                C_RETURN s = if ~(n = 0) then word 1 else word 0)
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_NONZERO_4_EXEC BIGNUM_NONZERO_4_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_nonzero_4" subroutine_signatures)
+    BIGNUM_NONZERO_4_SUBROUTINE_CORRECT
+    BIGNUM_NONZERO_4_EXEC;;
+
+let BIGNUM_NONZERO_4_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_NONZERO_4_EXEC);;

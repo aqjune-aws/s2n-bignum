@@ -1307,3 +1307,20 @@ let BIGNUM_SQR_8_16_SUBROUTINE_CORRECT = prove
                    fst BIGNUM_SQR_8_16_CORE_EXEC])
      BIGNUM_SQR_8_16_CORRECT)
    `[X19;X20;X21;X22]` 32);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_sqr_8_16" subroutine_signatures)
+    BIGNUM_SQR_8_16_SUBROUTINE_CORRECT
+    BIGNUM_SQR_8_16_EXEC;;
+
+let BIGNUM_SQR_8_16_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_SQR_8_16_EXEC);;

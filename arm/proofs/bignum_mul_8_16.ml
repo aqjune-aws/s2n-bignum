@@ -1625,3 +1625,20 @@ let BIGNUM_MUL_8_16_SUBROUTINE_CORRECT = prove
    ((CONV_RULE (ONCE_DEPTH_CONV NUM_ADD_CONV) o REWRITE_RULE
      [fst BIGNUM_MUL_8_16_EXEC;fst BIGNUM_MUL_8_16_CORE_EXEC]) BIGNUM_MUL_8_16_CORRECT)
    `[X19;X20;X21;X22;X23;X24]` 48);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_mul_8_16" subroutine_signatures)
+    BIGNUM_MUL_8_16_SUBROUTINE_CORRECT
+    BIGNUM_MUL_8_16_EXEC;;
+
+let BIGNUM_MUL_8_16_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MUL_8_16_EXEC);;
