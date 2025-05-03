@@ -11,7 +11,8 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
   let fnspec = concl subroutine_correct_th in
   let fnspec_quants,t = strip_forall fnspec in
   assert (name_of (last fnspec_quants) = "returnaddress");
-  let fnspec_globalasms,fnspec_ensures = dest_imp t in
+  let fnspec_globalasms,fnspec_ensures =
+      if is_imp t then dest_imp t else `true`,t in
 
   let c_args = find_term
     (fun t -> is_comb t && let c,a = dest_comb t in
@@ -69,13 +70,14 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
 
   mk_exists(f_events,
     list_mk_forall(fnspec_quants,
-      mk_imp(fnspec_globalasms,
-        list_mk_icomb "ensures2"
+      let body = list_mk_icomb "ensures2"
           [`arm`;precond;postcond;
           `\(s:armstate#armstate) (s':armstate#armstate). true`;
           mk_abs(`s:armstate`,mk_small_numeral(numinsts));
           mk_abs(`s:armstate`,mk_small_numeral(numinsts))
-          ])
+          ] in
+      if fnspec_globalasms = `true` then body
+      else mk_imp(fnspec_globalasms,body)
       ));;
 
 let PROVE_SAFETY_SPEC exec:tactic =
@@ -90,7 +92,7 @@ let PROVE_SAFETY_SPEC exec:tactic =
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;NONOVERLAPPING_CLAUSES] THEN
-    REPEAT GEN_TAC THEN DISCH_TAC THEN
+    REPEAT GEN_TAC THEN TRY DISCH_TAC THEN
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
     ENSURES2_INIT_TAC "s0" "s0'" THEN
