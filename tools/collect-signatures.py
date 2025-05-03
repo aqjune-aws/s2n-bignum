@@ -32,6 +32,7 @@ class FnDecl:
     for (argname, argtype, isconst) in self.args:
       print(f"  - {argname}: {"const " if isconst else ""}{argtype}")
 
+
 class FnMemInputOutput:
   def __init__(self,
       meminputs:list[tuple[str,str]], # (arg name, buffer length) list
@@ -45,6 +46,7 @@ class FnMemInputOutput:
   def __eq__(self, io2):
     return self.meminputs == io2.meminputs and self.memoutputs == io2.memoutputs and \
         self.temporaries == decl2.temporaries
+
 
 def parseFnDecl(s:str, filename:str) -> FnDecl:
   assert s.startswith("extern"), s
@@ -345,4 +347,42 @@ for fnname in fnsigsAndInouts:
       print("assembly:")
       fnsigsFromAsm["x86"][fnname].print()
       assert fnsigFromHeader == fnsigsFromAsm["x86"][fnname], f"{fnname}"
+
+for archname in ["arm","x86"]:
+  f = open(os.path.join(archname, os.path.join("proofs", "subroutine_signatures.ml")), "w")
+  f.write("let subroutine_signatures = [\n")
+  fnnames = sorted(list(fnsigsFromAsm[archname].keys()))
+  for fnname in fnnames:
+    fnsig = fnsigsFromAsm[archname][fnname]
+    _, meminout = fnsigsAndInouts[fnname]
+    f.write(f'("{fnsig.fnname}",\n')
+
+    # args and return type
+    f.write(f'  ([(*args*)\n')
+    for argname, argtype, isconst in fnsig.args:
+      f.write(f'     ("{argname}", "{argtype}", (*is const?*)"{"true" if isconst else "false"}");\n')
+    f.write(f'   ],\n')
+    f.write(f'   "{fnsig.return_ty}",\n')
+
+    # input and output buffers
+    f.write(f'   (* input buffers *)\n')
+    f.write(f'   [')
+    for argname, bufferlen in meminout.meminputs:
+      f.write(f'("{argname}", "{bufferlen}"); ')
+    f.write(f'],\n')
+    f.write(f'   (* output buffers *)\n')
+    f.write(f'   [')
+    for argname, bufferlen in meminout.memoutputs:
+      f.write(f'("{argname}", "{bufferlen}"); ')
+    f.write(f'],\n')
+    f.write(f'   (* temporary buffers *)\n')
+    f.write(f'   [')
+    for argname, bufferlen in meminout.temporaries:
+      f.write(f'("{argname}", "{bufferlen}"); ')
+    f.write(f'])\n')
+
+    f.write(");\n\n")
+  f.write("];;")
+  f.close()
+
 
