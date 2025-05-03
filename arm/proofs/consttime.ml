@@ -21,6 +21,13 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
   let aligned_bytes_term = find_term
     (fun t -> is_comb t && fst (strip_comb t) = `aligned_bytes_loaded`)
       fnspec_ensures in
+  let readsp: term option = try
+      Some (find_term
+        (fun t -> is_eq t && let l = fst (dest_eq t) in
+          is_binary "read" l &&
+          fst (dest_binary "read" l) = `SP`)
+        fnspec_ensures)
+    with _ -> None in
 
   let memreads = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
@@ -40,18 +47,25 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
 
   let s1,s2 = mk_var("s1",`:armstate`),mk_var("s2",`:armstate`) in
   let precond = mk_gabs(mk_pair(s1,s2),
-    list_mk_conj [
+    list_mk_conj ([
       vsubst [s1,`s:armstate`] aligned_bytes_term;
       `read PC s1 = word pc`;
       vsubst [s2,`s:armstate`] aligned_bytes_term;
       `read PC s2 = word pc`;
       `read X30 s1 = returnaddress`;
       `read X30 s2 = returnaddress`;
-      mk_comb (c_args, s1);
+    ] @
+    (match readsp with
+     | None -> []
+     | Some t -> [
+        vsubst [s1,`s:armstate`] t;
+        vsubst [s2,`s:armstate`] t;
+     ]) @
+    [ mk_comb (c_args, s1);
       mk_comb (c_args, s2);
       `read events s1 = e`;
       `read events s2 = e`;
-    ]) in
+    ])) in
 
   let postcond = mk_gabs(mk_pair(s1,s2),
     let mr = mk_list (map mk_pair memreads,`:int64#num`) in
@@ -91,7 +105,7 @@ let PROVE_SAFETY_SPEC exec:tactic =
       dest_small_numeral (snd (dest_abs fnstep)) in
 
     X_META_EXISTS_TAC f_events THEN
-    REWRITE_TAC[C_ARGUMENTS;NONOVERLAPPING_CLAUSES] THEN
+    REWRITE_TAC[C_ARGUMENTS;ALL;NONOVERLAPPING_CLAUSES;fst exec] THEN
     REPEAT GEN_TAC THEN TRY DISCH_TAC THEN
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
