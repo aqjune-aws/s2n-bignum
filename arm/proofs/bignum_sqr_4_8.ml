@@ -328,3 +328,20 @@ let BIGNUM_SQR_4_8_SUBROUTINE_CORRECT = prove
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
              MAYCHANGE [memory :> bytes(z,8 * 8)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_SQR_4_8_EXEC BIGNUM_SQR_4_8_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_sqr_4_8" subroutine_signatures)
+    BIGNUM_SQR_4_8_SUBROUTINE_CORRECT
+    BIGNUM_SQR_4_8_EXEC;;
+
+let BIGNUM_SQR_4_8_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_SQR_4_8_EXEC);;

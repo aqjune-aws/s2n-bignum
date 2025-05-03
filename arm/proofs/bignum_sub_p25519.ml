@@ -122,3 +122,20 @@ let BIGNUM_SUB_P25519_SUBROUTINE_CORRECT = time prove
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
            MAYCHANGE [memory :> bignum(z,4)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_SUB_P25519_EXEC BIGNUM_SUB_P25519_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_sub_p25519" subroutine_signatures)
+    BIGNUM_SUB_P25519_SUBROUTINE_CORRECT
+    BIGNUM_SUB_P25519_EXEC;;
+
+let BIGNUM_SUB_P25519_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_SUB_P25519_EXEC);;

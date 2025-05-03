@@ -3473,3 +3473,20 @@ let SECP256K1_JDOUBLE_SUBROUTINE_CORRECT = time prove
                       memory :> bytes(word_sub stackpointer (word 400),400)])`,
   ARM_ADD_RETURN_STACK_TAC SECP256K1_JDOUBLE_EXEC
    SECP256K1_JDOUBLE_CORRECT `[X19; X20]` 400);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "secp256k1_jdouble" subroutine_signatures)
+    SECP256K1_JDOUBLE_SUBROUTINE_CORRECT
+    SECP256K1_JDOUBLE_EXEC;;
+
+let SECP256K1_JDOUBLE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC SECP256K1_JDOUBLE_EXEC);;

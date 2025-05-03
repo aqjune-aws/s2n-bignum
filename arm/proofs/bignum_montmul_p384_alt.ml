@@ -620,3 +620,20 @@ let BIGNUM_AMONTMUL_P384_ALT_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_MONTMUL_P384_ALT_EXEC BIGNUM_AMONTMUL_P384_ALT_CORRECT
    `[X19;X20;X21;X22]` 32);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_montmul_p384_alt" subroutine_signatures)
+    BIGNUM_MONTMUL_P384_ALT_SUBROUTINE_CORRECT
+    BIGNUM_MONTMUL_P384_ALT_EXEC;;
+
+let BIGNUM_MONTMUL_P384_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTMUL_P384_ALT_EXEC);;

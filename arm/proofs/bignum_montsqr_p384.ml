@@ -1923,3 +1923,20 @@ let BIGNUM_AMONTSQR_P384_SUBROUTINE_CORRECT = time prove
         fst BIGNUM_MONTSQR_P384_CORE_EXEC]
       BIGNUM_AMONTSQR_P384_CORRECT));;
 
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_montsqr_p384" subroutine_signatures)
+    BIGNUM_MONTSQR_P384_SUBROUTINE_CORRECT
+    BIGNUM_MONTSQR_P384_EXEC;;
+
+let BIGNUM_MONTSQR_P384_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTSQR_P384_EXEC);;

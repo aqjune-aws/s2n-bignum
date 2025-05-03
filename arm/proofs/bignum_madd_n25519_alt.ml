@@ -849,3 +849,20 @@ let BIGNUM_MADD_N25519_ALT_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_MADD_N25519_ALT_EXEC BIGNUM_MADD_N25519_ALT_CORRECT
    `[X19;X20]` 16);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_madd_n25519_alt" subroutine_signatures)
+    BIGNUM_MADD_N25519_ALT_SUBROUTINE_CORRECT
+    BIGNUM_MADD_N25519_ALT_EXEC;;
+
+let BIGNUM_MADD_N25519_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MADD_N25519_ALT_EXEC);;
