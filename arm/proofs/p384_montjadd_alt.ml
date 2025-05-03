@@ -5247,3 +5247,20 @@ let P384_MONTJADD_ALT_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC P384_MONTJADD_ALT_EXEC
    P384_MONTJADD_ALT_CORRECT
     `[X19; X20; X21; X22; X23; X24; X25; X26]` 400);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "p384_montjadd_alt" subroutine_signatures)
+    P384_MONTJADD_ALT_SUBROUTINE_CORRECT
+    P384_MONTJADD_ALT_EXEC;;
+
+let P384_MONTJADD_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P384_MONTJADD_ALT_EXEC);;

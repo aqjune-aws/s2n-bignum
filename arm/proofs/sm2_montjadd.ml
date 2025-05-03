@@ -3895,3 +3895,20 @@ let SM2_MONTJADD_SUBROUTINE_CORRECT = time prove
                       memory :> bytes(word_sub stackpointer (word 240),240)])`,
   ARM_ADD_RETURN_STACK_TAC SM2_MONTJADD_EXEC
    SM2_MONTJADD_CORRECT `[X19; X20]` 240);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "sm2_montjadd" subroutine_signatures)
+    SM2_MONTJADD_SUBROUTINE_CORRECT
+    SM2_MONTJADD_EXEC;;
+
+let SM2_MONTJADD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC SM2_MONTJADD_EXEC);;

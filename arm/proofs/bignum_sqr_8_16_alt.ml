@@ -246,3 +246,20 @@ let BIGNUM_SQR_8_16_ALT_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
     BIGNUM_SQR_8_16_ALT_EXEC BIGNUM_SQR_8_16_ALT_CORRECT
     `[X19;X20;X21;X22;X23;X24;X25;X26]` 64);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_sqr_8_16_alt" subroutine_signatures)
+    BIGNUM_SQR_8_16_ALT_SUBROUTINE_CORRECT
+    BIGNUM_SQR_8_16_ALT_EXEC;;
+
+let BIGNUM_SQR_8_16_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_SQR_8_16_ALT_EXEC);;

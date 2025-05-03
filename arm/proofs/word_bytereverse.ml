@@ -70,3 +70,20 @@ let WORD_BYTEREVERSE_SUBROUTINE_CORRECT = prove
                        word_subword a (8 * (7 - i),8))
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC WORD_BYTEREVERSE_EXEC WORD_BYTEREVERSE_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "word_bytereverse" subroutine_signatures)
+    WORD_BYTEREVERSE_SUBROUTINE_CORRECT
+    WORD_BYTEREVERSE_EXEC;;
+
+let WORD_BYTEREVERSE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC WORD_BYTEREVERSE_EXEC);;

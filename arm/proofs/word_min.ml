@@ -51,3 +51,20 @@ let WORD_MIN_SUBROUTINE_CORRECT = prove
                C_RETURN s = word_umin a b)
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC WORD_MIN_EXEC WORD_MIN_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "word_min" subroutine_signatures)
+    WORD_MIN_SUBROUTINE_CORRECT
+    WORD_MIN_EXEC;;
+
+let WORD_MIN_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC WORD_MIN_EXEC);;

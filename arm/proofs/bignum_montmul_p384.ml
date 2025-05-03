@@ -2680,3 +2680,20 @@ let BIGNUM_AMONTMUL_P384_SUBROUTINE_CORRECT = time prove
       BIGNUM_AMONTMUL_P384_CORRECT in
     CONV_RULE (ONCE_DEPTH_CONV NUM_ADD_CONV) th)
    `[X19;X20;X21;X22;X23;X24]` 48);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_montmul_p384" subroutine_signatures)
+    BIGNUM_MONTMUL_P384_SUBROUTINE_CORRECT
+    BIGNUM_MONTMUL_P384_EXEC;;
+
+let BIGNUM_MONTMUL_P384_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTMUL_P384_EXEC);;

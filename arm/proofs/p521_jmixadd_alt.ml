@@ -4862,3 +4862,20 @@ let P521_JMIXADD_ALT_SUBROUTINE_CORRECT = time prove
    P521_JMIXADD_ALT_CORRECT
     `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28]`
    512);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "p521_jmixadd_alt" subroutine_signatures)
+    P521_JMIXADD_ALT_SUBROUTINE_CORRECT
+    P521_JMIXADD_ALT_EXEC;;
+
+let P521_JMIXADD_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P521_JMIXADD_ALT_EXEC);;
