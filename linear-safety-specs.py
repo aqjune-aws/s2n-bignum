@@ -21,9 +21,8 @@ let full_spec = mk_safety_spec
     {fn.upper()}_SUBROUTINE_CORRECT
     {fn.upper()}_EXEC;;
 
-let {fn.upper()}__SUBROUTINE_SAFE = time prove
+let {fn.upper()}_SUBROUTINE_SAFE = time prove
  (full_spec,
   PROVE_SAFETY_SPEC {fn.upper()}_EXEC);;
 """)
   f.close()
-  break

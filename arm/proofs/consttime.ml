@@ -1,9 +1,5 @@
 needs "arm/proofs/equiv.ml";;
 
-let fnargs,_,meminputs,memoutputs,memtemps = assoc "bignum_cmul_p256" subroutine_signatures;;
-let subroutine_correct_th = BIGNUM_CMUL_P256_SUBROUTINE_CORRECT;;
-let exec = BIGNUM_CMUL_P256_EXEC;;
-
 let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
     (subroutine_correct_th:thm) exec =
 
@@ -81,9 +77,6 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
           mk_abs(`s:armstate`,mk_small_numeral(numinsts))
           ])
       ));;
-
-let exec = BIGNUM_MOD_P256_4_EXEC;;
-let numinsts = Array.length (snd exec) / 4;;
 
 let PROVE_SAFETY_SPEC exec:tactic =
   W (fun (asl,w) ->
