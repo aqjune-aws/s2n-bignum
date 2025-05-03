@@ -85,29 +85,36 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
 let exec = BIGNUM_MOD_P256_4_EXEC;;
 let numinsts = Array.length (snd exec) / 4;;
 
-let PROVE_SAFETY_SPEC exec numinsts =
-  (fun (asl,w) ->
+let PROVE_SAFETY_SPEC exec:tactic =
+  W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
-    X_META_EXISTS_TAC f_events (asl,w)) THEN
-  REWRITE_TAC[C_ARGUMENTS;NONOVERLAPPING_CLAUSES] THEN
-  REPEAT GEN_TAC THEN DISCH_TAC THEN
-  REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
+    let numinsts =
+      let bd = snd(strip_forall(snd(dest_exists w))) in
+      let bd = if is_imp bd then snd(dest_imp bd) else bd in
+      let _,rs = strip_comb bd in
+      let fnstep = last rs in
+      dest_small_numeral (snd (dest_abs fnstep)) in
 
-  ENSURES2_INIT_TAC "s0" "s0'" THEN
-  ARM_N_STUTTER_LEFT_TAC exec (1--numinsts) None THEN
-  ARM_N_STUTTER_RIGHT_TAC exec (1--numinsts) "'" None THEN
-  REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
-  ASM_REWRITE_TAC[] THEN
+    X_META_EXISTS_TAC f_events THEN
+    REWRITE_TAC[C_ARGUMENTS;NONOVERLAPPING_CLAUSES] THEN
+    REPEAT GEN_TAC THEN DISCH_TAC THEN
+    REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
-  X_META_EXISTS_TAC `e2:(armevent)list` THEN
-  CONJ_TAC THENL [MATCH_MP_TAC EQ_SYM THEN UNIFY_REFL_TAC; ALL_TAC] THEN
-  CONJ_TAC THENL [
-    CONV_TAC (LAND_CONV CONS_TO_APPEND_CONV) THEN
-    AP_THM_TAC THEN AP_TERM_TAC THEN UNIFY_REFL_TAC;
-    ALL_TAC
-  ] THEN
-  CONJ_TAC THENL [ REWRITE_TAC[APPEND] THEN NO_TAC; ALL_TAC ] THEN
-  (* memaccess_inbounds *)
-  REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
-  REPEAT CONJ_TAC THEN
-    (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE CONTAINED_TAC));;
+    ENSURES2_INIT_TAC "s0" "s0'" THEN
+    ARM_N_STUTTER_LEFT_TAC exec (1--numinsts) None THEN
+    ARM_N_STUTTER_RIGHT_TAC exec (1--numinsts) "'" None THEN
+    REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
+    ASM_REWRITE_TAC[] THEN
+
+    X_META_EXISTS_TAC `e2:(armevent)list` THEN
+    CONJ_TAC THENL [MATCH_MP_TAC EQ_SYM THEN UNIFY_REFL_TAC; ALL_TAC] THEN
+    CONJ_TAC THENL [
+      CONV_TAC (LAND_CONV CONS_TO_APPEND_CONV) THEN
+      AP_THM_TAC THEN AP_TERM_TAC THEN UNIFY_REFL_TAC;
+      ALL_TAC
+    ] THEN
+    CONJ_TAC THENL [ REWRITE_TAC[APPEND] THEN NO_TAC; ALL_TAC ] THEN
+    (* memaccess_inbounds *)
+    REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
+    REPEAT CONJ_TAC THEN
+      (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE CONTAINED_TAC)));;
