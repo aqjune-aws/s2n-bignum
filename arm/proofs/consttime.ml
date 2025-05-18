@@ -1,5 +1,54 @@
 needs "arm/proofs/equiv.ml";;
 
+(* Find the size of stack access, from specification. This is picked from MAYCHANGE.
+   The SP register is expected to have a symbolic variable 'stackpointer' *)
+(*
+let find_stack_access_size (subroutine_correct_term:term): int option =
+  let t = subroutine_correct_term in
+  let quants,body = strip_forall t in
+  let body = if is_imp body then snd (dest_imp body) else body in
+  let e,args = strip_comb body in
+  if name_of e <> "ensures" then failwith ("expected ensures, but got " ^ (name_of e)) else
+  let maychanges = last args in
+  let rec find_stack_size (t:term): int option =
+    if is_binary ",," t then
+      let a,b = dest_binary ",," maychanges in
+      let res = find_stack_size a in
+      if res <> None then res else find_stack_size b
+    else if is_const t then None
+    else if is_comb t then
+      let c,arg = dest_comb t in
+      if name_of c <> "MAYCHANGE" then None else
+      if not (is_list arg) then None else
+      let itms = dest_list arg in
+      let sizes = List.filter_map (fun (t:term):int option ->
+        try
+          let a,b = dest_binary ":>" t in
+          if name_of a <> "memory" then None else
+          let c,d = dest_comb b in
+          if name_of c <> "bytes" then None else
+          let ptr,sz = dest_pair d in
+          let isz = dest_small_numeral sz in
+          let ptrbase,ofs = dest_binary "word_sub" ptr in
+          if ptrbase = `stackpointer:int64` &&
+             ofs = mk_comb (`word:num->int64`,mk_small_numeral isz)
+          then (Some isz)
+          else None
+        with _ -> None)
+        itms in
+      if sizes = [] then None else Some (hd sizes)
+    else None in
+  find_stack_size maychanges;;
+*)
+let find_stack_access_size (subroutine_correct_term:term): int option =
+  try
+    let t = find_term (fun t -> is_binary "word_sub" t &&
+        let a,b = dest_binary "word_sub" t in
+        a = mk_var("stackpointer",`:int64`)) subroutine_correct_term in
+    let sz = snd (dest_comb t) in
+    Some (dest_small_numeral (snd (dest_comb sz)))
+  with _ -> None;;
+
 let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
     (subroutine_correct_th:thm) exec =
 
@@ -28,7 +77,10 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
           fst (dest_binary "read" l) = `SP`)
         fnspec_ensures)
     with _ -> None in
+  let stack_access_size: int option = find_stack_access_size fnspec in
+  assert ((readsp = None) = (stack_access_size = None));
 
+  (* memreads/writes without stackpointer *)
   let memreads = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
       mk_small_numeral(int_of_string range * get_c_elemtysize varname))
@@ -38,12 +90,26 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
       mk_small_numeral(int_of_string range * get_c_elemtysize varname))
     (memoutputs @ memtemps) in
 
-  let usedvars = itlist (fun (t,_) l -> insert t l) (memreads @ memwrites) [] in
+  let usedvars = itlist (fun (t,_) l ->
+    let vars = find_terms is_var t in union vars l) (memreads @ memwrites) [] in
   let numinsts = Array.length (snd exec) / 4 in
 
+  let f_events_args = usedvars @
+    (match stack_access_size with
+     | None -> [`pc:num`;`returnaddress:int64`]
+     | Some sz ->
+       let baseptr = subst [mk_small_numeral sz,`n:num`] `word_sub stackpointer (word n):int64` in
+       [`pc:num`;baseptr;`returnaddress:int64`]) in
   let f_events = mk_var("f_events",
-    itlist mk_fun_ty ((map type_of usedvars) @ [`:num`(*pc*);`:int64`(*returnaddress*)])
-      `:(armevent)list`) in
+    itlist mk_fun_ty (map type_of f_events_args) `:(armevent)list`) in
+
+  let memreads,memwrites =
+    match stack_access_size with
+    | None -> memreads,memwrites
+    | Some sz ->
+      let baseptr = subst [mk_small_numeral sz,`n:num`] `word_sub stackpointer (word n):int64` in
+      (memreads @ [baseptr,mk_small_numeral sz],
+       memwrites @ [baseptr,mk_small_numeral sz]) in
 
   let s1,s2 = mk_var("s1",`:armstate`),mk_var("s2",`:armstate`) in
   let precond = mk_gabs(mk_pair(s1,s2),
@@ -75,8 +141,7 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
       list_mk_conj [
         `read PC s1 = returnaddress`;
         `read PC s2 = returnaddress`;
-        mk_eq(e2,
-            list_mk_comb (f_events,(usedvars @ [`pc:num`;`returnaddress:int64`])));
+        mk_eq(e2, list_mk_comb (f_events,f_events_args));
         `read events s1 = APPEND e2 e`;
         `read events s2 = APPEND e2 e`;
         mk_comb(mk_comb(mk_comb (`memaccess_inbounds`,e2),mr),mw)
@@ -97,15 +162,24 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
 let PROVE_SAFETY_SPEC exec:tactic =
   W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
+    let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
     let numinsts =
-      let bd = snd(strip_forall(snd(dest_exists w))) in
+      let bd = forall_body in
       let bd = if is_imp bd then snd(dest_imp bd) else bd in
       let _,rs = strip_comb bd in
       let fnstep = last rs in
       dest_small_numeral (snd (dest_abs fnstep)) in
+    let stack_access_size: int option = find_stack_access_size forall_body in
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;ALL;NONOVERLAPPING_CLAUSES;fst exec] THEN
+    (match stack_access_size with
+     | None -> REPEAT GEN_TAC
+     | Some sz -> (REPEAT (W (fun (asl,w) ->
+        let x,_ = dest_forall w in
+        if name_of x = "stackpointer" then NO_TAC else GEN_TAC)) THEN
+        WORD_FORALL_OFFSET_TAC sz THEN
+        REPEAT GEN_TAC)) THEN
     REPEAT GEN_TAC THEN TRY DISCH_TAC THEN
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
