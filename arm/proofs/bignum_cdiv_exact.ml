@@ -519,3 +519,25 @@ let BIGNUM_CDIV_EXACT_SUBROUTINE_CORRECT = prove
               MAYCHANGE [memory :> bignum(z,val k)])`,
   ARM_ADD_RETURN_NOSTACK_TAC
     BIGNUM_CDIV_EXACT_EXEC BIGNUM_CDIV_EXACT_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_CDIV_EXACT_SUBROUTINE_CORRECT)
+    BIGNUM_CDIV_EXACT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_cdiv_exact" subroutine_signatures)
+    BIGNUM_CDIV_EXACT_SUBROUTINE_CORRECT
+    BIGNUM_CDIV_EXACT_EXEC;;
+
+let BIGNUM_CDIV_EXACT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_CDIV_EXACT_EXEC);;

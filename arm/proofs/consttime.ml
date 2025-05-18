@@ -49,13 +49,14 @@ let find_stack_access_size (subroutine_correct_term:term): int option =
     Some (dest_small_numeral (snd (dest_comb sz)))
   with _ -> None;;
 
-let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
+let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memtemps)
     (subroutine_correct_th:thm) exec =
 
   let get_c_elemtysize varname =
     let _,s,_ = find (fun name,_,_ -> name = varname) fnargs in
     if String.starts_with ~prefix:"uint64_t" s then 8
-      else failwith "c_elemtysize" in
+    else if String.starts_with ~prefix:"uint8_t" s then 1
+    else failwith "c_elemtysize" in
 
   let fnspec = concl subroutine_correct_th in
   let fnspec_quants,t = strip_forall fnspec in
@@ -92,7 +93,9 @@ let mk_safety_spec (fnargs,_,meminputs,memoutputs,memtemps)
 
   let usedvars = itlist (fun (t,_) l ->
     let vars = find_terms is_var t in union vars l) (memreads @ memwrites) [] in
-  let numinsts = Array.length (snd exec) / 4 in
+  let numinsts = match numinstsopt with
+    | Some n -> n
+    | None -> Array.length (snd exec) / 4 in
 
   let f_events_args = usedvars @
     (match stack_access_size with
@@ -172,7 +175,7 @@ let PROVE_SAFETY_SPEC exec:tactic =
     let stack_access_size: int option = find_stack_access_size forall_body in
 
     X_META_EXISTS_TAC f_events THEN
-    REWRITE_TAC[C_ARGUMENTS;ALL;NONOVERLAPPING_CLAUSES;fst exec] THEN
+    REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
     (match stack_access_size with
      | None -> REPEAT GEN_TAC
      | Some sz -> (REPEAT (W (fun (asl,w) ->
@@ -201,3 +204,34 @@ let PROVE_SAFETY_SPEC exec:tactic =
     REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
     REPEAT CONJ_TAC THEN
       (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE CONTAINED_TAC)));;
+
+let count_nsteps (subroutine_correct_term:term) exec: int =
+  let n = ref 0 in
+  let successful = ref true in
+
+  let dest_pc_addr =
+    let triple = snd (dest_imp (snd (strip_forall subroutine_correct_term))) in
+    let _,(sem::pre::post::frame::[]) = strip_comb triple in
+    let read_pc_eq = find_term (fun t -> is_eq t && is_read_pc (lhs t)) post in
+    snd (dest_eq read_pc_eq) in
+
+  let _ = can prove (subroutine_correct_term,
+    REWRITE_TAC[C_ARGUMENTS;ALL;NONOVERLAPPING_CLAUSES;fst exec] THEN
+    (* Do not unfold bignum_from_memory, because there should be no pointers stored in
+       buffer *)
+    REPEAT STRIP_TAC THEN
+    ENSURES_INIT_TAC "s0" THEN
+    REPEAT (W (fun (asl,w) ->
+      match List.find_opt (fun (_,th) ->
+          is_eq (concl th) && is_read_pc (lhs (concl th)))
+          asl with
+      | None -> successful := false; NO_TAC
+      | Some (_,read_pc_th) ->
+        if rhs (concl read_pc_th) = dest_pc_addr
+        then (* Successful! *) NO_TAC
+        else (* Proceed *)
+          let _ = n := !n + 1 in ARM_SINGLE_STEP_TAC exec ("s" ^ string_of_int !n)))
+    THEN
+    NO_TAC) in
+  if !successful then !n
+  else failwith "has a conditional branch depending on input";;

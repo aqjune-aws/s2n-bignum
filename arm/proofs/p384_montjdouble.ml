@@ -2860,8 +2860,8 @@ needs "arm/proofs/subroutine_signatures.ml";;
 let full_spec = mk_safety_spec
     (assoc "p384_montjdouble" subroutine_signatures)
     P384_MONTJDOUBLE_SUBROUTINE_CORRECT
-    P384_MONTJDOUBLE_EXEC;;
+    P384_MONTJDOUBLE_OPT_EXEC;;
 
 let P384_MONTJDOUBLE_SUBROUTINE_SAFE = time prove
  (full_spec,
-  PROVE_SAFETY_SPEC P384_MONTJDOUBLE_EXEC);;
+  PROVE_SAFETY_SPEC P384_MONTJDOUBLE_OPT_EXEC);;

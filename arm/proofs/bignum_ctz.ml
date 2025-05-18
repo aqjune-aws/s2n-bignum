@@ -171,3 +171,25 @@ let BIGNUM_CTZ_SUBROUTINE_CORRECT = prove
                              else word(index 2 x))
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_CTZ_EXEC BIGNUM_CTZ_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_CTZ_SUBROUTINE_CORRECT)
+    BIGNUM_CTZ_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_ctz" subroutine_signatures)
+    BIGNUM_CTZ_SUBROUTINE_CORRECT
+    BIGNUM_CTZ_EXEC;;
+
+let BIGNUM_CTZ_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_CTZ_EXEC);;

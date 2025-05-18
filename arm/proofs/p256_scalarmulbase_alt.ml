@@ -4083,3 +4083,25 @@ let P256_SCALARMULBASE_ALT_SUBROUTINE_CORRECT = time prove
    ARM_ADD_RETURN_STACK_TAC P256_SCALARMULBASE_ALT_EXEC
    P256_SCALARMULBASE_ALT_CORRECT `[X19; X20; X21; X22; X23; X24; X25; X30]`
      576);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P256_SCALARMULBASE_ALT_SUBROUTINE_CORRECT)
+    P256_SCALARMULBASE_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p256_scalarmulbase_alt" subroutine_signatures)
+    P256_SCALARMULBASE_ALT_SUBROUTINE_CORRECT
+    P256_SCALARMULBASE_ALT_EXEC;;
+
+let P256_SCALARMULBASE_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P256_SCALARMULBASE_ALT_EXEC);;

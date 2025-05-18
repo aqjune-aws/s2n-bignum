@@ -2936,3 +2936,25 @@ let BIGNUM_EMONTREDC_8N_SUBROUTINE_CORRECT = time prove
   ARM_STEPS_TAC execth (7--12) THEN
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[]);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_EMONTREDC_8N_SUBROUTINE_CORRECT)
+    BIGNUM_EMONTREDC_8N_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_emontredc_8n" subroutine_signatures)
+    BIGNUM_EMONTREDC_8N_SUBROUTINE_CORRECT
+    BIGNUM_EMONTREDC_8N_EXEC;;
+
+let BIGNUM_EMONTREDC_8N_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_EMONTREDC_8N_EXEC);;

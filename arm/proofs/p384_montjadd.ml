@@ -1841,8 +1841,8 @@ needs "arm/proofs/subroutine_signatures.ml";;
 let full_spec = mk_safety_spec
     (assoc "p384_montjadd" subroutine_signatures)
     P384_MONTJADD_SUBROUTINE_CORRECT
-    P384_MONTJADD_EXEC;;
+    P384_MONTJADD_OPT_EXEC;;
 
 let P384_MONTJADD_SUBROUTINE_SAFE = time prove
  (full_spec,
-  PROVE_SAFETY_SPEC P384_MONTJADD_EXEC);;
+  PROVE_SAFETY_SPEC P384_MONTJADD_OPT_EXEC);;
