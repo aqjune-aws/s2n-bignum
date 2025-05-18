@@ -8988,3 +8988,25 @@ let BIGNUM_EMONTREDC_8N_CDIFF_SUBROUTINE_CORRECT = time prove
     BIGNUM_EMONTREDC_8N_CDIFF_CORRECT
    `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30;
      D8; D9; D10; D11; D12; D13; D14; D15]` 288);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_EMONTREDC_8N_CDIFF_SUBROUTINE_CORRECT)
+    BIGNUM_EMONTREDC_8N_CDIFF_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_emontredc_8n_cdiff" subroutine_signatures)
+    BIGNUM_EMONTREDC_8N_CDIFF_SUBROUTINE_CORRECT
+    BIGNUM_EMONTREDC_8N_CDIFF_EXEC;;
+
+let BIGNUM_EMONTREDC_8N_CDIFF_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_EMONTREDC_8N_CDIFF_EXEC);;

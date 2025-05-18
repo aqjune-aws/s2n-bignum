@@ -263,3 +263,25 @@ let BIGNUM_BIGENDIAN_6_SUBROUTINE_CORRECT = time prove
            MAYCHANGE [memory :> bignum(z,6)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_BIGENDIAN_6_EXEC
     BIGNUM_BIGENDIAN_6_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_BIGENDIAN_6_SUBROUTINE_CORRECT)
+    BIGNUM_BIGENDIAN_6_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_bigendian_6" subroutine_signatures)
+    BIGNUM_BIGENDIAN_6_SUBROUTINE_CORRECT
+    BIGNUM_BIGENDIAN_6_EXEC;;
+
+let BIGNUM_BIGENDIAN_6_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_BIGENDIAN_6_EXEC);;

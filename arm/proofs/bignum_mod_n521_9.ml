@@ -262,3 +262,25 @@ let BIGNUM_MOD_N521_9_SUBROUTINE_CORRECT = time prove
            MAYCHANGE [memory :> bignum(z,9)])`,
   ARM_ADD_RETURN_NOSTACK_TAC
     BIGNUM_MOD_N521_9_EXEC BIGNUM_MOD_N521_9_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_MOD_N521_9_SUBROUTINE_CORRECT)
+    BIGNUM_MOD_N521_9_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_mod_n521_9" subroutine_signatures)
+    BIGNUM_MOD_N521_9_SUBROUTINE_CORRECT
+    BIGNUM_MOD_N521_9_EXEC;;
+
+let BIGNUM_MOD_N521_9_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MOD_N521_9_EXEC);;

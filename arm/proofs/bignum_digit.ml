@@ -112,3 +112,25 @@ let BIGNUM_DIGIT_SUBROUTINE_CORRECT = prove
               C_RETURN s = word(bigdigit a (val n)))
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_DIGIT_EXEC BIGNUM_DIGIT_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_DIGIT_SUBROUTINE_CORRECT)
+    BIGNUM_DIGIT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_digit" subroutine_signatures)
+    BIGNUM_DIGIT_SUBROUTINE_CORRECT
+    BIGNUM_DIGIT_EXEC;;
+
+let BIGNUM_DIGIT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_DIGIT_EXEC);;

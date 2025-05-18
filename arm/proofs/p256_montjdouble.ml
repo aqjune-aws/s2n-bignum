@@ -2110,8 +2110,8 @@ needs "arm/proofs/subroutine_signatures.ml";;
 let full_spec = mk_safety_spec
     (assoc "p256_montjdouble" subroutine_signatures)
     P256_MONTJDOUBLE_SUBROUTINE_CORRECT
-    P256_MONTJDOUBLE_EXEC;;
+    P256_MONTJDOUBLE_OPT_EXEC;;
 
 let P256_MONTJDOUBLE_SUBROUTINE_SAFE = time prove
  (full_spec,
-  PROVE_SAFETY_SPEC P256_MONTJDOUBLE_EXEC);;
+  PROVE_SAFETY_SPEC P256_MONTJDOUBLE_OPT_EXEC);;

@@ -5722,3 +5722,25 @@ let P521_JSCALARMUL_ALT_SUBROUTINE_CORRECT = time prove
    ARM_ADD_RETURN_STACK_TAC P521_JSCALARMUL_ALT_EXEC
    P521_JSCALARMUL_ALT_CORRECT
     `[X19; X20; X21; X30]` 4672);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P521_JSCALARMUL_ALT_SUBROUTINE_CORRECT)
+    P521_JSCALARMUL_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p521_jscalarmul_alt" subroutine_signatures)
+    P521_JSCALARMUL_ALT_SUBROUTINE_CORRECT
+    P521_JSCALARMUL_ALT_EXEC;;
+
+let P521_JSCALARMUL_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P521_JSCALARMUL_ALT_EXEC);;

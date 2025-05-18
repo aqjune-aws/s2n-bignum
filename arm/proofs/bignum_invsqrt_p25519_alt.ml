@@ -1330,3 +1330,25 @@ let BIGNUM_INVSQRT_P25519_ALT_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_INVSQRT_P25519_ALT_EXEC BIGNUM_INVSQRT_P25519_ALT_CORRECT
    `[X19;X30]` 144);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_INVSQRT_P25519_ALT_SUBROUTINE_CORRECT)
+    BIGNUM_INVSQRT_P25519_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_invsqrt_p25519_alt" subroutine_signatures)
+    BIGNUM_INVSQRT_P25519_ALT_SUBROUTINE_CORRECT
+    BIGNUM_INVSQRT_P25519_ALT_EXEC;;
+
+let BIGNUM_INVSQRT_P25519_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_INVSQRT_P25519_ALT_EXEC);;

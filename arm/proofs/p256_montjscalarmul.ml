@@ -6069,3 +6069,25 @@ let P256_MONTJSCALARMUL_SUBROUTINE_CORRECT = time prove
                      memory :> bytes(word_sub stackpointer (word 1328),1328)])`,
    ARM_ADD_RETURN_STACK_TAC P256_MONTJSCALARMUL_EXEC
    P256_MONTJSCALARMUL_CORRECT `[X19; X20; X21; X30]` 1328);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P256_MONTJSCALARMUL_SUBROUTINE_CORRECT)
+    P256_MONTJSCALARMUL_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p256_montjscalarmul" subroutine_signatures)
+    P256_MONTJSCALARMUL_SUBROUTINE_CORRECT
+    P256_MONTJSCALARMUL_EXEC;;
+
+let P256_MONTJSCALARMUL_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P256_MONTJSCALARMUL_EXEC);;

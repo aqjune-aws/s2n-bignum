@@ -7,10 +7,6 @@ p521/p521_jadd_alt.correct \
 p521/bignum_tomont_p521.correct \
 p521/bignum_mul_p521.correct \
 p521/bignum_fromlebytes_p521.correct \
-p521/unopt/bignum_mul_p521_base.correct \
-p521/unopt/bignum_sqr_p521_base.correct \
-p521/unopt/bignum_montmul_p521_base.correct \
-p521/unopt/bignum_montsqr_p521_base.correct \
 p521/bignum_deamont_p521.correct \
 p521/bignum_mul_p521_alt.correct \
 p521/bignum_mod_p521_9.correct \
@@ -26,8 +22,6 @@ p521/bignum_tolebytes_p521.correct \
 p521/bignum_optneg_p521.correct \
 p521/p521_jdouble_alt.correct \
 fastmul/bignum_mul_4_8_alt.correct \
-fastmul/unopt/bignum_sqr_8_16_base.correct \
-fastmul/unopt/bignum_mul_8_16_base.correct \
 fastmul/bignum_mul_6_12_alt.correct \
 fastmul/bignum_sqr_6_12.correct \
 fastmul/bignum_sqr_8_16.correct \
@@ -40,8 +34,6 @@ fastmul/bignum_sqr_6_12_alt.correct \
 fastmul/bignum_mul_4_8.correct \
 fastmul/bignum_mul_8_16.correct \
 p256/p256_montjadd.correct \
-p256/unopt/bignum_montmul_p256_base.correct \
-p256/unopt/bignum_montsqr_p256_base.correct \
 p256/bignum_half_p256.correct \
 p256/bignum_neg_p256.correct \
 p256/bignum_montmul_p256_alt.correct \
@@ -140,8 +132,6 @@ secp256k1/secp256k1_jdouble_alt.correct \
 secp256k1/secp256k1_jmixadd_alt.correct \
 secp256k1/bignum_neg_p256k1.correct \
 p384/bignum_montsqr_p384.correct \
-p384/unopt/bignum_montsqr_p384_base.correct \
-p384/unopt/bignum_montmul_p384_base.correct \
 p384/bignum_double_p384.correct \
 p384/bignum_nonzero_6.correct \
 p384/bignum_sub_p384.correct \

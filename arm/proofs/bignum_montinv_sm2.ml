@@ -3172,3 +3172,25 @@ let BIGNUM_MONTINV_SM2_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_MONTINV_SM2_EXEC BIGNUM_MONTINV_SM2_CORRECT
    `[X19;X20;X21;X22;X23;X24]` 208);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_MONTINV_SM2_SUBROUTINE_CORRECT)
+    BIGNUM_MONTINV_SM2_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_montinv_sm2" subroutine_signatures)
+    BIGNUM_MONTINV_SM2_SUBROUTINE_CORRECT
+    BIGNUM_MONTINV_SM2_EXEC;;
+
+let BIGNUM_MONTINV_SM2_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTINV_SM2_EXEC);;

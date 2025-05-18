@@ -873,3 +873,25 @@ let BIGNUM_COPY_ROW_FROM_TABLE_8N_SUBROUTINE_CORRECT = prove(
 
     IMP_REWRITE_TAC[VAL_WORD_8_EQ_0]
   ]);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_COPY_ROW_FROM_TABLE_8N_SUBROUTINE_CORRECT)
+    BIGNUM_COPY_ROW_FROM_TABLE_8N_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_copy_row_from_table_8n" subroutine_signatures)
+    BIGNUM_COPY_ROW_FROM_TABLE_8N_SUBROUTINE_CORRECT
+    BIGNUM_COPY_ROW_FROM_TABLE_8N_EXEC;;
+
+let BIGNUM_COPY_ROW_FROM_TABLE_8N_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_COPY_ROW_FROM_TABLE_8N_EXEC);;

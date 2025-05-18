@@ -1988,3 +1988,25 @@ let BIGNUM_SQRT_P25519_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_SQRT_P25519_EXEC BIGNUM_SQRT_P25519_CORRECT
    `[X19;X30]` 144);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_SQRT_P25519_SUBROUTINE_CORRECT)
+    BIGNUM_SQRT_P25519_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_sqrt_p25519" subroutine_signatures)
+    BIGNUM_SQRT_P25519_SUBROUTINE_CORRECT
+    BIGNUM_SQRT_P25519_EXEC;;
+
+let BIGNUM_SQRT_P25519_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_SQRT_P25519_EXEC);;

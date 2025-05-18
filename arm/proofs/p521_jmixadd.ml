@@ -3304,3 +3304,25 @@ let P521_JMIXADD_SUBROUTINE_CORRECT = time prove
    P521_JMIXADD_CORRECT
     `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30]`
    608);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P521_JMIXADD_SUBROUTINE_CORRECT)
+    P521_JMIXADD_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p521_jmixadd" subroutine_signatures)
+    P521_JMIXADD_SUBROUTINE_CORRECT
+    P521_JMIXADD_EXEC;;
+
+let P521_JMIXADD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P521_JMIXADD_EXEC);;

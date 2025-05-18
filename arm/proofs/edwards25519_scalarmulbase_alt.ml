@@ -6819,3 +6819,25 @@ let EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_CORRECT = time prove
                  fst EDWARDS25519_SCALARMULBASE_ALT_EXEC]
      EDWARDS25519_SCALARMULBASE_ALT_CORRECT)
     `[X19; X20; X21; X22; X23; X24]` 496);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_CORRECT)
+    EDWARDS25519_SCALARMULBASE_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "edwards25519_scalarmulbase_alt" subroutine_signatures)
+    EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_CORRECT
+    EDWARDS25519_SCALARMULBASE_ALT_EXEC;;
+
+let EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC EDWARDS25519_SCALARMULBASE_ALT_EXEC);;
