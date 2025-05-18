@@ -3549,3 +3549,25 @@ let BIGNUM_INV_P521_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_INV_P521_EXEC BIGNUM_INV_P521_CORRECT
    `[X19;X20;X21;X22]` 320);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_INV_P521_SUBROUTINE_CORRECT)
+    BIGNUM_INV_P521_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_inv_p521" subroutine_signatures)
+    BIGNUM_INV_P521_SUBROUTINE_CORRECT
+    BIGNUM_INV_P521_EXEC;;
+
+let BIGNUM_INV_P521_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_INV_P521_EXEC);;

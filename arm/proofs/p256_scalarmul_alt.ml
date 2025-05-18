@@ -7481,3 +7481,25 @@ let P256_SCALARMUL_ALT_SUBROUTINE_CORRECT = time prove
                      memory :> bytes(word_sub stackpointer (word 1248),1248)])`,
    ARM_ADD_RETURN_STACK_TAC P256_SCALARMUL_ALT_EXEC
    P256_SCALARMUL_ALT_CORRECT `[X19; X20; X21; X30]` 1248);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P256_SCALARMUL_ALT_SUBROUTINE_CORRECT)
+    P256_SCALARMUL_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p256_scalarmul_alt" subroutine_signatures)
+    P256_SCALARMUL_ALT_SUBROUTINE_CORRECT
+    P256_SCALARMUL_ALT_EXEC;;
+
+let P256_SCALARMUL_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P256_SCALARMUL_ALT_EXEC);;

@@ -1640,3 +1640,25 @@ let BIGNUM_KSQR_32_64_SUBROUTINE_CORRECT = prove
   CONV_TAC NUM_REDUCE_CONV THEN
   ACCUMULATOR_POP_ASSUM_LIST(MP_TAC o end_itlist CONJ o DESUM_RULE) THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN REAL_INTEGER_TAC);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_KSQR_32_64_SUBROUTINE_CORRECT)
+    BIGNUM_KSQR_32_64_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_ksqr_32_64" subroutine_signatures)
+    BIGNUM_KSQR_32_64_SUBROUTINE_CORRECT
+    BIGNUM_KSQR_32_64_EXEC;;
+
+let BIGNUM_KSQR_32_64_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_KSQR_32_64_EXEC);;

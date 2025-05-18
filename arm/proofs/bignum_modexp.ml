@@ -695,3 +695,25 @@ let BIGNUM_MODEXP_SUBROUTINE_CORRECT = prove
                       memory :> bytes(word_sub stackpointer (word 64),64)])`,
   ARM_ADD_RETURN_STACK_TAC BIGNUM_MODEXP_EXEC BIGNUM_MODEXP_CORRECT
    `[X19;X20;X21;X22;X23;X24;X25;X30]` 64);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_MODEXP_SUBROUTINE_CORRECT)
+    BIGNUM_MODEXP_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_modexp" subroutine_signatures)
+    BIGNUM_MODEXP_SUBROUTINE_CORRECT
+    BIGNUM_MODEXP_EXEC;;
+
+let BIGNUM_MODEXP_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MODEXP_EXEC);;
