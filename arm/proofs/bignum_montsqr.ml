@@ -844,3 +844,25 @@ let BIGNUM_MONTSQR_SUBROUTINE_CORRECT = time prove
            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
             MAYCHANGE [memory :> bytes(z,8 * val k)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_MONTSQR_EXEC BIGNUM_MONTSQR_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_MONTSQR_SUBROUTINE_CORRECT)
+    BIGNUM_MONTSQR_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_montsqr" subroutine_signatures)
+    BIGNUM_MONTSQR_SUBROUTINE_CORRECT
+    BIGNUM_MONTSQR_EXEC;;
+
+let BIGNUM_MONTSQR_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTSQR_EXEC);;

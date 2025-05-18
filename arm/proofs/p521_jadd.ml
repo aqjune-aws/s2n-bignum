@@ -2008,3 +2008,25 @@ let P521_JADD_SUBROUTINE_CORRECT = time prove
    P521_JADD_CORRECT
     `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30]`
    816);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P521_JADD_SUBROUTINE_CORRECT)
+    P521_JADD_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p521_jadd" subroutine_signatures)
+    P521_JADD_SUBROUTINE_CORRECT
+    P521_JADD_EXEC;;
+
+let P521_JADD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P521_JADD_EXEC);;

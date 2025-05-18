@@ -2633,3 +2633,25 @@ let CURVE25519_PXSCALARMUL_ALT_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC CURVE25519_PXSCALARMUL_ALT_EXEC
     CURVE25519_PXSCALARMUL_ALT_CORRECT
     `[X19; X20; X21; X22]` 288);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl CURVE25519_PXSCALARMUL_ALT_SUBROUTINE_CORRECT)
+    CURVE25519_PXSCALARMUL_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "curve25519_pxscalarmul_alt" subroutine_signatures)
+    CURVE25519_PXSCALARMUL_ALT_SUBROUTINE_CORRECT
+    CURVE25519_PXSCALARMUL_ALT_EXEC;;
+
+let CURVE25519_PXSCALARMUL_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC CURVE25519_PXSCALARMUL_ALT_EXEC);;

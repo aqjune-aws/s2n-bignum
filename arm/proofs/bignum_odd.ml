@@ -62,3 +62,25 @@ let BIGNUM_ODD_SUBROUTINE_CORRECT = prove
                 C_RETURN s = if ODD x then word 1 else word 0)
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_ODD_EXEC BIGNUM_ODD_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_ODD_SUBROUTINE_CORRECT)
+    BIGNUM_ODD_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_odd" subroutine_signatures)
+    BIGNUM_ODD_SUBROUTINE_CORRECT
+    BIGNUM_ODD_EXEC;;
+
+let BIGNUM_ODD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_ODD_EXEC);;

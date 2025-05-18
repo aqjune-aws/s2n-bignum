@@ -338,3 +338,25 @@ let BIGNUM_COPY_ROW_FROM_TABLE_16_SUBROUTINE_CORRECT = prove(
     ] THEN
     ASM_REWRITE_TAC[]
   ]);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_COPY_ROW_FROM_TABLE_16_SUBROUTINE_CORRECT)
+    BIGNUM_COPY_ROW_FROM_TABLE_16_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_copy_row_from_table_16" subroutine_signatures)
+    BIGNUM_COPY_ROW_FROM_TABLE_16_SUBROUTINE_CORRECT
+    BIGNUM_COPY_ROW_FROM_TABLE_16_EXEC;;
+
+let BIGNUM_COPY_ROW_FROM_TABLE_16_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_COPY_ROW_FROM_TABLE_16_EXEC);;

@@ -3139,3 +3139,25 @@ let BIGNUM_INV_P256_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_INV_P256_EXEC BIGNUM_INV_P256_CORRECT
    `[X19;X20;X21;X22;X23;X24]` 208);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_INV_P256_SUBROUTINE_CORRECT)
+    BIGNUM_INV_P256_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_inv_p256" subroutine_signatures)
+    BIGNUM_INV_P256_SUBROUTINE_CORRECT
+    BIGNUM_INV_P256_EXEC;;
+
+let BIGNUM_INV_P256_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_INV_P256_EXEC);;

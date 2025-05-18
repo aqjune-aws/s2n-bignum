@@ -1,22 +1,27 @@
-ls = open("linear-objs.txt", "r").readlines()
+ls = open("nonlinear-objs.txt", "r").readlines()
 
 for l in ls:
-  l = l.split()[0]
+  l = l.strip()
   obj = l[l.rfind('/')+1:]
   fn = obj[:-len(".o")]
 
   print(fn)
-  f = open(f"arm/proofs/{fn}.ml", "a")
+  f = open(f"proofs/{fn}.ml", "a")
   f.write(f"""
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof.                                    *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
+
+let numsteps = count_nsteps (concl {fn.upper()}_SUBROUTINE_CORRECT)
+    {fn.upper()}_EXEC;;
+
 let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
     (assoc "{fn}" subroutine_signatures)
     {fn.upper()}_SUBROUTINE_CORRECT
     {fn.upper()}_EXEC;;

@@ -2877,3 +2877,25 @@ let BIGNUM_MONTIFIER_SUBROUTINE_CORRECT = time prove
               MAYCHANGE [memory :> bytes(z,8 * val k);
                          memory :> bytes(t,8 * val k)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_MONTIFIER_EXEC BIGNUM_MONTIFIER_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_MONTIFIER_SUBROUTINE_CORRECT)
+    BIGNUM_MONTIFIER_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_montifier" subroutine_signatures)
+    BIGNUM_MONTIFIER_SUBROUTINE_CORRECT
+    BIGNUM_MONTIFIER_EXEC;;
+
+let BIGNUM_MONTIFIER_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTIFIER_EXEC);;

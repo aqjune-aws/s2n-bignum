@@ -131,3 +131,25 @@ let BIGNUM_DEMONT_P256_SUBROUTINE_CORRECT = time prove
               MAYCHANGE [memory :> bytes(z,8 * 4)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_DEMONT_P256_EXEC
     BIGNUM_DEMONT_P256_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_DEMONT_P256_SUBROUTINE_CORRECT)
+    BIGNUM_DEMONT_P256_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_demont_p256" subroutine_signatures)
+    BIGNUM_DEMONT_P256_SUBROUTINE_CORRECT
+    BIGNUM_DEMONT_P256_EXEC;;
+
+let BIGNUM_DEMONT_P256_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_DEMONT_P256_EXEC);;

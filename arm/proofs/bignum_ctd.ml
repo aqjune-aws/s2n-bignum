@@ -154,3 +154,25 @@ let BIGNUM_CTD_SUBROUTINE_CORRECT = prove
                C_RETURN s' = if x = 0 then k else word(index 2 x DIV 64))
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_CTD_EXEC BIGNUM_CTD_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_CTD_SUBROUTINE_CORRECT)
+    BIGNUM_CTD_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_ctd" subroutine_signatures)
+    BIGNUM_CTD_SUBROUTINE_CORRECT
+    BIGNUM_CTD_EXEC;;
+
+let BIGNUM_CTD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_CTD_EXEC);;

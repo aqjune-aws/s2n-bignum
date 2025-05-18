@@ -4918,3 +4918,25 @@ let BIGNUM_MODINV_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_MODINV_EXEC BIGNUM_MODINV_CORRECT
    `[X19;X20;X21;X22]` 32);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_MODINV_SUBROUTINE_CORRECT)
+    BIGNUM_MODINV_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_modinv" subroutine_signatures)
+    BIGNUM_MODINV_SUBROUTINE_CORRECT
+    BIGNUM_MODINV_EXEC;;
+
+let BIGNUM_MODINV_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MODINV_EXEC);;
