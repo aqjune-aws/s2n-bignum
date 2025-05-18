@@ -477,7 +477,7 @@ let DISCARD_REGS_WITH_DEAD_VALUE_TAC (dead_regs:term list) =
 let ARM_N_STEPS_TAC th snums stname_suffix stnames_no_discard dead_value_info =
   MAP_EVERY (fun s ->
       let stname = "s" ^ string_of_int s ^ stname_suffix in
-      time (ARM_N_STEP_TAC th [] stname None) None THEN
+      time (ARM_N_STEP_TAC th [] stname None None) THEN
       DISCARD_OLDSTATE_AGGRESSIVELY_TAC (stname::stnames_no_discard) false THEN
       begin match dead_value_info with
       | None -> ALL_TAC
@@ -901,9 +901,9 @@ let BIGNUM_EXPAND_AND_DIGITIZE_TAC (bignum_from_memory_th:thm): tactic =
 
 let ARM_N_STUTTER_LEFT_TAC exec_th (snames:int list)
     (dead_value_info:term list array option): tactic =
-  W (fun (asl,g) ->
+  W (fun (asl,w) ->
     (* get the state name of the 'right' program *)
-    let t' = fst (dest_comb g) in
+    let t' = fst (dest_comb w) in
     let inner_eventually = snd (dest_abs (snd (dest_comb (t')))) in
     let sname = fst (dest_var (snd (dest_comb inner_eventually))) in
     STASH_ASMS_OF_READ_STATES [sname] THEN
