@@ -162,6 +162,17 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
       else mk_imp(fnspec_globalasms,body)
       ));;
 
+let REPEAT_GEN_AND_OFFSET_STACKPTR_TAC =
+  W (fun (asl,w) ->
+    (match find_stack_access_size w with
+    | None -> REPEAT GEN_TAC
+    | Some sz -> (REPEAT (W (fun (asl,w) ->
+      let x,_ = dest_forall w in
+      if name_of x = "stackpointer" then NO_TAC else GEN_TAC)) THEN
+      WORD_FORALL_OFFSET_TAC sz THEN
+      REPEAT GEN_TAC)) THEN
+    REPEAT GEN_TAC);;
+
 let PROVE_SAFETY_SPEC exec:tactic =
   W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
@@ -172,18 +183,11 @@ let PROVE_SAFETY_SPEC exec:tactic =
       let _,rs = strip_comb bd in
       let fnstep = last rs in
       dest_small_numeral (snd (dest_abs fnstep)) in
-    let stack_access_size: int option = find_stack_access_size forall_body in
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
-    (match stack_access_size with
-     | None -> REPEAT GEN_TAC
-     | Some sz -> (REPEAT (W (fun (asl,w) ->
-        let x,_ = dest_forall w in
-        if name_of x = "stackpointer" then NO_TAC else GEN_TAC)) THEN
-        WORD_FORALL_OFFSET_TAC sz THEN
-        REPEAT GEN_TAC)) THEN
-    REPEAT GEN_TAC THEN TRY DISCH_TAC THEN
+    REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
+    TRY DISCH_TAC THEN
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
     ENSURES2_INIT_TAC "s0" "s0'" THEN
@@ -219,6 +223,7 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
     REWRITE_TAC[C_ARGUMENTS;ALL;NONOVERLAPPING_CLAUSES;fst exec] THEN
     (* Do not unfold bignum_from_memory, because there should be no pointers stored in
        buffer *)
+    REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
     REPEAT STRIP_TAC THEN
     ENSURES_INIT_TAC "s0" THEN
     REPEAT (W (fun (asl,w) ->
