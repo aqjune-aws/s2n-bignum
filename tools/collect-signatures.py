@@ -295,6 +295,9 @@ onlyInArm = [
   "bignum_emontredc_8n_cdiff",
   "curve25519_x25519_byte",
   "curve25519_x25519_byte_alt",
+  "mlkem_poly_reduce",
+  "mlkem_poly_tobytes",
+  "mlkem_poly_tomont",
 ]
 onlyInX86 = [
   "bignum_cmul_p25519_alt",
