@@ -4738,3 +4738,25 @@ let CURVE25519_X25519_SUBROUTINE_CORRECT = time prove
     CURVE25519_X25519_CORRECT
     `[D8; D9; D10; D11; D12; D13; D14; D15;
       X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30]` 384);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl CURVE25519_X25519_SUBROUTINE_CORRECT)
+    CURVE25519_X25519_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "curve25519_x25519" subroutine_signatures)
+    CURVE25519_X25519_SUBROUTINE_CORRECT
+    CURVE25519_X25519_EXEC;;
+
+let CURVE25519_X25519_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC CURVE25519_X25519_EXEC);;

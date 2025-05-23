@@ -197,3 +197,25 @@ let BIGNUM_DIGITSIZE_SUBROUTINE_CORRECT = prove
                C_RETURN s' = word((bitsize x + 63) DIV 64))
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_DIGITSIZE_EXEC BIGNUM_DIGITSIZE_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_DIGITSIZE_SUBROUTINE_CORRECT)
+    BIGNUM_DIGITSIZE_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_digitsize" subroutine_signatures)
+    BIGNUM_DIGITSIZE_SUBROUTINE_CORRECT
+    BIGNUM_DIGITSIZE_EXEC;;
+
+let BIGNUM_DIGITSIZE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_DIGITSIZE_EXEC);;

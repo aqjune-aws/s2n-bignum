@@ -11791,3 +11791,25 @@ let P384_MONTJSCALARMUL_SUBROUTINE_CORRECT = time prove
    ARM_ADD_RETURN_STACK_TAC P384_MONTJSCALARMUL_EXEC
     P384_MONTJSCALARMUL_CORRECT
     `[X19; X20; X21; X22; X23; X24; X25; X30]` 3168);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl P384_MONTJSCALARMUL_SUBROUTINE_CORRECT)
+    P384_MONTJSCALARMUL_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "p384_montjscalarmul" subroutine_signatures)
+    P384_MONTJSCALARMUL_SUBROUTINE_CORRECT
+    P384_MONTJSCALARMUL_EXEC;;
+
+let P384_MONTJSCALARMUL_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P384_MONTJSCALARMUL_EXEC);;

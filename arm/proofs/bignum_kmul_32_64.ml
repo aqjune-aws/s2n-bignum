@@ -2300,3 +2300,25 @@ let BIGNUM_KMUL_32_64_SUBROUTINE_CORRECT = prove(
   DISCH_THEN(MP_TAC o end_itlist CONJ o filter (is_ratconst o rand o concl) o
              DECARRY_RULE o CONJUNCTS) THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN REAL_INTEGER_TAC);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_KMUL_32_64_SUBROUTINE_CORRECT)
+    BIGNUM_KMUL_32_64_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_kmul_32_64" subroutine_signatures)
+    BIGNUM_KMUL_32_64_SUBROUTINE_CORRECT
+    BIGNUM_KMUL_32_64_EXEC;;
+
+let BIGNUM_KMUL_32_64_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_KMUL_32_64_EXEC);;

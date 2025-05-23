@@ -97,3 +97,20 @@ let WORD_NEGMODINV_SUBROUTINE_CORRECT = prove
                 ==> (val a * val(C_RETURN s) + 1 == 0) (mod (2 EXP 64))))
              (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
   ARM_ADD_RETURN_NOSTACK_TAC WORD_NEGMODINV_EXEC WORD_NEGMODINV_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "word_negmodinv" subroutine_signatures)
+    WORD_NEGMODINV_SUBROUTINE_CORRECT
+    WORD_NEGMODINV_EXEC;;
+
+let WORD_NEGMODINV_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC WORD_NEGMODINV_EXEC);;

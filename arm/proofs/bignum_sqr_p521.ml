@@ -2104,3 +2104,20 @@ let BIGNUM_SQR_P521_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_SQR_P521_EXEC th
    `[X19;X20;X21;X22;X23;X24]` 48);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_sqr_p521" subroutine_signatures)
+    BIGNUM_SQR_P521_SUBROUTINE_CORRECT
+    BIGNUM_SQR_P521_EXEC;;
+
+let BIGNUM_SQR_P521_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_SQR_P521_EXEC);;

@@ -1370,3 +1370,20 @@ let P256_MONTJADD_SUBROUTINE_CORRECT = time prove
   ARM_ADD_RETURN_STACK_TAC P256_MONTJADD_OPT_EXEC
     (REWRITE_RULE[fst P256_MONTJADD_OPT_EXEC]P256_MONTJADD_CORRECT)
     `[X19;X20;X21;X22;X23;X24;X25;X26;X27;X30]` 304);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "p256_montjadd" subroutine_signatures)
+    P256_MONTJADD_SUBROUTINE_CORRECT
+    P256_MONTJADD_OPT_EXEC;;
+
+let P256_MONTJADD_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P256_MONTJADD_OPT_EXEC);;

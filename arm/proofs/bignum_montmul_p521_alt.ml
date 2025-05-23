@@ -738,3 +738,20 @@ let BIGNUM_MONTMUL_P521_ALT_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC
    BIGNUM_MONTMUL_P521_ALT_EXEC BIGNUM_MONTMUL_P521_ALT_CORRECT
    `[X19;X20;X21;X22;X23;X24;X25;X26]` 128);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_montmul_p521_alt" subroutine_signatures)
+    BIGNUM_MONTMUL_P521_ALT_SUBROUTINE_CORRECT
+    BIGNUM_MONTMUL_P521_ALT_EXEC;;
+
+let BIGNUM_MONTMUL_P521_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_MONTMUL_P521_ALT_EXEC);;

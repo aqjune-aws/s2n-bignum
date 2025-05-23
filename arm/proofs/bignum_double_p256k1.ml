@@ -181,3 +181,20 @@ let BIGNUM_DOUBLE_P256K1_SUBROUTINE_CORRECT = time prove
              MAYCHANGE [memory :> bignum(z,4)])`,
   ARM_ADD_RETURN_NOSTACK_TAC
     BIGNUM_DOUBLE_P256K1_EXEC BIGNUM_DOUBLE_P256K1_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "bignum_double_p256k1" subroutine_signatures)
+    BIGNUM_DOUBLE_P256K1_SUBROUTINE_CORRECT
+    BIGNUM_DOUBLE_P256K1_EXEC;;
+
+let BIGNUM_DOUBLE_P256K1_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_DOUBLE_P256K1_EXEC);;

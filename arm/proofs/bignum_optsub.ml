@@ -188,3 +188,25 @@ let BIGNUM_OPTSUB_SUBROUTINE_CORRECT = prove
            MAYCHANGE [memory :> bignum(z,val k)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_OPTSUB_EXEC
     BIGNUM_OPTSUB_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_OPTSUB_SUBROUTINE_CORRECT)
+    BIGNUM_OPTSUB_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_optsub" subroutine_signatures)
+    BIGNUM_OPTSUB_SUBROUTINE_CORRECT
+    BIGNUM_OPTSUB_EXEC;;
+
+let BIGNUM_OPTSUB_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_OPTSUB_EXEC);;

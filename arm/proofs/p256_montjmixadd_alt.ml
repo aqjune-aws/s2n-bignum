@@ -2126,3 +2126,20 @@ let P256_MONTJMIXADD_ALT_SUBROUTINE_CORRECT = time prove
                       memory :> bytes(word_sub stackpointer (word 192),192)])`,
   ARM_ADD_RETURN_STACK_TAC P256_MONTJMIXADD_ALT_EXEC
    P256_MONTJMIXADD_ALT_CORRECT `[]` 192);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "p256_montjmixadd_alt" subroutine_signatures)
+    P256_MONTJMIXADD_ALT_SUBROUTINE_CORRECT
+    P256_MONTJMIXADD_ALT_EXEC;;
+
+let P256_MONTJMIXADD_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC P256_MONTJMIXADD_ALT_EXEC);;

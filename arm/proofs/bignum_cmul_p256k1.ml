@@ -177,3 +177,25 @@ let BIGNUM_CMUL_P256K1_SUBROUTINE_CORRECT = time prove
           (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
            MAYCHANGE [memory :> bignum(z,4)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_CMUL_P256K1_EXEC BIGNUM_CMUL_P256K1_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl BIGNUM_CMUL_P256K1_SUBROUTINE_CORRECT)
+    BIGNUM_CMUL_P256K1_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "bignum_cmul_p256k1" subroutine_signatures)
+    BIGNUM_CMUL_P256K1_SUBROUTINE_CORRECT
+    BIGNUM_CMUL_P256K1_EXEC;;
+
+let BIGNUM_CMUL_P256K1_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC BIGNUM_CMUL_P256K1_EXEC);;
