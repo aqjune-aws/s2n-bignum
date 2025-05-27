@@ -56,6 +56,7 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
     let _,s,_ = find (fun name,_,_ -> name = varname) fnargs in
     if String.starts_with ~prefix:"uint64_t" s then 8
     else if String.starts_with ~prefix:"uint8_t" s then 1
+    else if String.starts_with ~prefix:"int16_t" s then 2
     else failwith "c_elemtysize" in
 
   let fnspec = concl subroutine_correct_th in
@@ -177,12 +178,15 @@ let PROVE_SAFETY_SPEC exec:tactic =
   W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
     let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
-    let numinsts =
+    let numinsts,f_events_expr =
       let bd = forall_body in
       let bd = if is_imp bd then snd(dest_imp bd) else bd in
       let _,rs = strip_comb bd in
       let fnstep = last rs in
-      dest_small_numeral (snd (dest_abs fnstep)) in
+      dest_small_numeral (snd (dest_abs fnstep)),
+      find_term (fun t -> is_comb t && fst (strip_comb t) = f_events)
+        (List.nth rs 2) in
+    let chunksize = 50 in
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
@@ -191,8 +195,16 @@ let PROVE_SAFETY_SPEC exec:tactic =
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
     ENSURES2_INIT_TAC "s0" "s0'" THEN
-    ARM_N_STUTTER_LEFT_TAC exec (1--numinsts) None THEN
-    ARM_N_STUTTER_RIGHT_TAC exec (1--numinsts) "'" None THEN
+
+    REPEAT_I (fun i ->
+      let ibegin = i * chunksize in
+      if ibegin >= numinsts then NO_TAC else
+      let iend = min numinsts (ibegin + chunksize) in
+      let _ = Printf.printf "steps %d-%d\n" (ibegin+1) iend in
+      ARM_N_STUTTER_LEFT_TAC exec ((ibegin+1)--iend) None THEN
+      ARM_N_STUTTER_RIGHT_TAC exec ((ibegin+1)--iend) "'" None THEN
+      SIMPLIFY_MAYCHANGES_TAC) THEN
+
     REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[] THEN
 
@@ -226,7 +238,7 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
     REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
     REPEAT STRIP_TAC THEN
     ENSURES_INIT_TAC "s0" THEN
-    REPEAT (W (fun (asl,w) ->
+    REPEAT_I (fun (i:int) -> W (fun (asl,w) ->
       match List.find_opt (fun (_,th) ->
           is_eq (concl th) && is_read_pc (lhs (concl th)))
           asl with
@@ -235,7 +247,9 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
         if rhs (concl read_pc_th) = dest_pc_addr
         then (* Successful! *) NO_TAC
         else (* Proceed *)
-          let _ = n := !n + 1 in ARM_SINGLE_STEP_TAC exec ("s" ^ string_of_int !n)))
+          let _ = n := !n + 1 in
+          ARM_SINGLE_STEP_TAC exec ("s" ^ string_of_int !n) THEN
+          (if i mod 50 = 0 then SIMPLIFY_MAYCHANGES_TAC else ALL_TAC)))
     THEN
     NO_TAC) in
   if !successful then !n

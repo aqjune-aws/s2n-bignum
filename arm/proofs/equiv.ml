@@ -1070,10 +1070,10 @@ let simplify_maychanges: term -> term =
     (* now merge memory accesses. *)
     let maychange_mems_merged = ref [] in
     let add_maychange_mem (base_ptr, ofs, len): unit =
-      (* if len is 8, just use bytes64. *)
       let base_ptr = if ofs = 0 then base_ptr else
         subst [base_ptr,the_base_ptr;mk_small_numeral ofs,the_ofs] the_base_ptr_ofs in
-      let final_term = if len = 8 then
+      let final_term =
+        if len = 8 then
           subst [base_ptr,the_base_ptr] the_memory_base_ptr
         else
           subst [base_ptr,the_base_ptr;mk_small_numeral len,the_len] the_memory_base_ptr_len in

@@ -153,7 +153,7 @@ def getMemInoutFromComment(s:str) -> FnMemInputOutput:
   stroutputs = splitUsingCommaOrAnd(s1)
   outputs = []
   for s in stroutputs:
-    if s.strip().startswith("function return"):
+    if s.strip().startswith("function return") or s.strip().startswith("return"):
       continue
     outputs.append(parseArr(s))
 
@@ -295,9 +295,7 @@ onlyInArm = [
   "bignum_emontredc_8n_cdiff",
   "curve25519_x25519_byte",
   "curve25519_x25519_byte_alt",
-  "mlkem_poly_reduce",
-  "mlkem_poly_tobytes",
-  "mlkem_poly_tomont",
+  "mlkem_",
 ]
 onlyInX86 = [
   "bignum_cmul_p25519_alt",
@@ -330,10 +328,18 @@ for arch in ["arm","x86"]:
   for fnname in fnsigsFromAsm[arch]:
     assert fnname in fnsigsAndInouts, f"{fnname} declaration is missing in s2n-bignum.h"
 
+def checkOnlyInArch(fnname, onlyIn):
+  for f in onlyIn:
+    if f.endswith("_") and fnname.startswith(f):
+      return True
+    elif f == fnname:
+      return True
+  return False
+
 for fnname in fnsigsAndInouts:
   fnsigFromHeader,_ = fnsigsAndInouts[fnname]
 
-  if fnname not in onlyInX86:
+  if not checkOnlyInArch(fnname, onlyInX86):
     assert fnname in fnsigsFromAsm["arm"], fnname
     if fnsigFromHeader != fnsigsFromAsm["arm"][fnname]:
       print("Function signature mismatch! s2n-bignum.h:")
@@ -342,7 +348,7 @@ for fnname in fnsigsAndInouts:
       fnsigsFromAsm["arm"][fnname].print()
       assert fnsigFromHeader == fnsigsFromAsm["arm"][fnname], f"{fnname}"
 
-  if fnname not in onlyInArm:
+  if not checkOnlyInArch(fnname, onlyInArm):
     assert fnname in fnsigsFromAsm["x86"], fnname
     if fnsigFromHeader != fnsigsFromAsm["x86"][fnname]:
       print("Function signature mismatch! s2n-bignum.h:")

@@ -1425,6 +1425,11 @@ let rec REPEAT_I_N (i:int) (n:int) (t:int->tactic):tactic =
   if i = n then ALL_TAC
   else (t i) THEN (REPEAT_I_N (i+1) n t);;
 
+let REPEAT_I (t:int->tactic):tactic =
+  let rec f (i:int) g =
+    ((t i THEN f (i+1)) ORELSE ALL_TAC) g in
+  f 0;;
+
 (* ------------------------------------------------------------------------- *)
 (* Tactics that break a conjunction/disjunction in assumptions               *)
 (* ------------------------------------------------------------------------- *)

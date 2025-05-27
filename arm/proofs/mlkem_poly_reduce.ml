@@ -203,3 +203,27 @@ let MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT = prove
   CONV_TAC TWEAK_CONV THEN
   ARM_ADD_RETURN_NOSTACK_TAC MLKEM_POLY_REDUCE_EXEC
    (CONV_RULE TWEAK_CONV MLKEM_POLY_REDUCE_CORRECT));;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let subroutine_correct_term = concl MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT;;
+let exec = MLKEM_POLY_REDUCE_EXEC;;
+
+let numsteps = count_nsteps (concl MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT)
+    MLKEM_POLY_REDUCE_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "mlkem_poly_reduce" subroutine_signatures)
+    MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT
+    MLKEM_POLY_REDUCE_EXEC;;
+
+let MLKEM_POLY_REDUCE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_POLY_REDUCE_EXEC);;

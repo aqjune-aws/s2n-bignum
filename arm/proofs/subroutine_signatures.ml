@@ -3791,6 +3791,222 @@ let subroutine_signatures = [
    [])
 );
 
+("mlkem_basemul_k2",
+  ([(*args*)
+     ("r", "int16_t[static 256]", (*is const?*)"false");
+     ("a", "int16_t[static 512]", (*is const?*)"true");
+     ("b", "int16_t[static 512]", (*is const?*)"true");
+     ("btable", "int16_t[static 256]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "512"); ("b", "512"); ("btable", "256"); ],
+   (* output buffers *)
+   [("r", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_intt",
+  ([(*args*)
+     ("a", "int16_t[static 256]", (*is const?*)"false");
+     ("z_01234", "int16_t[static 80]", (*is const?*)"true");
+     ("z_56", "int16_t[static 384]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "256"); ("z_01234", "80"); ("z_56", "384"); ],
+   (* output buffers *)
+   [("a", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak2_f1600",
+  ([(*args*)
+     ("a", "uint64_t[static 50]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "50"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "50"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak2_f1600_alt",
+  ([(*args*)
+     ("a", "uint64_t[static 50]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "50"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "50"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak4_f1600",
+  ([(*args*)
+     ("a", "uint64_t[static 100]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "100"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "100"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak4_f1600_alt",
+  ([(*args*)
+     ("a", "uint64_t[static 100]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "100"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "100"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak4_f1600_alt2",
+  ([(*args*)
+     ("a", "uint64_t[static 100]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "100"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "100"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak_f1600",
+  ([(*args*)
+     ("a", "uint64_t[static 25]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "25"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "25"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_keccak_f1600_alt",
+  ([(*args*)
+     ("a", "uint64_t[static 25]", (*is const?*)"false");
+     ("rc", "uint64_t[static 24]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "25"); ("rc", "24"); ],
+   (* output buffers *)
+   [("a", "25"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_mulcache_compute",
+  ([(*args*)
+     ("x", "int16_t[static 128]", (*is const?*)"false");
+     ("a", "int16_t[static 256]", (*is const?*)"true");
+     ("z", "int16_t[static 128]", (*is const?*)"true");
+     ("t", "int16_t[static 128]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "256"); ("z", "128"); ("t", "128"); ],
+   (* output buffers *)
+   [("x", "128"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_ntt",
+  ([(*args*)
+     ("a", "int16_t[static 256]", (*is const?*)"false");
+     ("z_01234", "int16_t[static 80]", (*is const?*)"true");
+     ("z_56", "int16_t[static 384]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "256"); ("z_01234", "80"); ("z_56", "384"); ],
+   (* output buffers *)
+   [("a", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_poly_reduce",
+  ([(*args*)
+     ("a", "int16_t[static 256]", (*is const?*)"false");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "256"); ],
+   (* output buffers *)
+   [("a", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_poly_tobytes",
+  ([(*args*)
+     ("r", "uint8_t[static 384]", (*is const?*)"false");
+     ("a", "int16_t[static 256]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "256"); ],
+   (* output buffers *)
+   [("r", "384"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_poly_tomont",
+  ([(*args*)
+     ("a", "int16_t[static 256]", (*is const?*)"false");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "256"); ],
+   (* output buffers *)
+   [("a", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_rej_uniform_VARIABLE_TIME",
+  ([(*args*)
+     ("r", "int16_t[static 256]", (*is const?*)"false");
+     ("buf", "uint8_t*", (*is const?*)"true");
+     ("buflen", "uint64_t", (*is const?*)"false");
+     ("table", "uint8_t*", (*is const?*)"true");
+   ],
+   "uint64_t",
+   (* input buffers *)
+   [],
+   (* output buffers *)
+   [("r", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
 ("p256_montjadd",
   ([(*args*)
      ("p3", "uint64_t[static 12]", (*is const?*)"false");
