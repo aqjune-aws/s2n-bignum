@@ -1289,3 +1289,25 @@ let MLKEM_KECCAK4_F1600_SUBROUTINE_CORRECT = prove
    (CONV_RULE TWEAK_CONV MLKEM_KECCAK4_F1600_CORRECT)
   `[D8; D9; D10; D11; D12; D13; D14; D15;
     X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30]` 224);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl MLKEM_KECCAK4_F1600_SUBROUTINE_CORRECT)
+    MLKEM_KECCAK4_F1600_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "mlkem_keccak4_f1600" subroutine_signatures)
+    MLKEM_KECCAK4_F1600_SUBROUTINE_CORRECT
+    MLKEM_KECCAK4_F1600_EXEC;;
+
+let MLKEM_KECCAK4_F1600_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_KECCAK4_F1600_EXEC);;

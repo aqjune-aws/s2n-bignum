@@ -458,3 +458,63 @@ let MLKEM_BASEMUL_K2_SUBROUTINE_CORRECT = prove
       (CONV_RULE TWEAK_CONV MLKEM_BASEMUL_K2_CORRECT))
       `[D8; D9; D10; D11; D12; D13; D14; D15]` 64  THEN
    WORD_ARITH_TAC);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof (nonlinear).                        *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl MLKEM_BASEMUL_K2_SUBROUTINE_CORRECT)
+    MLKEM_BASEMUL_K2_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "mlkem_basemul_k2" subroutine_signatures)
+    MLKEM_BASEMUL_K2_SUBROUTINE_CORRECT
+    MLKEM_BASEMUL_K2_EXEC;;
+
+let MLKEM_BASEMUL_K2_SUBROUTINE_SAFE = time prove
+ (`exists f_events.
+ forall srcA srcB srcBt dst x0 y0 y0t x1 y1 y1t pc stackpointer returnaddress.
+     aligned 16 stackpointer /\
+     ALLPAIRS nonoverlapping
+     [dst,512; word_sub stackpointer (word 64),64]
+     [word pc,LENGTH mlkem_basemul_k2_mc; srcA,1024; srcB,1024;
+      srcBt,512] /\
+     nonoverlapping (dst,512) (word_sub stackpointer (word 64),64)
+     ==> ensures2 arm
+         (\(s1,s2).
+              aligned_bytes_loaded s1 (word pc) mlkem_basemul_k2_mc /\
+              read PC s1 = word pc /\
+              aligned_bytes_loaded s2 (word pc) mlkem_basemul_k2_mc /\
+              read PC s2 = word pc /\
+              read X30 s1 = returnaddress /\
+              read X30 s2 = returnaddress /\
+              read SP s1 = stackpointer /\
+              read SP s2 = stackpointer /\
+              C_ARGUMENTS [dst; srcA; srcB; srcBt] s1 /\
+              C_ARGUMENTS [dst; srcA; srcB; srcBt] s2 /\
+              read events s1 = e /\
+              read events s2 = e)
+         (\(s1,s2).
+              exists e2.
+                  read PC s1 = returnaddress /\
+                  read PC s2 = returnaddress /\
+                  read events s1 = APPEND e2 e /\
+                  read events s2 = APPEND e2 e /\
+                  e2 =
+                  f_events srcA srcB srcBt dst pc
+                  (word_sub stackpointer (word 64))
+                  returnaddress /\
+                  memaccess_inbounds e2
+                  [srcA,1024; srcB,1024; srcBt,512; dst,512;
+                   word_sub stackpointer (word 64),64]
+                  [dst,512; word_sub stackpointer (word 64),64])
+         (\s s'. true)
+         (\s. 816)
+         (\s. 816)`,
+  PROVE_SAFETY_SPEC MLKEM_BASEMUL_K2_EXEC);;

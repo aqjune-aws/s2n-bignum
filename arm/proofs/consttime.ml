@@ -52,13 +52,6 @@ let find_stack_access_size (subroutine_correct_term:term): int option =
 let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memtemps)
     (subroutine_correct_th:thm) exec =
 
-  let get_c_elemtysize varname =
-    let _,s,_ = find (fun name,_,_ -> name = varname) fnargs in
-    if String.starts_with ~prefix:"uint64_t" s then 8
-    else if String.starts_with ~prefix:"uint8_t" s then 1
-    else if String.starts_with ~prefix:"int16_t" s then 2
-    else failwith "c_elemtysize" in
-
   let fnspec = concl subroutine_correct_th in
   let fnspec_quants,t = strip_forall fnspec in
   assert (name_of (last fnspec_quants) = "returnaddress");
@@ -69,6 +62,13 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
     (fun t -> is_comb t && let c,a = dest_comb t in
       name_of c = "C_ARGUMENTS")
       fnspec_ensures in
+  let c_var_to_hol (var_c:string): string =
+    let c_to_hol_vars = zip fnargs (dest_list (rand c_args)) in
+    let c_to_hol_names = map (fun ((x,_,_),yvar) -> x,name_of yvar) c_to_hol_vars in
+    try
+      assoc var_c c_to_hol_names
+    with _ -> failwith ("c_var_to_hol: unknown var in C: " ^ var_c) in
+
   let aligned_bytes_term = find_term
     (fun t -> is_comb t && fst (strip_comb t) = `aligned_bytes_loaded`)
       fnspec_ensures in
@@ -82,15 +82,34 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
   let stack_access_size: int option = find_stack_access_size fnspec in
   assert ((readsp = None) = (stack_access_size = None));
 
+  (* rename C variable names in meminputs, memoutputs and memtemps
+     to the HOL Light vars in specs *)
+  let meminputs_hol, memoutputs_hol, memtemps_hol =
+    map (fun x,y -> c_var_to_hol x, y) meminputs,
+    map (fun x,y -> c_var_to_hol x, y) memoutputs,
+    map (fun x,y -> c_var_to_hol x, y) memtemps in
+  let fnargs_hol = map (fun x,y,z -> c_var_to_hol x, y, z) fnargs in
+
+  let get_c_elemtysize varname_hol =
+    let _,s,_ = try
+        find (fun name,_,_ -> name = varname_hol) fnargs_hol
+      with _ ->
+        failwith ("get_c_elemtysize: cannot find hol var " ^ varname_hol) in
+    if String.starts_with ~prefix:"uint64_t" s then 8
+    else if String.starts_with ~prefix:"uint8_t" s then 1
+    else if String.starts_with ~prefix:"int16_t" s then 2
+    else failwith "c_elemtysize" in
+
   (* memreads/writes without stackpointer *)
   let memreads = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
-      mk_small_numeral(int_of_string range * get_c_elemtysize varname))
-    (meminputs @ memoutputs @ memtemps) in
+      mk_small_numeral(int_of_string range *
+                       get_c_elemtysize varname))
+    (meminputs_hol @ memoutputs_hol @ memtemps_hol) in
   let memwrites = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
       mk_small_numeral(int_of_string range * get_c_elemtysize varname))
-    (memoutputs @ memtemps) in
+    (memoutputs_hol @ memtemps_hol) in
 
   let usedvars = itlist (fun (t,_) l ->
     let vars = find_terms is_var t in union vars l) (memreads @ memwrites) [] in

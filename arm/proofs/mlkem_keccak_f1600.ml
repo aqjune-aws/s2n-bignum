@@ -504,3 +504,61 @@ let MLKEM_KECCAK_F1600_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC ~pre_post_nsteps:(7,7) MLKEM_KECCAK_F1600_EXEC
         (CONV_RULE TWEAK_CONV MLKEM_KECCAK_F1600_CORRECT)
     `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30]` 128);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl MLKEM_KECCAK_F1600_SUBROUTINE_CORRECT)
+    MLKEM_KECCAK_F1600_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "mlkem_keccak_f1600" subroutine_signatures)
+    MLKEM_KECCAK_F1600_SUBROUTINE_CORRECT
+    MLKEM_KECCAK_F1600_EXEC;;
+
+let MLKEM_KECCAK_F1600_SUBROUTINE_SAFE = time prove
+ (`exists f_events.
+ forall a rc A pc stackpointer returnaddress.
+     aligned 16 stackpointer /\
+     nonoverlapping (a,200) (word_sub stackpointer (word 128),128) /\
+     ALLPAIRS nonoverlapping
+     [a,200; word_sub stackpointer (word 128),128]
+     [word pc,1152; rc,192]
+     ==> ensures2 arm
+         (\(s1,s2).
+              aligned_bytes_loaded s1 (word pc) mlkem_keccak_f1600_mc /\
+              read PC s1 = word pc /\
+              aligned_bytes_loaded s2 (word pc) mlkem_keccak_f1600_mc /\
+              read PC s2 = word pc /\
+              read X30 s1 = returnaddress /\
+              read X30 s2 = returnaddress /\
+              read SP s1 = stackpointer /\
+              read SP s2 = stackpointer /\
+              C_ARGUMENTS [a; rc] s1 /\
+              C_ARGUMENTS [a; rc] s2 /\
+              read events s1 = e /\
+              read events s2 = e)
+         (\(s1,s2).
+              exists e2.
+                  read PC s1 = returnaddress /\
+                  read PC s2 = returnaddress /\
+                  read events s1 = APPEND e2 e /\
+                  read events s2 = APPEND e2 e /\
+                  e2 =
+                  f_events rc a pc (word_sub stackpointer (word 128))
+                  returnaddress /\
+                  memaccess_inbounds e2
+                  [a,200; rc,192; a,200;
+                   word_sub stackpointer (word 128),128]
+                  [a,200; word_sub stackpointer (word 128),128])
+         (\s s'. true)
+         (\s. 2774)
+         (\s. 2774)`,
+  PROVE_SAFETY_SPEC MLKEM_KECCAK_F1600_EXEC);;

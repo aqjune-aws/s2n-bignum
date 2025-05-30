@@ -414,3 +414,25 @@ let MLKEM_KECCAK2_F1600_ALT_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC ~pre_post_nsteps:(5,5) MLKEM_KECCAK2_F1600_ALT_EXEC
    (CONV_RULE TWEAK_CONV MLKEM_KECCAK2_F1600_ALT_CORRECT)
   `[D8; D9; D10; D11; D12; D13; D14; D15]` 64);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+
+let numsteps = count_nsteps (concl MLKEM_KECCAK2_F1600_ALT_SUBROUTINE_CORRECT)
+    MLKEM_KECCAK2_F1600_ALT_EXEC;;
+
+let full_spec = mk_safety_spec
+    ~numinstsopt:numsteps
+    (assoc "mlkem_keccak2_f1600_alt" subroutine_signatures)
+    MLKEM_KECCAK2_F1600_ALT_SUBROUTINE_CORRECT
+    MLKEM_KECCAK2_F1600_ALT_EXEC;;
+
+let MLKEM_KECCAK2_F1600_ALT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_KECCAK2_F1600_ALT_EXEC);;

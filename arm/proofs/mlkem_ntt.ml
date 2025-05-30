@@ -560,7 +560,7 @@ let MLKEM_NTT_SUBROUTINE_CORRECT = prove
     `[D8; D9; D10; D11; D12; D13; D14; D15]` 64);;
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
