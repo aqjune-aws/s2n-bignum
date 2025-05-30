@@ -212,8 +212,6 @@ let MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT = prove
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-let subroutine_correct_term = concl MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT;;
-let exec = MLKEM_POLY_REDUCE_EXEC;;
 
 let numsteps = count_nsteps (concl MLKEM_POLY_REDUCE_SUBROUTINE_CORRECT)
     MLKEM_POLY_REDUCE_EXEC;;

@@ -1223,3 +1223,7 @@ let memaccess_inbounds = new_definition `
            writable_ranges
       | _ -> true) e2`;;
 
+let MEMACCESS_INBOUNDS_APPEND = prove(
+  `forall e1 e2 rr wr. memaccess_inbounds (APPEND e1 e2) rr wr
+    <=> memaccess_inbounds e1 rr wr /\ memaccess_inbounds e2 rr wr`,
+  REWRITE_TAC[memaccess_inbounds;ALL_APPEND]);;
