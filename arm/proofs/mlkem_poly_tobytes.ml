@@ -221,7 +221,7 @@ let MLKEM_POLY_TOBYTES_SUBROUTINE_CORRECT = prove
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
+(*
 let numsteps = count_nsteps (concl MLKEM_POLY_TOBYTES_SUBROUTINE_CORRECT)
     MLKEM_POLY_TOBYTES_EXEC;;
 
@@ -230,7 +230,34 @@ let full_spec = mk_safety_spec
     (assoc "mlkem_poly_tobytes" subroutine_signatures)
     MLKEM_POLY_TOBYTES_SUBROUTINE_CORRECT
     MLKEM_POLY_TOBYTES_EXEC;;
+*)
 
 let MLKEM_POLY_TOBYTES_SUBROUTINE_SAFE = time prove
- (full_spec,
+ ((* a verbatim copy of full_spec *)
+ `exists f_events.
+ forall r a l pc returnaddress.
+     ALL (nonoverlapping (r,384)) [word pc,344; a,512]
+     ==> ensures2 arm
+         (\(s1,s2).
+              aligned_bytes_loaded s1 (word pc) mlkem_poly_tobytes_mc /\
+              read PC s1 = word pc /\
+              aligned_bytes_loaded s2 (word pc) mlkem_poly_tobytes_mc /\
+              read PC s2 = word pc /\
+              read X30 s1 = returnaddress /\
+              read X30 s2 = returnaddress /\
+              C_ARGUMENTS [r; a] s1 /\
+              C_ARGUMENTS [r; a] s2 /\
+              read events s1 = e /\
+              read events s2 = e)
+         (\(s1,s2).
+              exists e2.
+                  read PC s1 = returnaddress /\
+                  read PC s2 = returnaddress /\
+                  read events s1 = APPEND e2 e /\
+                  read events s2 = APPEND e2 e /\
+                  e2 = f_events a r pc returnaddress /\
+                  memaccess_inbounds e2 [a,512; r,384] [r,384])
+         (\s s'. true)
+         (\s. 170)
+         (\s. 170)`,
   PROVE_SAFETY_SPEC MLKEM_POLY_TOBYTES_EXEC);;

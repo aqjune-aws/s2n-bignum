@@ -567,6 +567,7 @@ needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
 
+(*
 let numsteps = count_nsteps (concl MLKEM_NTT_SUBROUTINE_CORRECT)
     MLKEM_NTT_EXEC;;
 
@@ -575,7 +576,46 @@ let full_spec = mk_safety_spec
     (assoc "mlkem_ntt" subroutine_signatures)
     MLKEM_NTT_SUBROUTINE_CORRECT
     MLKEM_NTT_EXEC;;
+*)
 
 let MLKEM_NTT_SUBROUTINE_SAFE = time prove
- (full_spec,
+ ((* a verbatim copy of full_spec *)
+ `exists f_events.
+ forall a z_01234 z_56 x pc stackpointer returnaddress.
+     aligned 16 stackpointer /\
+     ALLPAIRS nonoverlapping
+     [a,512; word_sub stackpointer (word 64),64]
+     [word pc,1284; z_01234,160; z_56,768] /\
+     nonoverlapping (a,512) (word_sub stackpointer (word 64),64)
+     ==> ensures2 arm
+         (\(s1,s2).
+              aligned_bytes_loaded s1 (word pc) mlkem_ntt_mc /\
+              read PC s1 = word pc /\
+              aligned_bytes_loaded s2 (word pc) mlkem_ntt_mc /\
+              read PC s2 = word pc /\
+              read X30 s1 = returnaddress /\
+              read X30 s2 = returnaddress /\
+              read SP s1 = stackpointer /\
+              read SP s2 = stackpointer /\
+              C_ARGUMENTS [a; z_01234; z_56] s1 /\
+              C_ARGUMENTS [a; z_01234; z_56] s2 /\
+              read events s1 = e /\
+              read events s2 = e)
+         (\(s1,s2).
+              exists e2.
+                  read PC s1 = returnaddress /\
+                  read PC s2 = returnaddress /\
+                  read events s1 = APPEND e2 e /\
+                  read events s2 = APPEND e2 e /\
+                  e2 =
+                  f_events z_01234 z_56 a pc
+                  (word_sub stackpointer (word 64))
+                  returnaddress /\
+                  memaccess_inbounds e2
+                  [a,512; z_01234,160; z_56,768; a,512;
+                   word_sub stackpointer (word 64),64]
+                  [a,512; word_sub stackpointer (word 64),64])
+         (\s s'. true)
+         (\s. 915)
+         (\s. 915)`,
   PROVE_SAFETY_SPEC MLKEM_NTT_EXEC);;

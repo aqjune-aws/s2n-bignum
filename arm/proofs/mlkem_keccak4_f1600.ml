@@ -1299,6 +1299,7 @@ needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
 
+(*
 let numsteps = count_nsteps (concl MLKEM_KECCAK4_F1600_SUBROUTINE_CORRECT)
     MLKEM_KECCAK4_F1600_EXEC;;
 
@@ -1307,7 +1308,45 @@ let full_spec = mk_safety_spec
     (assoc "mlkem_keccak4_f1600" subroutine_signatures)
     MLKEM_KECCAK4_F1600_SUBROUTINE_CORRECT
     MLKEM_KECCAK4_F1600_EXEC;;
+*)
 
 let MLKEM_KECCAK4_F1600_SUBROUTINE_SAFE = time prove
- (full_spec,
+ ((* a verbatim copy of full_spec *)
+ `exists f_events.
+ forall a rc A1 A2 A3 A4 pc stackpointer returnaddress.
+     aligned 16 stackpointer /\
+     nonoverlapping (a,800) (word_sub stackpointer (word 224),224) /\
+     ALLPAIRS nonoverlapping
+     [a,800; word_sub stackpointer (word 224),224]
+     [word pc,3128; rc,192]
+     ==> ensures2 arm
+         (\(s1,s2).
+              aligned_bytes_loaded s1 (word pc) mlkem_keccak4_f1600_mc /\
+              read PC s1 = word pc /\
+              aligned_bytes_loaded s2 (word pc) mlkem_keccak4_f1600_mc /\
+              read PC s2 = word pc /\
+              read X30 s1 = returnaddress /\
+              read X30 s2 = returnaddress /\
+              read SP s1 = stackpointer /\
+              read SP s2 = stackpointer /\
+              C_ARGUMENTS [a; rc] s1 /\
+              C_ARGUMENTS [a; rc] s2 /\
+              read events s1 = e /\
+              read events s2 = e)
+         (\(s1,s2).
+              exists e2.
+                  read PC s1 = returnaddress /\
+                  read PC s2 = returnaddress /\
+                  read events s1 = APPEND e2 e /\
+                  read events s2 = APPEND e2 e /\
+                  e2 =
+                  f_events rc a pc (word_sub stackpointer (word 224))
+                  returnaddress /\
+                  memaccess_inbounds e2
+                  [a,800; rc,192; a,800;
+                   word_sub stackpointer (word 224),224]
+                  [a,800; word_sub stackpointer (word 224),224])
+         (\s s'. true)
+         (\s. 7270)
+         (\s. 7270)`,
   PROVE_SAFETY_SPEC MLKEM_KECCAK4_F1600_EXEC);;

@@ -24,7 +24,7 @@
 //
 // extern void mlkem_basemul_k2
 //      (int16_t r[static 256],const int16_t a[static 512],
-//       const int16_t b[static 512], const int16_t btable[static 256]);
+//       const int16_t b[static 512], const int16_t bt[static 256]);
 //
 // Standard ARM ABI: X0 = r, X1 = a, X2 = b, X3 = bt
 // ----------------------------------------------------------------------------

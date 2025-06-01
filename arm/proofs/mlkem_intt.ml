@@ -598,13 +598,13 @@ let MLKEM_INTT_SUBROUTINE_CORRECT = prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
+(*
 let numsteps = count_nsteps (concl MLKEM_INTT_SUBROUTINE_CORRECT)
     MLKEM_INTT_EXEC;;
 
@@ -613,9 +613,11 @@ let full_spec = mk_safety_spec
     (assoc "mlkem_intt" subroutine_signatures)
     MLKEM_INTT_SUBROUTINE_CORRECT
     MLKEM_INTT_EXEC;;
+*)
 
 let MLKEM_INTT_SUBROUTINE_SAFE = time prove
- (`exists f_events.
+ ((* a verbatim copy of full_spec *)
+ `exists f_events.
  forall a z_01234 z_56 x pc stackpointer returnaddress.
      aligned 16 stackpointer /\
      ALLPAIRS nonoverlapping [a,512; word_sub stackpointer (word 64),64]

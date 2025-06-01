@@ -3796,11 +3796,43 @@ let subroutine_signatures = [
      ("r", "int16_t[static 256]", (*is const?*)"false");
      ("a", "int16_t[static 512]", (*is const?*)"true");
      ("b", "int16_t[static 512]", (*is const?*)"true");
-     ("btable", "int16_t[static 256]", (*is const?*)"true");
+     ("bt", "int16_t[static 256]", (*is const?*)"true");
    ],
    "void",
    (* input buffers *)
-   [("a", "512"); ("b", "512"); ("btable", "256"); ],
+   [("a", "512"); ("b", "512"); ("bt", "256"); ],
+   (* output buffers *)
+   [("r", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_basemul_k3",
+  ([(*args*)
+     ("r", "int16_t[static 256]", (*is const?*)"false");
+     ("a", "int16_t[static 768]", (*is const?*)"true");
+     ("b", "int16_t[static 768]", (*is const?*)"true");
+     ("bt", "int16_t[static 384]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "768"); ("b", "768"); ("bt", "384"); ],
+   (* output buffers *)
+   [("r", "256"); ],
+   (* temporary buffers *)
+   [])
+);
+
+("mlkem_basemul_k4",
+  ([(*args*)
+     ("r", "int16_t[static 256]", (*is const?*)"false");
+     ("a", "int16_t[static 1024]", (*is const?*)"true");
+     ("b", "int16_t[static 1024]", (*is const?*)"true");
+     ("bt", "int16_t[static 512]", (*is const?*)"true");
+   ],
+   "void",
+   (* input buffers *)
+   [("a", "1024"); ("b", "1024"); ("bt", "512"); ],
    (* output buffers *)
    [("r", "256"); ],
    (* temporary buffers *)

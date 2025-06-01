@@ -514,6 +514,7 @@ needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
 
+(*
 let numsteps = count_nsteps (concl MLKEM_KECCAK_F1600_SUBROUTINE_CORRECT)
     MLKEM_KECCAK_F1600_EXEC;;
 
@@ -522,9 +523,11 @@ let full_spec = mk_safety_spec
     (assoc "mlkem_keccak_f1600" subroutine_signatures)
     MLKEM_KECCAK_F1600_SUBROUTINE_CORRECT
     MLKEM_KECCAK_F1600_EXEC;;
+*)
 
 let MLKEM_KECCAK_F1600_SUBROUTINE_SAFE = time prove
- (`exists f_events.
+ ((* a verbatim copy of full_spec *)
+ `exists f_events.
  forall a rc A pc stackpointer returnaddress.
      aligned 16 stackpointer /\
      nonoverlapping (a,200) (word_sub stackpointer (word 128),128) /\
