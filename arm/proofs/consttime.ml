@@ -52,12 +52,6 @@ let find_stack_access_size (subroutine_correct_term:term): int option =
 let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memtemps)
     (subroutine_correct_th:thm) exec =
 
-  let get_c_elemtysize varname =
-    let _,s,_ = find (fun name,_,_ -> name = varname) fnargs in
-    if String.starts_with ~prefix:"uint64_t" s then 8
-    else if String.starts_with ~prefix:"uint8_t" s then 1
-    else failwith "c_elemtysize" in
-
   let fnspec = concl subroutine_correct_th in
   let fnspec_quants,t = strip_forall fnspec in
   assert (name_of (last fnspec_quants) = "returnaddress");
@@ -68,6 +62,13 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
     (fun t -> is_comb t && let c,a = dest_comb t in
       name_of c = "C_ARGUMENTS")
       fnspec_ensures in
+  let c_var_to_hol (var_c:string): string =
+    let c_to_hol_vars = zip fnargs (dest_list (rand c_args)) in
+    let c_to_hol_names = map (fun ((x,_,_),yvar) -> x,name_of yvar) c_to_hol_vars in
+    try
+      assoc var_c c_to_hol_names
+    with _ -> failwith ("c_var_to_hol: unknown var in C: " ^ var_c) in
+
   let aligned_bytes_term = find_term
     (fun t -> is_comb t && fst (strip_comb t) = `aligned_bytes_loaded`)
       fnspec_ensures in
@@ -81,15 +82,34 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
   let stack_access_size: int option = find_stack_access_size fnspec in
   assert ((readsp = None) = (stack_access_size = None));
 
+  (* rename C variable names in meminputs, memoutputs and memtemps
+     to the HOL Light vars in specs *)
+  let meminputs_hol, memoutputs_hol, memtemps_hol =
+    map (fun x,y -> c_var_to_hol x, y) meminputs,
+    map (fun x,y -> c_var_to_hol x, y) memoutputs,
+    map (fun x,y -> c_var_to_hol x, y) memtemps in
+  let fnargs_hol = map (fun x,y,z -> c_var_to_hol x, y, z) fnargs in
+
+  let get_c_elemtysize varname_hol =
+    let _,s,_ = try
+        find (fun name,_,_ -> name = varname_hol) fnargs_hol
+      with _ ->
+        failwith ("get_c_elemtysize: cannot find hol var " ^ varname_hol) in
+    if String.starts_with ~prefix:"uint64_t" s then 8
+    else if String.starts_with ~prefix:"uint8_t" s then 1
+    else if String.starts_with ~prefix:"int16_t" s then 2
+    else failwith "c_elemtysize" in
+
   (* memreads/writes without stackpointer *)
   let memreads = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
-      mk_small_numeral(int_of_string range * get_c_elemtysize varname))
-    (meminputs @ memoutputs @ memtemps) in
+      mk_small_numeral(int_of_string range *
+                       get_c_elemtysize varname))
+    (meminputs_hol @ memoutputs_hol @ memtemps_hol) in
   let memwrites = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
       mk_small_numeral(int_of_string range * get_c_elemtysize varname))
-    (memoutputs @ memtemps) in
+    (memoutputs_hol @ memtemps_hol) in
 
   let usedvars = itlist (fun (t,_) l ->
     let vars = find_terms is_var t in union vars l) (memreads @ memwrites) [] in
@@ -144,9 +164,9 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
       list_mk_conj [
         `read PC s1 = returnaddress`;
         `read PC s2 = returnaddress`;
-        mk_eq(e2, list_mk_comb (f_events,f_events_args));
         `read events s1 = APPEND e2 e`;
         `read events s2 = APPEND e2 e`;
+        mk_eq(e2, list_mk_comb (f_events,f_events_args));
         mk_comb(mk_comb(mk_comb (`memaccess_inbounds`,e2),mr),mw)
       ])) in
 
@@ -173,16 +193,87 @@ let REPEAT_GEN_AND_OFFSET_STACKPTR_TAC =
       REPEAT GEN_TAC)) THEN
     REPEAT GEN_TAC);;
 
+let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
+  ASM_REWRITE_TAC[MEMACCESS_INBOUNDS_APPEND] THEN
+  REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
+    REPEAT CONJ_TAC THEN
+      (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE
+              CONTAINED_TAC));;
+
+let mk_freshvar =
+  let n = ref 0 in
+  fun ty ->
+    let s = "trace_" ^ (string_of_int !n) in
+    n := 1 + !n;
+    mk_var(s,ty);;
+
+let ABBREV_TRACE_TAC (stored_abbrevs:thm list ref)=
+  let pat = `read events s = APPEND rhs e` in
+  let PROVE_MEMORY_INBOUNDS_TAC (trace:term):tactic =
+    fun (asl,w) ->
+      let mem_inbounds_term =
+        find_term
+          (fun t -> name_of (fst (strip_comb t)) = "memaccess_inbounds")
+          w in
+      let c,_::readranges::writeranges::[] = strip_comb mem_inbounds_term in
+      let new_mem_inbounds =
+          list_mk_comb(c,trace::readranges::writeranges::[]) in
+      (SUBGOAL_THEN new_mem_inbounds MP_TAC THENL [
+        DISCHARGE_MEMACCESS_INBOUNDS_TAC THEN
+        FAIL_TAC "could not prove memaccess_inbounds";
+        ALL_TAC
+      ] THEN DISCARD_MATCHING_ASSUMPTIONS [`memaccess_inbounds x rr wr`] THEN
+      DISCH_TAC) (asl,w) in
+
+  let CORE_ABBREV_TRACE_TAC (trace:term):tactic =
+    fun (asl,w) ->
+      let f_events_term =
+        find_term
+          (fun t -> name_of (fst (strip_comb t)) = "f_events")
+          w in
+      let fv,args = strip_comb f_events_term in
+      let fv = mk_freshvar (type_of fv) in
+      let newvarth = ref TRUTH in
+       (ABBREV_TAC (mk_eq (fv,list_mk_abs(args,trace))) THEN
+        POP_ASSUM (fun th ->
+          newvarth := th; stored_abbrevs := th::!stored_abbrevs; ALL_TAC) THEN
+        SUBGOAL_THEN (mk_eq (trace, list_mk_comb(fv,args))) MP_TAC THENL [
+          (fun (asl,w) -> REWRITE_TAC[GSYM !newvarth] (asl,w)) THEN NO_TAC;
+          ALL_TAC
+        ] THEN
+        DISCH_THEN SUBST_ALL_TAC)
+      (asl,w) in
+
+  (* Pick `read events .. = rhs`, show `memaccess_inbounds rhs [..] []`,
+      and abbreviate it. *)
+  RULE_ASSUM_TAC (CONV_RULE (TRY_CONV (
+    (fun t -> check is_eq t; ALL_CONV t) THENC
+    RAND_CONV CONS_TO_APPEND_CONV))) THEN
+  RULE_ASSUM_TAC (REWRITE_RULE [APPEND_ASSOC]) THEN
+  fun (asl,w) ->
+    let read_events = filter (fun (_,th) ->
+      can (term_match [] pat) (concl th)) asl in
+    match read_events with
+    | [] -> failwith "No read events"
+    | (_,read_event_th)::_ ->
+      let trace_append,trace::_::[] = strip_comb (rhs (concl read_event_th)) in
+      if name_of trace_append <> "APPEND" then failwith "unknown form" else
+      (PROVE_MEMORY_INBOUNDS_TAC trace THEN
+       CORE_ABBREV_TRACE_TAC trace)
+      (asl,w);;
+
 let PROVE_SAFETY_SPEC exec:tactic =
   W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
     let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
-    let numinsts =
+    let numinsts,f_events_expr =
       let bd = forall_body in
       let bd = if is_imp bd then snd(dest_imp bd) else bd in
       let _,rs = strip_comb bd in
       let fnstep = last rs in
-      dest_small_numeral (snd (dest_abs fnstep)) in
+      dest_small_numeral (snd (dest_abs fnstep)),
+      find_term (fun t -> is_comb t && fst (strip_comb t) = f_events)
+        (List.nth rs 2) in
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
@@ -191,23 +282,36 @@ let PROVE_SAFETY_SPEC exec:tactic =
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
     ENSURES2_INIT_TAC "s0" "s0'" THEN
-    ARM_N_STUTTER_LEFT_TAC exec (1--numinsts) None THEN
-    ARM_N_STUTTER_RIGHT_TAC exec (1--numinsts) "'" None THEN
+
+    let chunksize = 50 in
+    let stored_abbrevs = ref [] in
+    REPEAT_I (fun i ->
+      let ibegin = i * chunksize in
+      if ibegin >= numinsts then NO_TAC else
+      let iend = min numinsts (ibegin + chunksize) in
+      let _ = Printf.printf "steps %d-%d\n" (ibegin+1) iend in
+      ARM_N_STUTTER_LEFT_TAC exec ((ibegin+1)--iend) None THEN
+      ARM_N_STUTTER_RIGHT_TAC exec ((ibegin+1)--iend) "'" None THEN
+      SIMPLIFY_MAYCHANGES_TAC THEN
+      ABBREV_TRACE_TAC stored_abbrevs) THEN
+
     REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[] THEN
+    W (fun (asl,w) -> REWRITE_TAC(map GSYM !stored_abbrevs)) THEN
 
     X_META_EXISTS_TAC `e2:(armevent)list` THEN
-    CONJ_TAC THENL [MATCH_MP_TAC EQ_SYM THEN UNIFY_REFL_TAC; ALL_TAC] THEN
     CONJ_TAC THENL [
-      CONV_TAC (LAND_CONV CONS_TO_APPEND_CONV) THEN
-      AP_THM_TAC THEN AP_TERM_TAC THEN UNIFY_REFL_TAC;
+      AP_THM_TAC THEN AP_TERM_TAC THEN
+      REWRITE_TAC[APPEND] THEN UNIFY_REFL_TAC;
       ALL_TAC
     ] THEN
     CONJ_TAC THENL [ REWRITE_TAC[APPEND] THEN NO_TAC; ALL_TAC ] THEN
+    (* e2 = f_events <public info> *)
+    CONJ_TAC THENL [UNIFY_REFL_TAC; ALL_TAC] THEN
     (* memaccess_inbounds *)
-    REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
-    REPEAT CONJ_TAC THEN
-      (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE CONTAINED_TAC)));;
+    POP_ASSUM MP_TAC THEN
+    W (fun (asl,w) -> REWRITE_TAC(APPEND :: (map GSYM !stored_abbrevs))) THEN
+    NO_TAC);;
 
 let count_nsteps (subroutine_correct_term:term) exec: int =
   let n = ref 0 in
@@ -220,13 +324,13 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
     snd (dest_eq read_pc_eq) in
 
   let _ = can prove (subroutine_correct_term,
-    REWRITE_TAC[C_ARGUMENTS;ALL;NONOVERLAPPING_CLAUSES;fst exec] THEN
+    REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
     (* Do not unfold bignum_from_memory, because there should be no pointers stored in
        buffer *)
     REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
     REPEAT STRIP_TAC THEN
     ENSURES_INIT_TAC "s0" THEN
-    REPEAT (W (fun (asl,w) ->
+    REPEAT_I (fun (i:int) -> W (fun (asl,w) ->
       match List.find_opt (fun (_,th) ->
           is_eq (concl th) && is_read_pc (lhs (concl th)))
           asl with
@@ -235,7 +339,9 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
         if rhs (concl read_pc_th) = dest_pc_addr
         then (* Successful! *) NO_TAC
         else (* Proceed *)
-          let _ = n := !n + 1 in ARM_SINGLE_STEP_TAC exec ("s" ^ string_of_int !n)))
+          let _ = n := !n + 1 in
+          ARM_SINGLE_STEP_TAC exec ("s" ^ string_of_int !n) THEN
+          (if i mod 50 = 0 then SIMPLIFY_MAYCHANGES_TAC else ALL_TAC)))
     THEN
     NO_TAC) in
   if !successful then !n
