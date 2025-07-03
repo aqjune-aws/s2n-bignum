@@ -20,9 +20,9 @@ let loop_mc = define_assert_from_elf "loop_mc" "arm/tutorial/rel_loop.o" [
 ];;
 
 let loop2_mc = define_assert_from_elf "loop2_mc" "arm/tutorial/rel_loop2.o" [
-  0x91000442;       (* arm_ADD X2 X2 (rvalue (word 1)) *)
-  0x91000442;       (* arm_ADD X2 X2 (rvalue (word 1)) *)
-  0x91000400;       (* arm_ADD X0 X0 (rvalue (word 1)) *)
+  0x91000842;       (* arm_ADD X2 X2 (rvalue (word 2)) *)
+  0x91000842;       (* arm_ADD X2 X2 (rvalue (word 2)) *)
+  0x91000800;       (* arm_ADD X0 X0 (rvalue (word 2)) *)
   0xeb01001f;       (* arm_CMP X0 X1 *)
   0x54ffff81        (* arm_BNE (word 2097136) *)
 ];;
@@ -35,7 +35,7 @@ let LOOP2_EXEC = ARM_MK_EXEC_RULE loop2_mc;;
 
 let LOOP_EQUIV = prove(
   `forall pc1 pc2 n.
-    n > 0 /\ n < 2 EXP 64 ==>
+    n > 0 /\ n < 2 EXP 64 /\ n MOD 2 = 0 ==>
     // Relational hoare triple.
     ensures2 arm
       // Precondition
@@ -60,19 +60,32 @@ let LOOP_EQUIV = prove(
         (MAYCHANGE [PC;X0;X2] ,, MAYCHANGE SOME_FLAGS ,, MAYCHANGE [events]) s1 s1' /\
         (MAYCHANGE [PC;X0;X2] ,, MAYCHANGE SOME_FLAGS ,, MAYCHANGE [events]) s2 s2')
       // The number of small steps of the 'left' program and 'right' program.
-      (\s. 4 * n - 1) (\s. 5 * n - 1)`,
+      (\s. 4 * n - 1) (\s. 5 * (n DIV 2) - 1)`,
 
   REPEAT STRIP_TAC THEN REWRITE_TAC[SOME_FLAGS] THEN
   (* Look at the definition of ENSURES2_WHILE_PAUP_TAC in arm/proofs/equiv.ml
      to understand the meanings of arguments. *)
-  ENSURES2_WHILE_PAUP_TAC `0:num` `n:num` `pc1:num` `pc1+12` `pc2:num` `pc2+16`
+  (*
+    What is n?
+    n is the number of iterations of the loop in the first program
+    i is the number of current iteration in the second
+    program. (= X0 / 2)
+    In the first program, the value of X0 must be
+    either i * 2 or i * 2 + 1 (but X0 = i * 2 + 1 will not appear
+      in the loop invariant; it will temporarily appear during
+      symbolic simulation of the first program)
+    In the second program, the value of X0 must be
+    i * 2 because we are incrementing X0 by two.
+  *)
+  ENSURES2_WHILE_PAUP_TAC `0:num` `n DIV 2` `pc1:num` `pc1+12` `pc2:num` `pc2+16`
     `\(i:num) s1 s2.
-        read X0 s1 = word i /\ read X0 s2 = word i /\
+        read X0 s1 = word (i * 2) /\ read X0 s2 = word (i * 2) /\
         read X1 s1 = word n /\ read X1 s2 = word n /\
         (?k. read X2 s1 = k /\ read X2 s2 = k)`
-    `\(i:num) s. read ZF s <=> (word i:int64) = word n`
-    `\(i:num) s. read ZF s <=> (word i:int64) = word n`
-    `\(i:num). 3`
+    `\(i:num) s. read ZF s <=> (word (i * 2):int64) = word n`
+    `\(i:num) s. read ZF s <=> (word (i * 2):int64) = word n`
+    (* 3 (loop body) + 1 (backedge) + 3 (loop body again) *)
+    `\(i:num). 7`
     `\(i:num). 4`
     `0` `0` `0` `0` `1` `1` THEN
   REPEAT CONJ_TAC THENL [
@@ -82,6 +95,7 @@ let LOOP_EQUIV = prove(
     (* pre *)
     MATCH_MP_TAC ENSURES2_TRIVIAL THEN
     REWRITE_TAC[FORALL_PAIR_THM] THEN
+    REWRITE_TAC[ARITH] (* simplifies 0 * 2 = 0 *) THEN
     REPEAT GEN_TAC THEN
     MONOTONE_MAYCHANGE_CONJ_TAC;
 
@@ -95,7 +109,20 @@ let LOOP_EQUIV = prove(
     REWRITE_TAC[GSYM CONJ_ASSOC] THEN
 
     (* Symbolically execute the left program only. *)
-    ARM_N_STUTTER_LEFT_TAC LOOP_EXEC (1--3) None THEN
+    ARM_N_STUTTER_LEFT_TAC LOOP_EXEC (1--4) None THEN
+    RULE_ASSUM_TAC (REWRITE_RULE[VAL_WORD_SUB_EQ_0]) THEN
+    SUBGOAL_THEN
+      `~(val (word_add (word (i * 2)) (word 1):int64)
+        = val (word n:int64))` MP_TAC THENL [
+      (* Prove from the fact that n is even *)
+      REWRITE_TAC[VAL_WORD_ADD;VAL_WORD;DIMINDEX_64] THEN
+      CONV_TAC MOD_DOWN_CONV THEN
+      IMP_REWRITE_TAC[MOD_LT] THEN SIMPLE_ARITH_TAC;
+
+      ALL_TAC
+    ] THEN
+    DISCH_THEN (fun th -> RULE_ASSUM_TAC (REWRITE_RULE[th])) THEN
+    ARM_N_STUTTER_LEFT_TAC LOOP_EXEC (5--7) None THEN
     (* Symbolically execute the right program only. *)
     ARM_N_STUTTER_RIGHT_TAC LOOP2_EXEC (1--4) "'" None THEN
     (* Let's prove the postcondition. *)
@@ -103,6 +130,12 @@ let LOOP_EQUIV = prove(
     ASM_REWRITE_TAC[WORD_ADD] THEN
 
     CONJ_TAC THENL [
+      CONJ_TAC THENL [
+        CONV_TAC WORD_RULE;
+        ALL_TAC ] THEN
+      CONJ_TAC THENL [
+        CONV_TAC WORD_RULE;
+        ALL_TAC ] THEN
       CONJ_TAC THENL [
         META_EXISTS_TAC THEN UNIFY_REFL_TAC;
         REWRITE_TAC[VAL_EQ_0] THEN CONV_TAC WORD_RULE;
@@ -123,7 +156,7 @@ let LOOP_EQUIV = prove(
     REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[WORD_ADD] THEN
 
-    SUBGOAL_THEN `(word i:int64 = word n) <=> F` SUBST_ALL_TAC THENL [
+    SUBGOAL_THEN `(word (i*2):int64 = word n) <=> F` SUBST_ALL_TAC THENL [
       REWRITE_TAC[WORD_EQ;CONG;DIMINDEX_64] THEN
       IMP_REWRITE_TAC[MOD_LT] THEN ASM_ARITH_TAC;
 
