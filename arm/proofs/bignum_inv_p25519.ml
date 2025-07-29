@@ -3344,8 +3344,9 @@ needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
 
-let numsteps = count_nsteps (concl BIGNUM_INV_P25519_SUBROUTINE_CORRECT)
-    BIGNUM_INV_P25519_EXEC;;
+let numsteps = 8660;;
+  (* count_nsteps (concl BIGNUM_INV_P25519_SUBROUTINE_CORRECT)
+    BIGNUM_INV_P25519_EXEC;; *)
 
 let full_spec = mk_safety_spec
     ~numinstsopt:numsteps

@@ -49,13 +49,16 @@ let find_stack_access_size (subroutine_correct_term:term): int option =
     Some (dest_small_numeral (snd (dest_comb sz)))
   with _ -> None;;
 
-let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memtemps)
+let mk_safety_spec
+    ?(numinstsopt:int option)
+    ?(coda_pc_range:(int*int) option) (* when coda is used: (begin, len) *)
+    (fnargs,_,meminputs,memoutputs,memtemps)
     (subroutine_correct_th:thm) exec =
 
-  let fnspec = concl subroutine_correct_th in
+  let fnspec:term = concl subroutine_correct_th in
   let fnspec_quants,t = strip_forall fnspec in
   assert (name_of (last fnspec_quants) = "returnaddress");
-  let fnspec_globalasms,fnspec_ensures =
+  let (fnspec_globalasms:term),(fnspec_ensures:term) =
       if is_imp t then dest_imp t else `true`,t in
 
   let c_args = find_term
@@ -84,13 +87,14 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
 
   (* rename C variable names in meminputs, memoutputs and memtemps
      to the HOL Light vars in specs *)
-  let meminputs_hol, memoutputs_hol, memtemps_hol =
+  let (meminputs_hol:(string * string)list), memoutputs_hol, memtemps_hol =
     map (fun x,y -> c_var_to_hol x, y) meminputs,
     map (fun x,y -> c_var_to_hol x, y) memoutputs,
     map (fun x,y -> c_var_to_hol x, y) memtemps in
-  let fnargs_hol = map (fun x,y,z -> c_var_to_hol x, y, z) fnargs in
+  let fnargs_hol : (string*string*string) list = map
+    (fun x,y,z -> c_var_to_hol x, y, z) fnargs in
 
-  let get_c_elemtysize varname_hol =
+  let get_c_elemtysize (varname_hol:string): int =
     let _,s,_ = try
         find (fun name,_,_ -> name = varname_hol) fnargs_hol
       with _ ->
@@ -100,8 +104,8 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
     else if String.starts_with ~prefix:"int16_t" s then 2
     else failwith "c_elemtysize" in
 
-  (* memreads/writes without stackpointer *)
-  let memreads = map (fun (varname,range) ->
+  (* memreads/writes without stackpointer and pc. *)
+  let memreads:(term*term)list = map (fun (varname,range) ->
       find (fun t -> name_of t = varname) fnspec_quants,
       mk_small_numeral(int_of_string range *
                        get_c_elemtysize varname))
@@ -126,11 +130,19 @@ let mk_safety_spec ?(numinstsopt:int option) (fnargs,_,meminputs,memoutputs,memt
   let f_events = mk_var("f_events",
     itlist mk_fun_ty (map type_of f_events_args) `:(armevent)list`) in
 
+  (* memreads,memwrites with stackpointer as well as pc :) *)
   let memreads,memwrites =
     match stack_access_size with
     | None -> memreads,memwrites
     | Some sz ->
       let baseptr = subst [mk_small_numeral sz,`n:num`] `word_sub stackpointer (word n):int64` in
+      (memreads @ [baseptr,mk_small_numeral sz],
+       memwrites @ [baseptr,mk_small_numeral sz]) in
+  let memreads,memwrites =
+    match coda_pc_range with
+    | None -> memreads,memwrites
+    | Some (pos,sz) ->
+      let baseptr = subst [mk_small_numeral pos,`n:num`] `word_add (word pc) (word n):int64` in
       (memreads @ [baseptr,mk_small_numeral sz],
        memwrites @ [baseptr,mk_small_numeral sz]) in
 
@@ -277,6 +289,7 @@ let PROVE_SAFETY_SPEC exec:tactic =
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
+    REWRITE_TAC[ALIGNED_BYTES_LOADED_APPEND_CLAUSE] THEN
     REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
     TRY DISCH_TAC THEN
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
@@ -293,7 +306,7 @@ let PROVE_SAFETY_SPEC exec:tactic =
       ARM_N_STUTTER_LEFT_TAC exec ((ibegin+1)--iend) None THEN
       ARM_N_STUTTER_RIGHT_TAC exec ((ibegin+1)--iend) "'" None THEN
       SIMPLIFY_MAYCHANGES_TAC THEN
-      ABBREV_TRACE_TAC stored_abbrevs) THEN
+      ABBREV_TRACE_TAC stored_abbrevs THEN CLARIFY_TAC) THEN
 
     REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[] THEN
@@ -325,6 +338,12 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
 
   let _ = can prove (subroutine_correct_term,
     REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
+    (* When the code+data is loaded.
+       Q: ALIGNED_BYTES_LOADED_APPEND_CLAUSE enforces that two clauses
+       'aligned_bytes_loaded ..' and 'read PC = ...' are adjacent. How can we
+       support matching a slightly more general form where there can be
+       arbitrary clauses between 'aligned_bytes_loaded ..' and 'read PC = ...'? *)
+    REWRITE_TAC[ALIGNED_BYTES_LOADED_APPEND_CLAUSE] THEN
     (* Do not unfold bignum_from_memory, because there should be no pointers stored in
        buffer *)
     REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
@@ -344,5 +363,7 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
           (if i mod 50 = 0 then SIMPLIFY_MAYCHANGES_TAC else ALL_TAC)))
     THEN
     NO_TAC) in
-  if !successful then !n
+  if !successful then
+   (Printf.printf "count_nsteps: %d\n" !n;
+    !n)
   else failwith "has a conditional branch depending on input";;
