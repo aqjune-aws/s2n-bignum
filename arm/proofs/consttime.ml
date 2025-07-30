@@ -49,11 +49,12 @@ let find_stack_access_size (subroutine_correct_term:term): int option =
     Some (dest_small_numeral (snd (dest_comb sz)))
   with _ -> None;;
 
+
+(* Create a safety spec. This returns a safety spec using ensures. *)
 let mk_safety_spec
-    ?(numinstsopt:int option)
     ?(coda_pc_range:(int*int) option) (* when coda is used: (begin, len) *)
     (fnargs,_,meminputs,memoutputs,memtemps)
-    (subroutine_correct_th:thm) exec =
+    (subroutine_correct_th:thm) exec: term =
 
   let fnspec:term = concl subroutine_correct_th in
   let fnspec_quants,t = strip_forall fnspec in
@@ -117,9 +118,6 @@ let mk_safety_spec
 
   let usedvars = itlist (fun (t,_) l ->
     let vars = find_terms is_var t in union vars l) (memreads @ memwrites) [] in
-  let numinsts = match numinstsopt with
-    | Some n -> n
-    | None -> Array.length (snd exec) / 4 in
 
   let f_events_args = usedvars @
     (match stack_access_size with
@@ -146,49 +144,39 @@ let mk_safety_spec
       (memreads @ [baseptr,mk_small_numeral sz],
        memwrites @ [baseptr,mk_small_numeral sz]) in
 
-  let s1,s2 = mk_var("s1",`:armstate`),mk_var("s2",`:armstate`) in
-  let precond = mk_gabs(mk_pair(s1,s2),
+  let s = mk_var("s",`:armstate`) in
+  let precond = mk_gabs(s,
     list_mk_conj ([
-      vsubst [s1,`s:armstate`] aligned_bytes_term;
-      `read PC s1 = word pc`;
-      vsubst [s2,`s:armstate`] aligned_bytes_term;
-      `read PC s2 = word pc`;
-      `read X30 s1 = returnaddress`;
-      `read X30 s2 = returnaddress`;
+      vsubst [s,`s:armstate`] aligned_bytes_term;
+      `read PC s = word pc`;
+      `read X30 s = returnaddress`;
     ] @
     (match readsp with
      | None -> []
      | Some t -> [
-        vsubst [s1,`s:armstate`] t;
-        vsubst [s2,`s:armstate`] t;
+        vsubst [s,`s:armstate`] t;
      ]) @
-    [ mk_comb (c_args, s1);
-      mk_comb (c_args, s2);
-      `read events s1 = e`;
-      `read events s2 = e`;
+    [ mk_comb (c_args, s);
+      `read events s = e`;
     ])) in
 
-  let postcond = mk_gabs(mk_pair(s1,s2),
+  let postcond = mk_gabs(s,
     let mr = mk_list (map mk_pair memreads,`:int64#num`) in
     let mw = mk_list (map mk_pair memwrites,`:int64#num`) in
     let e2 = mk_var("e2",`:(armevent)list`) in
     mk_exists(e2,
       list_mk_conj [
-        `read PC s1 = returnaddress`;
-        `read PC s2 = returnaddress`;
-        `read events s1 = APPEND e2 e`;
-        `read events s2 = APPEND e2 e`;
+        `read PC s = returnaddress`;
+        `read events s = APPEND e2 e`;
         mk_eq(e2, list_mk_comb (f_events,f_events_args));
         mk_comb(mk_comb(mk_comb (`memaccess_inbounds`,e2),mr),mw)
       ])) in
 
   mk_exists(f_events,
     list_mk_forall(fnspec_quants,
-      let body = list_mk_icomb "ensures2"
+      let body = list_mk_icomb "ensures"
           [`arm`;precond;postcond;
-          `\(s:armstate#armstate) (s':armstate#armstate). true`;
-          mk_abs(`s:armstate`,mk_small_numeral(numinsts));
-          mk_abs(`s:armstate`,mk_small_numeral(numinsts))
+          `\(s:armstate) (s':armstate). true`
           ] in
       if fnspec_globalasms = `true` then body
       else mk_imp(fnspec_globalasms,body)
@@ -274,18 +262,16 @@ let ABBREV_TRACE_TAC (stored_abbrevs:thm list ref)=
        CORE_ABBREV_TRACE_TAC trace)
       (asl,w);;
 
-let PROVE_SAFETY_SPEC exec:tactic =
+let PROVE_SAFETY_SPEC (numinsts:int) exec:tactic =
   W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
     let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
-    let numinsts,f_events_expr =
+    (*let f_events_expr =
       let bd = forall_body in
       let bd = if is_imp bd then snd(dest_imp bd) else bd in
       let _,rs = strip_comb bd in
-      let fnstep = last rs in
-      dest_small_numeral (snd (dest_abs fnstep)),
       find_term (fun t -> is_comb t && fst (strip_comb t) = f_events)
-        (List.nth rs 2) in
+        (List.nth rs 2) in*)
 
     X_META_EXISTS_TAC f_events THEN
     REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;NONOVERLAPPING_CLAUSES;fst exec] THEN
@@ -294,7 +280,7 @@ let PROVE_SAFETY_SPEC exec:tactic =
     TRY DISCH_TAC THEN
     REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
 
-    ENSURES2_INIT_TAC "s0" "s0'" THEN
+    ENSURES_INIT_TAC "s0" THEN
 
     let chunksize = 50 in
     let stored_abbrevs = ref [] in
@@ -303,12 +289,11 @@ let PROVE_SAFETY_SPEC exec:tactic =
       if ibegin >= numinsts then NO_TAC else
       let iend = min numinsts (ibegin + chunksize) in
       let _ = Printf.printf "steps %d-%d\n" (ibegin+1) iend in
-      ARM_N_STUTTER_LEFT_TAC exec ((ibegin+1)--iend) None THEN
-      ARM_N_STUTTER_RIGHT_TAC exec ((ibegin+1)--iend) "'" None THEN
+      ARM_STEPS_TAC exec ((ibegin+1)--iend) THEN
       SIMPLIFY_MAYCHANGES_TAC THEN
       ABBREV_TRACE_TAC stored_abbrevs THEN CLARIFY_TAC) THEN
 
-    REPEAT_N 2 ENSURES_N_FINAL_STATE_TAC THEN
+    ENSURES_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[] THEN
     W (fun (asl,w) -> REWRITE_TAC(map GSYM !stored_abbrevs)) THEN
 
@@ -318,7 +303,6 @@ let PROVE_SAFETY_SPEC exec:tactic =
       REWRITE_TAC[APPEND] THEN UNIFY_REFL_TAC;
       ALL_TAC
     ] THEN
-    CONJ_TAC THENL [ REWRITE_TAC[APPEND] THEN NO_TAC; ALL_TAC ] THEN
     (* e2 = f_events <public info> *)
     CONJ_TAC THENL [UNIFY_REFL_TAC; ALL_TAC] THEN
     (* memaccess_inbounds *)
