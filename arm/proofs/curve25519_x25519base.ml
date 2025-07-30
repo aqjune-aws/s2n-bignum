@@ -7934,12 +7934,23 @@ let CURVE25519_X25519BASE_SUBROUTINE_CORRECT = time prove
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
+let numsteps = 105186;;
+    (*count_nsteps (concl CURVE25519_X25519BASE_SUBROUTINE_CORRECT)
+    CURVE25519_X25519BASE_EXEC;;*)
 
-let numsteps = count_nsteps (concl CURVE25519_X25519BASE_SUBROUTINE_CORRECT)
-    CURVE25519_X25519BASE_EXEC;;
+let code_len =
+    dest_small_numeral(rhs(
+      concl(LENGTH_CONV(rhs(concl(AP_TERM `LENGTH:((8)word)list->num`
+        curve25519_x25519base_mc))))));;
+let data_len =
+    dest_small_numeral(rhs(
+      concl(LENGTH_CONV(rhs(concl(AP_TERM `LENGTH:((8)word)list->num`
+        curve25519_x25519base_data))))));;
+
 
 let full_spec = mk_safety_spec
     ~numinstsopt:numsteps
+    ~coda_pc_range:(code_len,data_len)
     (assoc "curve25519_x25519base" subroutine_signatures)
     CURVE25519_X25519BASE_SUBROUTINE_CORRECT
     CURVE25519_X25519BASE_EXEC;;

@@ -6829,11 +6829,23 @@ needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
 
-let numsteps = count_nsteps (concl EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_CORRECT)
-    EDWARDS25519_SCALARMULBASE_ALT_EXEC;;
+let numsteps = 70823;;
+  (*count_nsteps (concl EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_CORRECT)
+    EDWARDS25519_SCALARMULBASE_ALT_EXEC;;*)
+
+let code_len =
+    dest_small_numeral(rhs(
+      concl(LENGTH_CONV(rhs(concl(AP_TERM `LENGTH:((8)word)list->num`
+        edwards25519_scalarmulbase_alt_mc))))));;
+let data_len =
+    dest_small_numeral(rhs(
+      concl(LENGTH_CONV(rhs(concl(AP_TERM `LENGTH:((8)word)list->num`
+        edwards25519_scalarmulbase_alt_data))))));;
+
 
 let full_spec = mk_safety_spec
     ~numinstsopt:numsteps
+    ~coda_pc_range:(code_len,data_len)
     (assoc "edwards25519_scalarmulbase_alt" subroutine_signatures)
     EDWARDS25519_SCALARMULBASE_ALT_SUBROUTINE_CORRECT
     EDWARDS25519_SCALARMULBASE_ALT_EXEC;;
