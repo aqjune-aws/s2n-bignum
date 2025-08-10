@@ -3,9 +3,10 @@
 # (1) Collects function signatures from s2n-bignum.h
 # (2) Collects function signatures from the header comment in assembly files,
 # (3) Compares whether (1) and (2) are consistent, and
-# (4) Prints the function input and outputs as an OCaml list.
+# (4) Prints the buffers of function input/output/temporary as an OCaml list.
 
 # Usage: python3 tools/collect-signatures.py
+# Output file: {arm,x86 (both)}/proofs/subroutine_signatures.ml
 # Please run this script from the root directory of s2n-bignum.
 
 import os
@@ -35,9 +36,9 @@ class FnDecl:
 
 class FnMemInputOutput:
   def __init__(self,
-      meminputs:list[tuple[str,str]], # (arg name, buffer length) list
-      memoutputs:list[tuple[str,str]], # (arg name, buffer length) list
-      temporaries:list[tuple[str,str]], # (arg name, buffer length) list
+      meminputs:list[tuple[str,str]], # (arg name, elem count (can be symbolic)) list
+      memoutputs:list[tuple[str,str]], # (arg name, elem count (can be symbolic)) list
+      temporaries:list[tuple[str,str]], # (arg name, elem count (can be symbolic)) list
   ):
     self.meminputs = meminputs
     self.memoutputs = memoutputs
@@ -93,6 +94,7 @@ def parseFnDecl(s:str, filename:str) -> FnDecl:
   return FnDecl(name, args, return_ty)
 
 def getMemInoutFromComment(s:str) -> FnMemInputOutput:
+  # Return (array name, byte length)
   def parseArr(s:str):
     # s is something like 'x[n]'
     s = s.strip()
@@ -296,6 +298,7 @@ onlyInArm = [
   "curve25519_x25519_byte",
   "curve25519_x25519_byte_alt",
   "mlkem_",
+  "sha3_",
 ]
 onlyInX86 = [
   "bignum_cmul_p25519_alt",
@@ -340,20 +343,24 @@ for fnname in fnsigsAndInouts:
   fnsigFromHeader,_ = fnsigsAndInouts[fnname]
 
   if not checkOnlyInArch(fnname, onlyInX86):
-    assert fnname in fnsigsFromAsm["arm"], fnname
+    assert fnname in fnsigsFromAsm["arm"], \
+      f"Could not find function {fnname} from arm! Should it be added to onlyInX86 array?"
     if fnsigFromHeader != fnsigsFromAsm["arm"][fnname]:
-      print("Function signature mismatch! s2n-bignum.h:")
+      print(f"Function signature mismatch! function: {fnname}, arch: arm")
+      print("s2n-bignum.h:")
       fnsigFromHeader.print()
-      print("assembly:")
+      print("assembly comment:")
       fnsigsFromAsm["arm"][fnname].print()
       assert fnsigFromHeader == fnsigsFromAsm["arm"][fnname], f"{fnname}"
 
   if not checkOnlyInArch(fnname, onlyInArm):
-    assert fnname in fnsigsFromAsm["x86"], fnname
+    assert fnname in fnsigsFromAsm["x86"], \
+      f"Could not find function {fnname} from x86! Should it be added to onlyInArm array?"
     if fnsigFromHeader != fnsigsFromAsm["x86"][fnname]:
-      print("Function signature mismatch! s2n-bignum.h:")
+      print("Function signature mismatch! function: {fnname}, arch: arm")
+      print("s2n-bignum.h:")
       fnsigFromHeader.print()
-      print("assembly:")
+      print("assembly comment:")
       fnsigsFromAsm["x86"][fnname].print()
       assert fnsigFromHeader == fnsigsFromAsm["x86"][fnname], f"{fnname}"
 
@@ -362,6 +369,8 @@ for archname in ["arm","x86"]:
   f.write("let subroutine_signatures = [\n")
   fnnames = sorted(list(fnsigsFromAsm[archname].keys()))
   for fnname in fnnames:
+    print(f"Printing inpput/output of {fnname}..")
+
     fnsig = fnsigsFromAsm[archname][fnname]
     _, meminout = fnsigsAndInouts[fnname]
     f.write(f'("{fnsig.fnname}",\n')
@@ -373,22 +382,36 @@ for archname in ["arm","x86"]:
     f.write(f'   ],\n')
     f.write(f'   "{fnsig.return_ty}",\n')
 
+    # Before printing input and output buffers, collect elem bytesize of buffers
+    arg_elem_bytesizes = dict()
+    isPtrOrArray = lambda fullty, elemty: fullty.startswith(elemty + "[") or fullty.startswith(elemty + "*")
+    for argname, argtype, _ in fnsig.args:
+      if isPtrOrArray(argtype, "int64_t") or isPtrOrArray(argtype, "uint64_t"):
+        arg_elem_bytesizes[argname] = 8
+      elif isPtrOrArray(argtype, "int32_t") or isPtrOrArray(argtype, "uint32_t"):
+        arg_elem_bytesizes[argname] = 4
+      elif isPtrOrArray(argtype, "int16_t") or isPtrOrArray(argtype, "uint16_t"):
+        arg_elem_bytesizes[argname] = 2
+      elif isPtrOrArray(argtype, "int8_t") or isPtrOrArray(argtype, "uint8_t"):
+        arg_elem_bytesizes[argname] = 1
+      elif "[" not in argtype and "*" not in argtype:
+        continue
+      else:
+        assert False, f"Unknown type: {argtype}!"
+
     # input and output buffers
-    f.write(f'   (* input buffers *)\n')
-    f.write(f'   [')
+    f.write(f'   [(* input buffers *)\n')
     for argname, bufferlen in meminout.meminputs:
-      f.write(f'("{argname}", "{bufferlen}"); ')
-    f.write(f'],\n')
-    f.write(f'   (* output buffers *)\n')
-    f.write(f'   [')
+      f.write(f'    ("{argname}", "{bufferlen}"(* num elems *), {arg_elem_bytesizes[argname]}(* elem bytesize *));\n')
+    f.write(f'   ],\n')
+    f.write(f'   [(* output buffers *)\n')
     for argname, bufferlen in meminout.memoutputs:
-      f.write(f'("{argname}", "{bufferlen}"); ')
-    f.write(f'],\n')
-    f.write(f'   (* temporary buffers *)\n')
-    f.write(f'   [')
+      f.write(f'    ("{argname}", "{bufferlen}"(* num elems *), {arg_elem_bytesizes[argname]}(* elem bytesize *));\n')
+    f.write(f'   ],\n')
+    f.write(f'   [(* temporary buffers *)\n')
     for argname, bufferlen in meminout.temporaries:
-      f.write(f'("{argname}", "{bufferlen}"); ')
-    f.write(f'])\n')
+      f.write(f'    ("{argname}", "{bufferlen}"(* num elems *), {arg_elem_bytesizes[argname]}(* elem bytesize *));\n')
+    f.write(f'   ])\n')
 
     f.write(");\n\n")
   f.write("];;")
