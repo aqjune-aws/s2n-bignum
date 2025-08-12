@@ -88,32 +88,24 @@ let mk_safety_spec
 
   (* rename C variable names in meminputs, memoutputs and memtemps
      to the HOL Light vars in specs *)
-  let (meminputs_hol:(string * string)list), memoutputs_hol, memtemps_hol =
-    map (fun x,y -> c_var_to_hol x, y) meminputs,
-    map (fun x,y -> c_var_to_hol x, y) memoutputs,
-    map (fun x,y -> c_var_to_hol x, y) memtemps in
+  let (meminputs_hol:(string * string * int)list),
+       memoutputs_hol, memtemps_hol =
+    map (fun x,y,bsz -> c_var_to_hol x, y, bsz) meminputs,
+    map (fun x,y,bsz -> c_var_to_hol x, y, bsz) memoutputs,
+    map (fun x,y,bsz -> c_var_to_hol x, y, bsz) memtemps in
   let fnargs_hol : (string*string*string) list = map
     (fun x,y,z -> c_var_to_hol x, y, z) fnargs in
 
-  let get_c_elemtysize (varname_hol:string): int =
-    let _,s,_ = try
-        find (fun name,_,_ -> name = varname_hol) fnargs_hol
-      with _ ->
-        failwith ("get_c_elemtysize: cannot find hol var " ^ varname_hol) in
-    if String.starts_with ~prefix:"uint64_t" s then 8
-    else if String.starts_with ~prefix:"uint8_t" s then 1
-    else if String.starts_with ~prefix:"int16_t" s then 2
-    else failwith "c_elemtysize" in
-
   (* memreads/writes without stackpointer and pc. *)
-  let memreads:(term*term)list = map (fun (varname,range) ->
-      find (fun t -> name_of t = varname) fnspec_quants,
-      mk_small_numeral(int_of_string range *
-                       get_c_elemtysize varname))
+  let memreads:(term*term)list = map
+      (fun (varname,range,elemty_size) ->
+        find (fun t -> name_of t = varname) fnspec_quants,
+        mk_small_numeral(int_of_string range * elemty_size))
     (meminputs_hol @ memoutputs_hol @ memtemps_hol) in
-  let memwrites = map (fun (varname,range) ->
-      find (fun t -> name_of t = varname) fnspec_quants,
-      mk_small_numeral(int_of_string range * get_c_elemtysize varname))
+  let memwrites = map (fun
+      (varname,range,elemty_size) ->
+        find (fun t -> name_of t = varname) fnspec_quants,
+        mk_small_numeral(int_of_string range * elemty_size))
     (memoutputs_hol @ memtemps_hol) in
 
   let usedvars = itlist (fun (t,_) l ->
@@ -262,10 +254,19 @@ let ABBREV_TRACE_TAC (stored_abbrevs:thm list ref)=
        CORE_ABBREV_TRACE_TAC trace)
       (asl,w);;
 
-let PROVE_SAFETY_SPEC (numinsts:int) exec:tactic =
+let PROVE_SAFETY_SPEC exec:tactic =
   W (fun (asl,w) ->
     let f_events = fst (dest_exists w) in
     let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
+
+    (* The destination PC *)
+    let dest_pc_addr =
+      let triple = if is_imp forall_body
+        then snd (dest_imp forall_body) else forall_body in
+      let _,(sem::pre::post::frame::[]) = strip_comb triple in
+      let read_pc_eq = find_term (fun t -> is_eq t && is_read_pc (lhs t)) post in
+      snd (dest_eq read_pc_eq) in
+
     (*let f_events_expr =
       let bd = forall_body in
       let bd = if is_imp bd then snd(dest_imp bd) else bd in
@@ -284,14 +285,33 @@ let PROVE_SAFETY_SPEC (numinsts:int) exec:tactic =
 
     let chunksize = 50 in
     let stored_abbrevs = ref [] in
-    REPEAT_I (fun i ->
-      let ibegin = i * chunksize in
-      if ibegin >= numinsts then NO_TAC else
-      let iend = min numinsts (ibegin + chunksize) in
-      let _ = Printf.printf "steps %d-%d\n" (ibegin+1) iend in
-      ARM_STEPS_TAC exec ((ibegin+1)--iend) THEN
+    let i = ref 0 in
+    let successful = ref true and finished = ref false in
+    REPEAT (W (fun (asl,w) ->
+      if !finished then NO_TAC else
+
+      REPEAT_N chunksize (W (fun (asl,w) ->
+        (* find 'read PC ... = ..' and check it reached at dest_pc_addr *)
+        match List.find_opt (fun (_,th) ->
+            is_eq (concl th) && is_read_pc (lhs (concl th)))
+            asl with
+        | None ->
+          successful := false; finished := true; ALL_TAC
+        | Some (_,read_pc_th) ->
+          if rhs (concl read_pc_th) = dest_pc_addr
+          then (* Successful! *) (finished := true; ALL_TAC)
+          else (* Proceed *)
+            let _ = i := !i + 1 in
+            ARM_SINGLE_STEP_TAC exec ("s" ^ string_of_int !i)))
+      THEN
+
       SIMPLIFY_MAYCHANGES_TAC THEN
-      ABBREV_TRACE_TAC stored_abbrevs THEN CLARIFY_TAC) THEN
+      ABBREV_TRACE_TAC stored_abbrevs THEN CLARIFY_TAC)) THEN
+
+    W (fun (asl,w) ->
+      if not !successful
+      then FAIL_TAC ("could not reach to the destination pc (" ^ (string_of_term dest_pc_addr) ^ ")")
+      else ALL_TAC) THEN
 
     ENSURES_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[] THEN
@@ -310,6 +330,7 @@ let PROVE_SAFETY_SPEC (numinsts:int) exec:tactic =
     W (fun (asl,w) -> REWRITE_TAC(APPEND :: (map GSYM !stored_abbrevs))) THEN
     NO_TAC);;
 
+(*
 let count_nsteps (subroutine_correct_term:term) exec: int =
   let n = ref 0 in
   let successful = ref true in
@@ -351,3 +372,4 @@ let count_nsteps (subroutine_correct_term:term) exec: int =
    (Printf.printf "count_nsteps: %d\n" !n;
     !n)
   else failwith "has a conditional branch depending on input";;
+*)
