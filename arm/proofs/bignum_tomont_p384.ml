@@ -516,18 +516,13 @@ let BIGNUM_TOMONT_P384_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_TOMONT_P384_SUBROUTINE_CORRECT)
-    BIGNUM_TOMONT_P384_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_tomont_p384" subroutine_signatures)
     BIGNUM_TOMONT_P384_SUBROUTINE_CORRECT
     BIGNUM_TOMONT_P384_EXEC;;

@@ -1873,7 +1873,6 @@ let BIGNUM_AMONTMUL_P256_SUBROUTINE_CORRECT = time prove
     BIGNUM_AMONTMUL_P256_CORRECT));;
 
 
-
 (* ------------------------------------------------------------------------- *)
 (* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)

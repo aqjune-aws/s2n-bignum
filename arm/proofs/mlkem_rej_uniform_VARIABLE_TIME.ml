@@ -1656,3 +1656,20 @@ let MLKEM_REJ_UNIFORM_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC MLKEM_REJ_UNIFORM_EXEC
    (CONV_RULE TWEAK_CONV MLKEM_REJ_UNIFORM_CORRECT)
     `[]:int64 list` 576);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_rej_uniform_VARIABLE_TIME" subroutine_signatures)
+    MLKEM_REJ_UNIFORM_VARIABLE_TIME_SUBROUTINE_CORRECT
+    MLKEM_REJ_UNIFORM_VARIABLE_TIME_EXEC;;
+
+let MLKEM_REJ_UNIFORM_VARIABLE_TIME_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_REJ_UNIFORM_VARIABLE_TIME_EXEC);;

@@ -8113,30 +8113,13 @@ let CURVE25519_X25519BASE_BYTE_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = 105306;;
-  (*count_nsteps (concl CURVE25519_X25519BASE_BYTE_SUBROUTINE_CORRECT)
-    CURVE25519_X25519BASE_BYTE_EXEC;;*)
-
-let code_len =
-    dest_small_numeral(rhs(
-      concl(LENGTH_CONV(rhs(concl(AP_TERM `LENGTH:((8)word)list->num`
-        curve25519_x25519base_byte_mc))))));;
-let data_len =
-    dest_small_numeral(rhs(
-      concl(LENGTH_CONV(rhs(concl(AP_TERM `LENGTH:((8)word)list->num`
-        curve25519_x25519base_byte_data))))));;
-
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
-    ~coda_pc_range:(code_len,data_len)
     (assoc "curve25519_x25519base_byte" subroutine_signatures)
     CURVE25519_X25519BASE_BYTE_SUBROUTINE_CORRECT
     CURVE25519_X25519BASE_BYTE_EXEC;;

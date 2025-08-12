@@ -65,18 +65,13 @@ let BIGNUM_ODD_SUBROUTINE_CORRECT = prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_ODD_SUBROUTINE_CORRECT)
-    BIGNUM_ODD_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_odd" subroutine_signatures)
     BIGNUM_ODD_SUBROUTINE_CORRECT
     BIGNUM_ODD_EXEC;;

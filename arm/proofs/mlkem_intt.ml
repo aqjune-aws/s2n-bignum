@@ -604,3 +604,20 @@ let MLKEM_INTT_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC ~pre_post_nsteps:(5,5) MLKEM_INTT_EXEC
    (REWRITE_RULE[fst MLKEM_INTT_EXEC] (CONV_RULE TWEAK_CONV MLKEM_INTT_CORRECT))
     `[D8; D9; D10; D11; D12; D13; D14; D15]` 64);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_intt" subroutine_signatures)
+    MLKEM_INTT_SUBROUTINE_CORRECT
+    MLKEM_INTT_EXEC;;
+
+let MLKEM_INTT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_INTT_EXEC);;

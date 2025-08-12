@@ -3161,18 +3161,13 @@ let BIGNUM_MONTINV_P256_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_MONTINV_P256_SUBROUTINE_CORRECT)
-    BIGNUM_MONTINV_P256_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_montinv_p256" subroutine_signatures)
     BIGNUM_MONTINV_P256_SUBROUTINE_CORRECT
     BIGNUM_MONTINV_P256_EXEC;;

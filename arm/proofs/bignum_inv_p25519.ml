@@ -3337,19 +3337,13 @@ let BIGNUM_INV_P25519_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = 8660;;
-  (* count_nsteps (concl BIGNUM_INV_P25519_SUBROUTINE_CORRECT)
-    BIGNUM_INV_P25519_EXEC;; *)
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_inv_p25519" subroutine_signatures)
     BIGNUM_INV_P25519_SUBROUTINE_CORRECT
     BIGNUM_INV_P25519_EXEC;;

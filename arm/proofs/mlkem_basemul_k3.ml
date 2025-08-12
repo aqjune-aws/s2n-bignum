@@ -476,3 +476,20 @@ let MLKEM_BASEMUL_K3_SUBROUTINE_CORRECT = prove
       (REWRITE_RULE[fst MLKEM_BASEMUL_K3_EXEC] MLKEM_BASEMUL_K3_CORRECT)
        `[D8; D9; D10; D11; D12; D13; D14; D15]` 64  THEN
     WORD_ARITH_TAC);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_basemul_k3" subroutine_signatures)
+    MLKEM_BASEMUL_K3_SUBROUTINE_CORRECT
+    MLKEM_BASEMUL_K3_EXEC;;
+
+let MLKEM_BASEMUL_K3_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_BASEMUL_K3_EXEC);;

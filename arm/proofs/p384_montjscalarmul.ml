@@ -11794,18 +11794,13 @@ let P384_MONTJSCALARMUL_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl P384_MONTJSCALARMUL_SUBROUTINE_CORRECT)
-    P384_MONTJSCALARMUL_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "p384_montjscalarmul" subroutine_signatures)
     P384_MONTJSCALARMUL_SUBROUTINE_CORRECT
     P384_MONTJSCALARMUL_EXEC;;

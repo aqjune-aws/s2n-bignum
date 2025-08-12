@@ -7484,18 +7484,13 @@ let P256_SCALARMUL_ALT_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl P256_SCALARMUL_ALT_SUBROUTINE_CORRECT)
-    P256_SCALARMUL_ALT_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "p256_scalarmul_alt" subroutine_signatures)
     P256_SCALARMUL_ALT_SUBROUTINE_CORRECT
     P256_SCALARMUL_ALT_EXEC;;

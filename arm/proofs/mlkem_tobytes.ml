@@ -212,3 +212,20 @@ let MLKEM_TOBYTES_SUBROUTINE_CORRECT = prove
               MAYCHANGE [memory :> bytes(r,384)])`,
   ARM_ADD_RETURN_NOSTACK_TAC MLKEM_TOBYTES_EXEC
    MLKEM_TOBYTES_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_tobytes" subroutine_signatures)
+    MLKEM_TOBYTES_SUBROUTINE_CORRECT
+    MLKEM_TOBYTES_EXEC;;
+
+let MLKEM_TOBYTES_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_TOBYTES_EXEC);;

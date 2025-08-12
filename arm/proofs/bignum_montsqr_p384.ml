@@ -1924,7 +1924,6 @@ let BIGNUM_AMONTSQR_P384_SUBROUTINE_CORRECT = time prove
       BIGNUM_AMONTSQR_P384_CORRECT));;
 
 
-
 (* ------------------------------------------------------------------------- *)
 (* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)

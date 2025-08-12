@@ -70,41 +70,6 @@ let full_spec = mk_safety_spec
     WORD_CTZ_SUBROUTINE_CORRECT
     WORD_CTZ_EXEC;;
 
-let full_spec_literal =
-  `exists f_events.
-    forall a pc returnaddress.
-        ensures arm
-        (\s.
-            aligned_bytes_loaded s (word pc) word_ctz_mc /\
-            read PC s = word pc /\
-            read X30 s = returnaddress /\
-            C_ARGUMENTS [a] s /\
-            read events s = e)
-        (\s.
-            exists e2.
-                read PC s = returnaddress /\
-                read events s = APPEND e2 e /\
-                e2 = f_events pc returnaddress /\
-                memaccess_inbounds e2 [] [])
-        (\s s'. true)`;;
-
-assert (full_spec = full_spec_literal);;
-
 let WORD_CTZ_SUBROUTINE_SAFE = time prove
- (`exists f_events.
-    forall a pc returnaddress.
-        ensures arm
-        (\s.
-            aligned_bytes_loaded s (word pc) word_ctz_mc /\
-            read PC s = word pc /\
-            read X30 s = returnaddress /\
-            C_ARGUMENTS [a] s /\
-            read events s = e)
-        (\s.
-            exists e2.
-                read PC s = returnaddress /\
-                read events s = APPEND e2 e /\
-                e2 = f_events pc returnaddress /\
-                memaccess_inbounds e2 [] [])
-        (\s s'. true)`,
-  PROVE_SAFETY_SPEC 7 WORD_CTZ_EXEC);;
+ (full_spec,
+  PROVE_SAFETY_SPEC WORD_CTZ_EXEC);;

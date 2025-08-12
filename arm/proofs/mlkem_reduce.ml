@@ -197,3 +197,20 @@ let MLKEM_REDUCE_SUBROUTINE_CORRECT = prove
              (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
               MAYCHANGE [memory :> bytes(a,512)])`,
   ARM_ADD_RETURN_NOSTACK_TAC MLKEM_REDUCE_EXEC MLKEM_REDUCE_CORRECT);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_reduce" subroutine_signatures)
+    MLKEM_REDUCE_SUBROUTINE_CORRECT
+    MLKEM_REDUCE_EXEC;;
+
+let MLKEM_REDUCE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_REDUCE_EXEC);;

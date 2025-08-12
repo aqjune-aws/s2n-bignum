@@ -567,3 +567,20 @@ let MLKEM_NTT_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC ~pre_post_nsteps:(5,5) MLKEM_NTT_EXEC
    (REWRITE_RULE[fst MLKEM_NTT_EXEC] (CONV_RULE TWEAK_CONV MLKEM_NTT_CORRECT))
     `[D8; D9; D10; D11; D12; D13; D14; D15]` 64);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_ntt" subroutine_signatures)
+    MLKEM_NTT_SUBROUTINE_CORRECT
+    MLKEM_NTT_EXEC;;
+
+let MLKEM_NTT_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_NTT_EXEC);;

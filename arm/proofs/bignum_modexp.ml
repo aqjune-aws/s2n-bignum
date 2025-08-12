@@ -698,18 +698,13 @@ let BIGNUM_MODEXP_SUBROUTINE_CORRECT = prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_MODEXP_SUBROUTINE_CORRECT)
-    BIGNUM_MODEXP_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_modexp" subroutine_signatures)
     BIGNUM_MODEXP_SUBROUTINE_CORRECT
     BIGNUM_MODEXP_EXEC;;

@@ -1,13 +1,30 @@
-ls = open("linear-objs.txt", "r").readlines()
+import sys
 
-for l in ls:
-  l = l.split()[0]
-  obj = l[l.rfind('/')+1:]
-  fn = obj[:-len(".o")]
+l = sys.argv[1]
 
-  print(fn)
-  f = open(f"proofs/{fn}.ml", "a")
-  f.write(f"""
+obj = l[l.rfind('/')+1:]
+fn = obj[:-len(".o")]
+
+print(fn)
+f = open(f"proofs/{fn}.ml", "r")
+lines = f.readlines()
+f.close()
+
+# If lines contain previous Constant-time blah, remove them.
+lines_new = []
+for line in lines:
+  if line.strip() == "(* Constant-time and memory safety proof.                                    *)" or \
+     line.strip() == "(* Constant-time and memory safety proof (nonlinear).                        *)":
+    lines_new.pop()
+    while lines_new[-1].strip() == "":
+      lines_new.pop()
+    break
+  else:
+    lines_new.append(line)
+
+f = open(f"proofs/{fn}.ml", "w")
+f.write("".join(lines_new))
+f.write(f"""
 
 (* ------------------------------------------------------------------------- *)
 (* Constant-time and memory safety proof.                                    *)
@@ -25,4 +42,4 @@ let {fn.upper()}_SUBROUTINE_SAFE = time prove
  (full_spec,
   PROVE_SAFETY_SPEC {fn.upper()}_EXEC);;
 """)
-  f.close()
+f.close()

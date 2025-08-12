@@ -232,19 +232,15 @@ let BIGNUM_CMUL_P256_SUBROUTINE_CORRECT = time prove
            MAYCHANGE [memory :> bignum(z,4)])`,
   ARM_ADD_RETURN_NOSTACK_TAC BIGNUM_CMUL_P256_EXEC BIGNUM_CMUL_P256_CORRECT);;
 
+
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_CMUL_P256_SUBROUTINE_CORRECT)
-    BIGNUM_CMUL_P256_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_cmul_p256" subroutine_signatures)
     BIGNUM_CMUL_P256_SUBROUTINE_CORRECT
     BIGNUM_CMUL_P256_EXEC;;

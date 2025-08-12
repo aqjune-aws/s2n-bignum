@@ -482,3 +482,20 @@ let SHA3_KECCAK_F1600_SUBROUTINE_CORRECT = prove
   ARM_ADD_RETURN_STACK_TAC ~pre_post_nsteps:(7,7) SHA3_KECCAK_F1600_EXEC
         (CONV_RULE TWEAK_CONV SHA3_KECCAK_F1600_CORRECT)
     `[X19; X20; X21; X22; X23; X24; X25; X26; X27; X28; X29; X30]` 128);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "sha3_keccak_f1600" subroutine_signatures)
+    SHA3_KECCAK_F1600_SUBROUTINE_CORRECT
+    SHA3_KECCAK_F1600_EXEC;;
+
+let SHA3_KECCAK_F1600_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC SHA3_KECCAK_F1600_EXEC);;

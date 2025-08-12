@@ -92,18 +92,13 @@ let BIGNUM_ISZERO_SUBROUTINE_CORRECT = prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_ISZERO_SUBROUTINE_CORRECT)
-    BIGNUM_ISZERO_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_iszero" subroutine_signatures)
     BIGNUM_ISZERO_SUBROUTINE_CORRECT
     BIGNUM_ISZERO_EXEC;;

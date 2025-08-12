@@ -224,18 +224,13 @@ let BIGNUM_CLZ_SUBROUTINE_CORRECT = prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl BIGNUM_CLZ_SUBROUTINE_CORRECT)
-    BIGNUM_CLZ_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "bignum_clz" subroutine_signatures)
     BIGNUM_CLZ_SUBROUTINE_CORRECT
     BIGNUM_CLZ_EXEC;;

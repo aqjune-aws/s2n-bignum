@@ -2438,18 +2438,13 @@ let EDWARDS25519_DECODE_SUBROUTINE_CORRECT = time prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Constant-time and memory safety proof (nonlinear).                        *)
+(* Constant-time and memory safety proof.                                    *)
 (* ------------------------------------------------------------------------- *)
 
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-
-let numsteps = count_nsteps (concl EDWARDS25519_DECODE_SUBROUTINE_CORRECT)
-    EDWARDS25519_DECODE_EXEC;;
-
 let full_spec = mk_safety_spec
-    ~numinstsopt:numsteps
     (assoc "edwards25519_decode" subroutine_signatures)
     EDWARDS25519_DECODE_SUBROUTINE_CORRECT
     EDWARDS25519_DECODE_EXEC;;

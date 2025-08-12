@@ -236,3 +236,20 @@ let MLKEM_MULCACHE_COMPUTE_SUBROUTINE_CORRECT = prove
   CONV_TAC TWEAK_CONV THEN
   ARM_ADD_RETURN_NOSTACK_TAC MLKEM_MULCACHE_COMPUTE_EXEC
    (CONV_RULE TWEAK_CONV MLKEM_MULCACHE_COMPUTE_CORRECT));;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec = mk_safety_spec
+    (assoc "mlkem_mulcache_compute" subroutine_signatures)
+    MLKEM_MULCACHE_COMPUTE_SUBROUTINE_CORRECT
+    MLKEM_MULCACHE_COMPUTE_EXEC;;
+
+let MLKEM_MULCACHE_COMPUTE_SUBROUTINE_SAFE = time prove
+ (full_spec,
+  PROVE_SAFETY_SPEC MLKEM_MULCACHE_COMPUTE_EXEC);;
