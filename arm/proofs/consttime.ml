@@ -86,6 +86,12 @@ let mk_safety_spec
   let stack_access_size: int option = find_stack_access_size fnspec in
   assert ((readsp = None) = (stack_access_size = None));
 
+  let elemsz_to_int (s:string): int =
+    let s = if String.starts_with ~prefix:">=" s
+      then String.sub s 2 (String.length s - 2) else s in
+    try int_of_string s
+    with _ -> failwith ("Don't know how to convert to int: " ^ s) in
+
   (* rename C variable names in meminputs, memoutputs and memtemps
      to the HOL Light vars in specs *)
   let (meminputs_hol:(string * string * int)list),
