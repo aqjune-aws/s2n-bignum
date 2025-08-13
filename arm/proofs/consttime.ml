@@ -106,12 +106,12 @@ let mk_safety_spec
   let memreads:(term*term)list = map
       (fun (varname,range,elemty_size) ->
         find (fun t -> name_of t = varname) fnspec_quants,
-        mk_small_numeral(int_of_string range * elemty_size))
+        mk_small_numeral(elemsz_to_int range * elemty_size))
     (meminputs_hol @ memoutputs_hol @ memtemps_hol) in
   let memwrites = map (fun
       (varname,range,elemty_size) ->
         find (fun t -> name_of t = varname) fnspec_quants,
-        mk_small_numeral(int_of_string range * elemty_size))
+        mk_small_numeral(elemsz_to_int range * elemty_size))
     (memoutputs_hol @ memtemps_hol) in
 
   let usedvars = itlist (fun (t,_) l ->
