@@ -65,7 +65,8 @@ let x86state_INDUCT,x86state_RECURSION,x86state_COMPONENTS =
        simdregisters: (5)word->(512)word; // 2^5=32 ZMM registers, 512 bits each
        maskregisters: (3)word->(64)word;  // 2^3=8 opmasks, can be up to 64-bit
        rflags : int64;                    // rflags register (top 32 reserved)
-       memory : int64 -> byte             // Memory
+       memory : int64 -> byte;            // Memory
+       events: uarch_event list         // Observable uarch events
      }";;
 
 let FORALL_X86STATE = prove
@@ -1710,15 +1711,24 @@ let X86_MK_EXEC_RULE th0 =
 
 (*** We also only support relative jump  at the moment ***)
 
+let add_store_event = define
+  `add_store_event (op:operand) (s:x86state):x86state->x86state->bool =
+    match op with
+    Memop w (bs:bsid) ->
+      (events := CONS (EventStore (bsid_semantics bs, bytesize w))
+                      (read_events s))
+    | _ -> (=)`;;`
+
 let x86_execute = define
  `x86_execute instr s =
     match instr with
       ADC dest src ->
-        (match operand_size dest with
+        ((add_store_event dest s) ,,
+         (match operand_size dest with
            64 -> x86_ADC (OPERAND64 dest s) (OPERAND64 src s)
          | 32 -> x86_ADC (OPERAND32 dest s) (OPERAND32 src s)
          | 16 -> x86_ADC (OPERAND16 dest s) (OPERAND16 src s)
-         | 8 -> x86_ADC (OPERAND8 dest s) (OPERAND8 src s)) s
+         | 8 -> x86_ADC (OPERAND8 dest s) (OPERAND8 src s))) s
     | ADCX dest src ->
         (match operand_size dest with
            64 -> x86_ADCX (OPERAND64 dest s) (OPERAND64 src s)
