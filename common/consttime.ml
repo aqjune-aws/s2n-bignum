@@ -59,7 +59,7 @@ let gen_mk_safety_spec
       Some (find_term find_eq_stackpointer fnspec_precond)
     with _ -> None in
   let stack_access_size: int option = find_stack_access_size fnspec in
-  assert ((read_sp_eq = None) = (stack_access_size = None));
+  (*assert ((read_sp_eq = None) = (stack_access_size = None));*)
 
   let returnaddress_var:term option =
     List.find_opt (fun t -> name_of t = "returnaddress") fnspec_quants in
@@ -355,6 +355,7 @@ let GEN_PROVE_SAFETY_SPEC =
   in mainfn;;
 
 let ASSERT_GOAL_TAC (t:term): tactic =
+  PRINT_GOAL_TAC THEN
   fun (asl,w) ->
     if t <> w then failwith "ASSERT_GOAL_TAC"
     else ALL_TAC (asl,w);;

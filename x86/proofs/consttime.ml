@@ -14,7 +14,7 @@ let mk_safety_spec
       let l' = fst (dest_binary "read" l) in f l' in
   gen_mk_safety_spec ?coda_pc_range (fnargs,xx,meminputs,memoutputs,memtemps)
     subroutine_correct_th exec
-    (read_sth_eq (fun t -> t = `SP`))
+    (read_sth_eq (fun t -> t = `RSP`))
     (can (fun t ->
             let l = fst (dest_eq t) in
             let l' = fst (dest_binary "read" l) in
