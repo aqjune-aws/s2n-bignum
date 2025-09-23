@@ -11,15 +11,24 @@
 
 needs "common/equiv.ml";;
 
-let find_stack_access_size (subroutine_correct_term:term): int option =
+(* Find the base pointer and access size. *)
+let find_stack_access_size (fnspec_maychange:term): (term * int) option =
   try
-    let t = find_term (fun t -> is_binary "word_sub" t &&
-        let a,b = dest_binary "word_sub" t in
-        a = mk_var("stackpointer",`:int64`)) subroutine_correct_term in
-    let sz = snd (dest_comb t) in
-    Some (dest_small_numeral (snd (dest_comb sz)))
+    let stackptr = mk_var("stackpointer",`:int64`) in
+
+    let t = find_term (fun t -> is_pair t &&
+        let baseptr, sz = dest_pair t in
+        baseptr = stackptr ||
+        (is_binary "word_sub" baseptr &&
+         let a,b = dest_binary "word_sub" baseptr in
+         a = stackptr)) fnspec_maychange in
+    let baseptr,sz = dest_pair t in
+    Some (baseptr, dest_small_numeral sz)
   with _ -> None;;
 
+find_stack_access_size `MAYCHANGE [memory :> bytes (stackpointer,264)]`;;
+find_stack_access_size `MAYCHANGE [memory :> bytes(z,8 * 8);
+                    memory :> bytes(word_sub stackpointer (word 224),224)]`;;
 
 (* Create a safety spec. This returns a safety spec using ensures, as well
    as the unversally quantified variables that are public information. *)
@@ -58,8 +67,9 @@ let gen_mk_safety_spec
   let read_sp_eq: term option = try
       Some (find_term find_eq_stackpointer fnspec_precond)
     with _ -> None in
-  let stack_access_size: int option = find_stack_access_size fnspec in
-  (*assert ((read_sp_eq = None) = (stack_access_size = None));*)
+  let stack_access_size: (term*int) option =
+      find_stack_access_size fnspec_maychanges in
+  assert ((read_sp_eq = None) = (stack_access_size = None));
 
   let returnaddress_var:term option =
     List.find_opt (fun t -> name_of t = "returnaddress") fnspec_quants in
@@ -105,9 +115,7 @@ let gen_mk_safety_spec
   let f_events_public_args = public_vars @
     (match stack_access_size with
      | None -> [`pc:num`] @ (Option.to_list returnaddress_var)
-     | Some sz ->
-       let baseptr = subst [mk_small_numeral sz,`n:num`]
-          `word_sub stackpointer (word n):int64` in
+     | Some (baseptr,sz) ->
        [`pc:num`;baseptr] @ (Option.to_list returnaddress_var)) in
   let f_events = mk_var("f_events",
     itlist mk_fun_ty (map type_of f_events_public_args) `:(uarch_event)list`) in
@@ -116,8 +124,7 @@ let gen_mk_safety_spec
   let memreads,memwrites =
     match stack_access_size with
     | None -> memreads,memwrites
-    | Some sz ->
-      let baseptr = subst [mk_small_numeral sz,`n:num`] `word_sub stackpointer (word n):int64` in
+    | Some (baseptr,sz) ->
       (memreads @ [baseptr,mk_small_numeral sz],
        memwrites @ [baseptr,mk_small_numeral sz]) in
   let memreads,memwrites =
@@ -177,7 +184,7 @@ let REPEAT_GEN_AND_OFFSET_STACKPTR_TAC =
   W (fun (asl,w) ->
     (match find_stack_access_size w with
     | None -> REPEAT GEN_TAC
-    | Some sz -> (REPEAT (W (fun (asl,w) ->
+    | Some (_,sz) -> (REPEAT (W (fun (asl,w) ->
       let x,_ = dest_forall w in
       if name_of x = "stackpointer" then NO_TAC else GEN_TAC)) THEN
       WORD_FORALL_OFFSET_TAC sz THEN
@@ -212,6 +219,7 @@ let ABBREV_TRACE_TAC (stored_abbrevs:thm list ref)=
           list_mk_comb(c,trace::readranges::writeranges::[]) in
       (SUBGOAL_THEN new_mem_inbounds MP_TAC THENL [
         DISCHARGE_MEMACCESS_INBOUNDS_TAC THEN
+        PRINT_GOAL_TAC THEN
         FAIL_TAC "could not prove memaccess_inbounds";
         ALL_TAC
       ] THEN DISCARD_MATCHING_ASSUMPTIONS [`memaccess_inbounds x rr wr`] THEN
