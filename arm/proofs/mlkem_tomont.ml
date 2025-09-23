@@ -245,4 +245,4 @@ let MLKEM_TOMONT_SUBROUTINE_SAFE = time prove
                         memaccess_inbounds e2 [ptr,512; ptr,512] [ptr,512])
                (\s s'. true)`,
   ASSERT_GOAL_TAC full_spec THEN
-  PROVE_SAFETY_SPEC MLKEM_TOMONT_EXEC);;
+  PROVE_SAFETY_SPEC ?public_vars:public_vars MLKEM_TOMONT_EXEC);;

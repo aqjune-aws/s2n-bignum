@@ -613,14 +613,14 @@ let MLKEM_INTT_SUBROUTINE_CORRECT = prove
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-let full_spec = mk_safety_spec
+let full_spec,public_vars = mk_safety_spec
     (assoc "mlkem_intt" subroutine_signatures)
     MLKEM_INTT_SUBROUTINE_CORRECT
     MLKEM_INTT_EXEC;;
 
 let MLKEM_INTT_SUBROUTINE_SAFE = time prove
  (`exists f_events.
-       forall a z_01234 z_56 pc stackpointer returnaddress.
+       forall e a z_01234 z_56 pc stackpointer returnaddress.
            aligned 16 stackpointer /\
            ALLPAIRS nonoverlapping
            [a,512; word_sub stackpointer (word 64),64]
@@ -648,4 +648,4 @@ let MLKEM_INTT_SUBROUTINE_SAFE = time prove
                         [a,512; word_sub stackpointer (word 64),64])
                (\s s'. true)`,
   ASSERT_GOAL_TAC full_spec THEN
-  PROVE_SAFETY_SPEC MLKEM_INTT_EXEC);;
+  PROVE_SAFETY_SPEC ?public_vars:public_vars MLKEM_INTT_EXEC);;

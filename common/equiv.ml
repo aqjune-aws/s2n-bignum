@@ -1105,6 +1105,10 @@ let mk_equiv_statement_template
   let imp = mk_imp (assum,ensures2_pred) in
   list_mk_forall (quants, imp);;
 
+(* ------------------------------------------------------------------------- *)
+(* MAYCHANGE simplifier. This helps symbolic simulator run faster.           *)
+(* ------------------------------------------------------------------------- *)
+
 (* maychanges: `(MAYCHANGE [..] ,, MAYCHANGE ...)`
    combine MAYCHANGE of fragmented memory accesses of constant sizes into
    one if contiguous. *)
