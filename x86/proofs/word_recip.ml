@@ -785,3 +785,33 @@ let WORD_RECIP_WINDOWS_SUBROUTINE_CORRECT = prove
               MAYCHANGE [memory :> bytes(word_sub stackpointer (word 16),16)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE WORD_RECIP_NOIBT_WINDOWS_SUBROUTINE_CORRECT));;
 
+(* ------------------------------------------------------------------------- *)
+(* Constant time proof.                                       *)
+(* ------------------------------------------------------------------------- *)
+
+needs "x86/proofs/consttime.ml";;
+needs "x86/proofs/subroutine_signatures.ml";;
+
+let full_spec,public_vars = mk_safety_spec
+    (assoc "word_recip" subroutine_signatures)
+    WORD_RECIP_CORRECT
+    WORD_RECIP_EXEC;;
+
+let WORD_RECIP_SAFE = time prove
+ (`exists f_events.
+       forall e a pc.
+           ensures x86
+           (\s.
+                bytes_loaded s (word pc) (BUTLAST word_recip_tmc) /\
+                read RIP s = word pc /\
+                C_ARGUMENTS [a] s /\
+                read events s = e)
+           (\s.
+                exists e2.
+                    read RIP s = word (pc + 201) /\
+                    read events s = APPEND e2 e /\
+                    e2 = f_events pc /\
+                    memaccess_inbounds e2 [] [])
+           (\s s'. true)`,
+  ASSERT_GOAL_TAC full_spec THEN
+  PROVE_SAFETY_SPEC ?public_vars:public_vars WORD_RECIP_EXEC);;
