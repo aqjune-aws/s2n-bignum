@@ -1759,7 +1759,7 @@ let add_store_event = define
     \(op:operand) (s:x86state) (s0:x86state).
       match op with
       Memop w (bs:bsid) ->
-        (events := CONS (EventStore (bsid_semantics bs s, bytesize w))
+        (events := CONS (EventStore (bsid_semantics bs s, (bytesize w) DIV 8))
                         (read events s0)) s0
       | _ -> (=) s0`;;
 
@@ -1768,7 +1768,7 @@ let add_load_event = define
     \(op:operand) (s:x86state) (s0:x86state).
       match op with
       Memop w (bs:bsid) ->
-        (events := CONS (EventLoad (bsid_semantics bs s, bytesize w))
+        (events := CONS (EventLoad (bsid_semantics bs s, (bytesize w) DIV 8))
                         (read events s0)) s0
       | _ -> (=) s0`;;
 
@@ -3364,6 +3364,7 @@ let X86_CONV (decode_ths:thm option array) ths tm =
                 READ_BOTTOM_128] THENC
    DEPTH_CONV WORD_NUM_RED_CONV THENC
    REWRITE_CONV[SEQ; condition_semantics] THENC
+   REWRITE_CONV[bytesize] THENC (* bytesize in add_{load,store}_event *)
    GEN_REWRITE_CONV TOP_DEPTH_CONV
     [UNDEFINED_VALUE; UNDEFINED_VALUES; SEQ_ID] THENC
    GEN_REWRITE_CONV TOP_DEPTH_CONV

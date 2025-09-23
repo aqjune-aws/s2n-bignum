@@ -259,6 +259,9 @@ let ABBREV_TRACE_TAC (stored_abbrevs:thm list ref)=
         ALL_TAC)
       (asl,w);;
 
+let rec WHILE_TAC (flag:bool ref) tac w =
+  (if !flag then tac THEN WHILE_TAC flag tac else ALL_TAC) w;;
+
 (* public_vars describe the HOL Light variables that will contain public
    information. This is for faster symbolic simulation. *)
 let GEN_PROVE_SAFETY_SPEC =
@@ -305,20 +308,18 @@ let GEN_PROVE_SAFETY_SPEC =
 
       let chunksize = 50 in
       let i = ref 0 in
-      let successful = ref true and finished = ref false in
-      REPEAT (W (fun (asl,w) ->
-        if !finished then NO_TAC else
-
+      let successful = ref true and hasnext = ref true in
+      WHILE_TAC hasnext (W (fun (asl,w) ->
         REPEAT_N chunksize (W (fun (asl,w) ->
           (* find 'read RIP/PC ... = ..' and check it reached at dest_pc_addr *)
           match List.find_opt (fun (_,th) ->
               is_eq (concl th) && is_read_pc (lhs (concl th)))
               asl with
           | None ->
-            successful := false; finished := true; ALL_TAC
+            successful := false; hasnext := false; ALL_TAC
           | Some (_,read_pc_th) ->
             if rhs (concl read_pc_th) = dest_pc_addr
-            then (* Successful! *) (finished := true; ALL_TAC)
+            then (* Successful! *) (hasnext := false; ALL_TAC)
             else (* Proceed *)
               let _ = i := !i + 1 in
               single_step_tac exec ("s" ^ string_of_int !i)))
@@ -338,10 +339,6 @@ let GEN_PROVE_SAFETY_SPEC =
 
       (* e2 can be []! *)
       REWRITE_TAC[pth] THEN
-      (*(EXISTS_TAC `[]:(uarch_event)list` THEN
-      CONJ_TAC THENL [REWRITE_TAC[APPEND] THEN NO_TAC; ALL_TAC] THEN
-      CONJ_TAC THENL [UNIFY_REFL_TAC; ALL_TAC] THEN
-      REWRITE_TAC[memaccess_inbounds; ALL] THEN NO_TAC) ORELSE*)
       X_META_EXISTS_TAC `e2:(uarch_event)list` THEN
       CONJ_TAC THENL [
         AP_THM_TAC THEN AP_TERM_TAC THEN
@@ -351,10 +348,10 @@ let GEN_PROVE_SAFETY_SPEC =
       (* e2 = f_events <public info> *)
       CONJ_TAC THENL [UNIFY_REFL_TAC; ALL_TAC] THEN
       (* memaccess_inbounds *)
-      ACCEPT_TAC qth ORELSE
+      (ACCEPT_TAC qth ORELSE
       (POP_ASSUM MP_TAC THEN
        W (fun (asl,w) -> REWRITE_TAC(APPEND :: (map GSYM !stored_abbrevs))) THEN
-       NO_TAC))
+       PRINT_GOAL_TAC THEN FAIL_TAC "Could not prove memaccess_inbounds")))
   in mainfn;;
 
 let ASSERT_GOAL_TAC (t:term): tactic =
