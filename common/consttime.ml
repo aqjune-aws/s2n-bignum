@@ -184,11 +184,17 @@ let REPEAT_GEN_AND_OFFSET_STACKPTR_TAC =
   W (fun (asl,w) ->
     (match find_stack_access_size w with
     | None -> REPEAT GEN_TAC
-    | Some (_,sz) -> (REPEAT (W (fun (asl,w) ->
-      let x,_ = dest_forall w in
-      if name_of x = "stackpointer" then NO_TAC else GEN_TAC)) THEN
-      WORD_FORALL_OFFSET_TAC sz THEN
-      REPEAT GEN_TAC)) THEN
+    | Some (baseptr,sz) ->
+      if is_binary "word_sub" baseptr then
+        (REPEAT (W (fun (asl,w) ->
+        let x,_ = dest_forall w in
+        if name_of x = "stackpointer" then NO_TAC else GEN_TAC)) THEN
+        WORD_FORALL_OFFSET_TAC sz THEN
+        REPEAT GEN_TAC)
+      else if is_var baseptr then GEN_TAC
+      else failwith
+        ("Don't know how to rebase offset of stackptr " ^
+         (string_of_term baseptr))) THEN
     REPEAT GEN_TAC);;
 
 let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
