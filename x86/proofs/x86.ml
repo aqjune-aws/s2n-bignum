@@ -3931,6 +3931,7 @@ let X86_CONV (decode_ths:thm option array) ths tm =
                 READ_BOTTOM_128] THENC
    DEPTH_CONV WORD_NUM_RED_CONV THENC
    REWRITE_CONV[SEQ; condition_semantics] THENC
+   REWRITE_CONV[bytesize] THENC (* bytesize in add_{load,store}_event *)
    GEN_REWRITE_CONV TOP_DEPTH_CONV
     [UNDEFINED_VALUE; UNDEFINED_VALUES; SEQ_ID] THENC
    GEN_REWRITE_CONV TOP_DEPTH_CONV
