@@ -546,6 +546,6 @@ FORCE: ;
 # Always use max. # of cores because in Makefile one cannot get the passed number of -j.
 # A portable way of getting the number of max. cores:
 # https://stackoverflow.com/a/23569003/1488216
-NUM_CORES_FOR_SEMATEST = $(shell getconf _NPROCESSORS_ONLN)
+NUM_CORES_FOR_SEMATEST = 8 #$(shell getconf _NPROCESSORS_ONLN)
 sematest: FORCE $(OBJ) proofs/simulator_iclasses.ml proofs/simulator.native
 	../tools/run-sematest.sh arm $(NUM_CORES_FOR_SEMATEST)

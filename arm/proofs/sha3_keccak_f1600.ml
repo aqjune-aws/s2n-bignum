@@ -491,7 +491,7 @@ let SHA3_KECCAK_F1600_SUBROUTINE_CORRECT = prove
 needs "arm/proofs/consttime.ml";;
 needs "arm/proofs/subroutine_signatures.ml";;
 
-let full_spec = mk_safety_spec
+let full_spec,public_vars = mk_safety_spec
     (assoc "sha3_keccak_f1600" subroutine_signatures)
     SHA3_KECCAK_F1600_SUBROUTINE_CORRECT
     SHA3_KECCAK_F1600_EXEC;;
@@ -525,4 +525,4 @@ let SHA3_KECCAK_F1600_SUBROUTINE_SAFE = time prove
                         [a,200; word_sub stackpointer (word 128),128])
                (\s s'. true)`,
   ASSERT_GOAL_TAC full_spec THEN
-  PROVE_SAFETY_SPEC SHA3_KECCAK_F1600_EXEC);;
+  PROVE_SAFETY_SPEC ?public_vars:public_vars SHA3_KECCAK_F1600_EXEC);;

@@ -14,9 +14,17 @@ let mk_safety_spec
       let l' = fst (dest_binary "read" l) in f l' in
   gen_mk_safety_spec ?coda_pc_range (fnargs,xx,meminputs,memoutputs,memtemps)
     subroutine_correct_th exec
-    (read_sth_eq (fun t -> t = `SP`)) (read_sth_eq (fun t -> t = `X30`));;
+    (read_sth_eq (fun t -> t = `RSP`))
+    (can (fun t ->
+            let l = fst (dest_eq t) in
+            let l' = fst (dest_binary "read" l) in
+            let mem,b64_sp = dest_binary ":>" l' in
+            let b64,sp = dest_comb b64_sp in
+            check (fun () ->
+              name_of mem = "memory" && name_of b64 = "bytes64" &&
+              name_of sp = "stackpointer") ()));;
 
 let PROVE_SAFETY_SPEC ?(public_vars:term list option) exec:tactic =
   GEN_PROVE_SAFETY_SPEC ?public_vars:public_vars exec
-    [ALIGNED_BYTES_LOADED_APPEND_CLAUSE]
-    ARM_SINGLE_STEP_TAC;;
+    [BYTES_LOADED_APPEND_CLAUSE]
+    X86_SINGLE_STEP_TAC;;
