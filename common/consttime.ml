@@ -46,6 +46,8 @@ let gen_mk_safety_spec
       if is_imp t then dest_imp t else `true`,t in
   let arch_const::fnspec_precond::fnspec_postcond::fnspec_maychanges::[] =
       snd (strip_comb fnspec_ensures) in
+  let fnspec_precond_bvar,fnspec_precond = dest_abs fnspec_precond in
+  let fnspec_postcond_bvar,fnspec_postcond = dest_abs fnspec_postcond in
   (* :x86state or :armstate *)
   let state_ty = fst (dest_fun_ty (type_of arch_const)) in
 
@@ -53,11 +55,11 @@ let gen_mk_safety_spec
     (fun t -> is_comb t && let c,a = dest_comb t in
       name_of c = "C_ARGUMENTS")
       fnspec_precond in
-  let c_var_to_hol (var_c:string): string =
+  let c_var_to_hol (var_c:string): term =
     let c_to_hol_vars = zip fnargs (dest_list (rand c_args)) in
-    let c_to_hol_names = map (fun ((x,_,_),yvar) -> x,name_of yvar) c_to_hol_vars in
+    let c_to_hol_vars = map (fun ((x,_,_),yvar) -> x,yvar) c_to_hol_vars in
     try
-      assoc var_c c_to_hol_names
+      assoc var_c c_to_hol_vars
     with _ -> failwith ("c_var_to_hol: unknown var in C: " ^ var_c) in
 
   let bytes_term = find_term
@@ -77,38 +79,31 @@ let gen_mk_safety_spec
       Some (find_term find_eq_returnaddress fnspec_precond)
     with _ -> None in
 
-  (* Todo: deal with the symbolic sizes if needed. *)
-  let elemsz_to_int (s:string): int =
+  let elemsz_to_hol (s:string): term =
     let s = if String.starts_with ~prefix:">=" s
       then String.sub s 2 (String.length s - 2) else s in
-    try int_of_string s
-    with _ -> failwith ("Don't know how to convert to int: " ^ s) in
-
-  (* rename C variable names in meminputs, memoutputs and memtemps
-     to the HOL Light vars in specs *)
-  let (meminputs_hol:(string * string * int)list),
-       memoutputs_hol, memtemps_hol =
-    map (fun x,y,bsz -> c_var_to_hol x, y, bsz) meminputs,
-    map (fun x,y,bsz -> c_var_to_hol x, y, bsz) memoutputs,
-    map (fun x,y,bsz -> c_var_to_hol x, y, bsz) memtemps in
-  let fnargs_hol : (string*string*string) list = map
-    (fun x,y,z -> c_var_to_hol x, y, z) fnargs in
+    try mk_small_numeral (int_of_string s)
+    with _ ->
+      let v = c_var_to_hol s in
+      match dest_type (type_of v) with
+      | ("num",_) -> v
+      | _ -> (* word ty *) mk_icomb (`val:(N)word->num`,v) in
 
   (* memreads/writes without stackpointer and pc; (base pointer, size) list. *)
-  let memreads:(term*term)list = map
-      (fun (varname,range,elemty_size) ->
-        find (fun t -> name_of t = varname) fnspec_quants,
-        mk_small_numeral(elemsz_to_int range * elemty_size))
-    (meminputs_hol @ memoutputs_hol @ memtemps_hol) in
-  let memwrites = map (fun
-      (varname,range,elemty_size) ->
-        find (fun t -> name_of t = varname) fnspec_quants,
-        mk_small_numeral(elemsz_to_int range * elemty_size))
-    (memoutputs_hol @ memtemps_hol) in
+  let (memreads:(term*term)list), (memwrites:(term*term)list) =
+    let fn = 
+      (fun (c_varname,range,elemty_size) ->
+        c_var_to_hol c_varname,
+        mk_binary "*" (elemsz_to_hol range, mk_small_numeral elemty_size)) in
+
+    map fn (meminputs @ memoutputs @ memtemps),
+    map fn (memoutputs @ memtemps) in
 
   (* Variables describing public information. *)
-  let public_vars = itlist (fun (t,_) l ->
-    let vars = find_terms is_var t in union vars l) (memreads @ memwrites) [] in
+  let public_vars = itlist (fun (baseptr,sz) l ->
+    let pvars = find_terms is_var baseptr in
+    let szvars = find_terms is_var sz in
+    union (union pvars l) szvars) (memreads @ memwrites) [] in
 
   (* Create the f_events var as well as expressions (not necessarily var)
      as args of f_events containing public information *)
@@ -139,6 +134,7 @@ let gen_mk_safety_spec
   let precond =
     let read_pc_eq = find_term (fun t -> is_eq t && is_read_pc (lhs t))
         fnspec_precond in
+    let read_pc_eq = vsubst [s,fnspec_precond_bvar] read_pc_eq in
     mk_gabs(s,
       list_mk_conj ([
         vsubst [s,s] bytes_term;
@@ -154,6 +150,7 @@ let gen_mk_safety_spec
     let e2 = mk_var("e2",`:(uarch_event)list`) in
     let read_pc_eq = find_term (fun t -> is_eq t && is_read_pc (lhs t))
         fnspec_postcond in
+    let read_pc_eq = vsubst [s,fnspec_postcond_bvar] read_pc_eq in
     mk_exists(e2,
       list_mk_conj [
         read_pc_eq;
@@ -197,12 +194,49 @@ let REPEAT_GEN_AND_OFFSET_STACKPTR_TAC =
          (string_of_term baseptr))) THEN
     REPEAT GEN_TAC);;
 
-let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
-  ASM_REWRITE_TAC[MEMACCESS_INBOUNDS_APPEND] THEN
+(* Given a conclusion which is
+  memaccess_inbounds [..(events)..] [..] [] where events is a list of
+  Event* constructors (EventJump, EventLoad, ...), discharge the goal.
+*)
+let DISCHARGE_CONCRETE_MEMACCESS_INBOUNDS_TAC =
   REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
-    REPEAT CONJ_TAC THEN
-      (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE
-              CONTAINED_TAC));;
+  REPEAT CONJ_TAC THEN
+    (REPEAT ((DISJ1_TAC THEN CONTAINED_TAC) ORELSE DISJ2_TAC ORELSE
+            CONTAINED_TAC));;
+
+let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
+  let cons_to_append_th =
+      MESON[APPEND]
+        `memaccess_inbounds (CONS a b) = memaccess_inbounds (APPEND [a] b)` in
+  let discharge_using_asm_tac:tactic =
+    FIRST_X_ASSUM (fun th ->
+    find_term (fun t -> name_of t = "memaccess_inbounds") (concl th);
+    MP_TAC th) THEN ASM_REWRITE_TAC[] THEN NO_TAC in
+  (* Case 1. If the exactly same memaccess_inbounds exists as assumption,
+     just use it. *)
+   (discharge_using_asm_tac) ORELSE
+
+  (* Case 2. if the goal is simply a concrete list of events, use an
+     existing tactic. *)
+   (DISCHARGE_CONCRETE_MEMACCESS_INBOUNDS_TAC THEN NO_TAC) ORELSE
+
+  (* Caes 3. If the goal consist of memaccess_inbounds of a previous trace which
+     can be discharged by assumption, preceded by a concrete events list,
+     apply MEMACCESS_INBOUNDS_APPEND and prove it *)
+   ((*REWRITE_TAC[cons_to_append_th] THEN*)
+    (* Move the inner CONS to the outermost place *)
+    REWRITE_TAC[APPEND] THEN
+    (* Convert the CONS sequence in the first argument of memaccess_inbounds to
+       APPEND *)
+    CONV_TAC ((RATOR_CONV o RATOR_CONV o RAND_CONV) CONS_TO_APPEND_CONV) THEN
+
+    GEN_REWRITE_TAC I [MEMACCESS_INBOUNDS_APPEND] THEN
+    CONJ_TAC THENL [
+      (* The new, concrete event trace. *)
+      DISCHARGE_CONCRETE_MEMACCESS_INBOUNDS_TAC;
+      (* The existing event trace. *)
+      discharge_using_asm_tac
+    ]);;
 
 let mk_freshvar =
   let n = ref 0 in
