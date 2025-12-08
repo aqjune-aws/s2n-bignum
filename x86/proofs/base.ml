@@ -43,12 +43,16 @@ loadt "common/safety.ml";;
 (* ------------------------------------------------------------------------- *)
 
 loadt "x86/proofs/aes.ml";;
+(*
+To simulate AES intrinsics, please update extra_word_CONV as follows.
+
 extra_word_CONV := [AESENC_REDUCE_CONV;
                     AESENCLAST_REDUCE_CONV;
                     AESDEC_REDUCE_CONV;
                     AESDECLAST_REDUCE_CONV;
                     AESKEYGENASSIST_REDUCE_CONV]
                     @ (!extra_word_CONV);;
+*)
 
 (* ------------------------------------------------------------------------- *)
 (* The main x86_64 model.                                                    *)

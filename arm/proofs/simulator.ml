@@ -9,6 +9,23 @@
 
 needs "arm/proofs/base.ml";;
 
+(* Adding extra conversions for SHA and AES intrinsics *)
+extra_word_CONV :=
+        [SHA256H_REDUCE_CONV;
+         SHA256H2_REDUCE_CONV;
+         SHA256SU0_REDUCE_CONV;
+         SHA256SU1_REDUCE_CONV;
+         SHA512H_REDUCE_CONV;
+         SHA512H2_REDUCE_CONV;
+         SHA512SU0_REDUCE_CONV;
+         SHA512SU1_REDUCE_CONV]
+        @ (!extra_word_CONV);;
+
+extra_word_CONV := [AESE_REDUCE_CONV; AESMC_REDUCE_CONV;
+                    AESD_REDUCE_CONV; AESIMC_REDUCE_CONV]
+                    @ (!extra_word_CONV);;
+
+
 let regfile = new_definition
  `regfile s =
    [val(read X0 s); val(read X1 s); val(read X2 s); val(read X3 s);

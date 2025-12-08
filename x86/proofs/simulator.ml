@@ -9,6 +9,14 @@
 
 needs "x86/proofs/base.ml";;
 
+extra_word_CONV := [AESENC_REDUCE_CONV;
+                    AESENCLAST_REDUCE_CONV;
+                    AESDEC_REDUCE_CONV;
+                    AESDECLAST_REDUCE_CONV;
+                    AESKEYGENASSIST_REDUCE_CONV]
+                    @ (!extra_word_CONV);;
+
+
 let regfile = new_definition
  `regfile s =
    [val(read RAX s); val(read RCX s); val(read RDX s); val(read RBX s);

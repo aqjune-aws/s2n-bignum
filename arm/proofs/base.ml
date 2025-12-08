@@ -44,7 +44,9 @@ loadt "common/safety.ml";;
 
 loadt "arm/proofs/sha256.ml";;
 loadt "arm/proofs/sha512.ml";;
-(* Adding extra conversions for SHA intrinsics *)
+(*
+To simulate SHA intrinsics, please update extra_word_CONV as follows.
+
 extra_word_CONV :=
         [SHA256H_REDUCE_CONV;
          SHA256H2_REDUCE_CONV;
@@ -55,6 +57,7 @@ extra_word_CONV :=
          SHA512SU0_REDUCE_CONV;
          SHA512SU1_REDUCE_CONV]
         @ (!extra_word_CONV);;
+*)
 
 (* ------------------------------------------------------------------------- *)
 (* Additional Cryptographic AES intrinsics                                   *)
@@ -62,9 +65,13 @@ extra_word_CONV :=
 
 loadt "arm/proofs/aes.ml";;
 
+(*
+To simulate AES intrinsics, please update extra_word_CONV as follows.
+
 extra_word_CONV := [AESE_REDUCE_CONV; AESMC_REDUCE_CONV;
                     AESD_REDUCE_CONV; AESIMC_REDUCE_CONV]
                     @ (!extra_word_CONV);;
+*)
 
 (* ------------------------------------------------------------------------- *)
 (* The main ARM model.                                                       *)
