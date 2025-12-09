@@ -4703,7 +4703,18 @@ let WINDOWS_X86_WRAP_NOSTACK_TAC =
       [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] coreth in
    (REWRITE_TAC [WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
     PURE_REWRITE_TAC[WINDOWS_ABI_STACK_THM] THEN
-    MP_TAC coreth THEN REWRITE_TAC[fst winexecth] THEN
+    (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
+    (if is_exists (concl coreth) then
+      ASSUME_CALLEE_SAFETY_TAC coreth "" THEN
+      (* f_events of the current goal will have additional args, compared to
+         f_events of coreth: returnaddress and stackpointer. This will be
+         filled in later. *)
+      META_EXISTS_TAC THEN
+      FIRST_X_ASSUM MP_TAC
+     else
+      (* th is functional correctness *) MP_TAC coreth) THEN
+
+    REWRITE_TAC[fst winexecth] THEN
     REPEAT(MATCH_MP_TAC mono2lemma THEN GEN_TAC) THEN
     MATCH_MP_TAC pcofflemma THEN
     EXISTS_TAC (mk_small_numeral pcoff) THEN GEN_TAC THEN

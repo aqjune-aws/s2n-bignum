@@ -382,7 +382,7 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
         snd (dest_eq read_pc_eq) in
 
       X_META_EXISTS_TAC f_events THEN
-      REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;fst exec] THEN
+      REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;SOME_FLAGS;fst exec] THEN
       REWRITE_TAC extra_unpack_thms THEN
       REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
       TRY DISCH_TAC THEN
@@ -401,7 +401,7 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
       let chunksize = 50 in
       let i = ref 0 in
       let successful = ref true and hasnext = ref true in
-      WHILE_TAC hasnext (W (fun (asl,w) ->
+      WHILE_TAC hasnext (W (fun (_,_) ->
         REPEAT_N chunksize (W (fun (asl,w) ->
           (* find 'read RIP/PC ... = ..' and check it reached at dest_pc_addr *)
           match List.find_opt (fun (_,th) ->
