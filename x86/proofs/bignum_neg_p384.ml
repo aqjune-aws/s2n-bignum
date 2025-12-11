@@ -303,9 +303,11 @@ let BIGNUM_NEG_P384_NOIBT_WINDOWS_SUBROUTINE_SAFE = time prove
                     read RSP s = word_add stackpointer (word 8) /\
                     (exists e2.
                          read events s = APPEND e2 e /\
-                         e2 = f_events x z pc stackpointer returnaddress /\
-                         memaccess_inbounds e2 [x,48; z,48; word_sub stackpointer (word 16),24]
-                            [z,48; word_sub stackpointer (word 16),24]))
+                         e2 = f_events x z pc (word_sub stackpointer (word 16))
+                                       returnaddress /\
+                         memaccess_inbounds e2
+                            [x,48; z,48; word_sub stackpointer (word 16),24]
+                            [z,48; word_sub stackpointer (word 16),16]))
                (MAYCHANGE [RSP] ,, WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
                 MAYCHANGE [memory :> bignum(z,6);
                             memory :> bytes(word_sub stackpointer (word 16),16)])`,
@@ -333,9 +335,11 @@ let BIGNUM_NEG_P384_NOIBT_WINDOWS_SUBROUTINE_SAFE = time prove
                     read RSP s = word_add stackpointer (word 8) /\
                     (exists e2.
                          read events s = APPEND e2 e /\
-                         e2 = f_events x z pc stackpointer returnaddress /\
-                         memaccess_inbounds e2 [x,48; z,48; word_sub stackpointer (word 16),24]
-                            [z,48; word_sub stackpointer (word 16),24]))
+                         e2 = f_events x z pc (word_sub stackpointer (word 16))
+                                       returnaddress /\
+                         memaccess_inbounds e2
+                            [x,48; z,48; word_sub stackpointer (word 16),24]
+                            [z,48; word_sub stackpointer (word 16),16]))
                (MAYCHANGE [RSP] ,, WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
                 MAYCHANGE [memory :> bignum(z,6);
                             memory :> bytes(word_sub stackpointer (word 16),16)])`,

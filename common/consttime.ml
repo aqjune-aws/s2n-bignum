@@ -215,6 +215,7 @@ let REPEAT_GEN_AND_OFFSET_STACKPTR_TAC =
   Event* constructors (EventJump, EventLoad, ...), discharge the goal.
 *)
 let DISCHARGE_CONCRETE_MEMACCESS_INBOUNDS_TAC =
+  REWRITE_TAC[MESON[APPEND]`APPEND ([]:(A)list) [] = []`] THEN
   REWRITE_TAC[memaccess_inbounds;ALL;EX] THEN
   REPEAT CONJ_TAC THEN
     (TRY

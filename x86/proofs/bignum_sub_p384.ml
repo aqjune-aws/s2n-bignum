@@ -345,7 +345,7 @@ let BIGNUM_SUB_P384_NOIBT_WINDOWS_SUBROUTINE_SAFE = time prove
                                 returnaddress /\
                          memaccess_inbounds e2
                             [x,48; y,48; z,48; word_sub stackpointer (word 16),24]
-                            [z,48; word_sub stackpointer (word 16),24]))
+                            [z,48; word_sub stackpointer (word 16),16]))
                (MAYCHANGE [RSP] ,, WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
                 MAYCHANGE [memory :> bignum(z,6);
                     memory :> bytes(word_sub stackpointer (word 16),16)])`,
@@ -377,7 +377,7 @@ let BIGNUM_SUB_P384_WINDOWS_SUBROUTINE_SAFE = time prove
                                 returnaddress /\
                          memaccess_inbounds e2
                             [x,48; y,48; z,48; word_sub stackpointer (word 16),24]
-                            [z,48; word_sub stackpointer (word 16),24]))
+                            [z,48; word_sub stackpointer (word 16),16]))
                (MAYCHANGE [RSP] ,, WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
                 MAYCHANGE [memory :> bignum(z,6);
                     memory :> bytes(word_sub stackpointer (word 16),16)])`,
