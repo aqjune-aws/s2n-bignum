@@ -117,3 +117,25 @@ let ASSUME_CALLEE_SAFETY_TAC =
       mk_var("f_events_callee" ^ (string_of_int !fresh_f_events_var_counter),
               f_events_var_type) in
     (X_CHOOSE_THEN f_events_callee (LABEL_TAC asmname)) callee_safety_proof;;
+
+(* Extension of ASSUME_CALLEE_SAFETY_TAC: given safety_th which is
+  |- exists f_events. forall e x y ... . P e,
+  split e into e_tail and e, and push e_tail into the innermost place.
+  |- exists f_events. forall e x y ... e_tail. P (APPEND e_tail e)
+*)
+let ASSUME_CALLEE_SAFETY_TAILED_TAC (safety_th:thm) (name:string) =
+  let append_lemma = MESON[APPEND_EXISTS]
+    `(forall (e:(uarch_event)list). P e) <=>
+      (forall e_tail e. P (APPEND e_tail e))` in
+  let safety_th' = ONCE_REWRITE_RULE[append_lemma] safety_th in
+  (* push e_tail to the innermost location *)
+  let exarg,body = dest_exists (concl safety_th') in
+  let args,body = strip_forall body in
+  let args_rotated = (tl args) @ [hd args] in
+  let eqth = METIS[](mk_eq(
+      concl safety_th',
+      mk_exists(exarg,list_mk_forall(args_rotated,body))))
+    in
+  let safety_th'' = ONCE_REWRITE_RULE[eqth] safety_th' in
+  ASSUME_CALLEE_SAFETY_TAC safety_th'' name;;
+

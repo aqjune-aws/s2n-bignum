@@ -231,14 +231,27 @@ let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
         `memaccess_inbounds (APPEND [] b) = memaccess_inbounds b /\
          memaccess_inbounds (APPEND (APPEND [] []) b) = memaccess_inbounds b` in
   let discharge_using_asm_tac:tactic =
-    FIRST_X_ASSUM (fun th ->
-      find_term (fun t -> name_of t = "memaccess_inbounds") (concl th);
-      MP_TAC th) THEN ASM_REWRITE_TAC[] THEN
-    (* this is sometimes needed *) REWRITE_TAC[APPEND] THEN
-    (* A moree general case *)
-    MATCH_MP_TAC MEMACCESS_INBOUNDS_MEM THEN
-    REWRITE_TAC[ALL;MEM] (* this must resolve all ALL (\x. MEM ..) goals *) THEN
-    NO_TAC in
+    let try_discharge (meminb_th:thm):tactic =
+      UNDISCH_TAC (concl meminb_th) THEN
+      ASM_REWRITE_TAC[] THEN (* to expand "e2" *)
+      (* this is sometimes needed *)
+      REWRITE_TAC[APPEND;APPEND_NIL] THEN
+      (* at this point, simple goals must have been already proven *)
+      (* A more general case *)
+      MATCH_MP_TAC MEMACCESS_INBOUNDS_MEM THEN
+      REWRITE_TAC[ALL;MEM] (* this must resolve all ALL (\x. MEM ..) goals *)
+      THEN
+      NO_TAC in
+
+    W (fun (asl,w) ->
+      let meminbounds = map snd (filter (fun (_,th) ->
+        can (find_term
+          (fun t -> name_of t = "memaccess_inbounds")) (concl th))
+        asl) in
+      if List.is_empty meminbounds then
+        failwith "No memaccess_inbounds assumption" else
+      end_itlist (fun tac1 tac2 -> tac1 ORELSE tac2)
+        (map try_discharge meminbounds)) in
 
   let rec main_tac (asl,w) =
     (* Case 1. If the exactly same memaccess_inbounds exists as assumption,
@@ -249,7 +262,7 @@ let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
       existing tactic. *)
     (DISCHARGE_CONCRETE_MEMACCESS_INBOUNDS_TAC THEN NO_TAC) ORELSE
 
-    (* Caes 3. If the goal consist of memaccess_inbounds of a previous trace which
+    (* Case 3. If the goal consist of memaccess_inbounds of a previous trace which
       can be discharged by assumption, followed by a concrete events list,
       apply MEMACCESS_INBOUNDS_APPEND and prove it *)
       (* Move the inner CONS to the outermost place *)
@@ -265,7 +278,7 @@ let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
         (* The existing event trace. *)
         REWRITE_TAC[append_nil_th] THEN
         main_tac (* recursively call *)
-      ]) ORELSE
+      ] THEN NO_TAC) ORELSE
 
       (* Case 4. Reverse of case3 :
         memaccess_inbounds (APPEND f_events <concrete events>) ... *)
@@ -275,7 +288,18 @@ let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
         main_tac; (* recursively call *)
         (* The new, concrete event trace. *)
         DISCHARGE_CONCRETE_MEMACCESS_INBOUNDS_TAC;
-      ]) ORELSE
+      ] THEN NO_TAC) ORELSE
+
+    (* Case 5: memaccess_inbounds (APPEND e1 e2) ... where e1 and e2 are
+       somewhat complex. Restrict to the case when e1 could be discharged with
+       discharge_using_asm_tac. Kind of case 3+4. *)
+    (GEN_REWRITE_TAC I [MEMACCESS_INBOUNDS_APPEND] THEN
+      CONJ_TAC THENL [
+        (* The existing event trace. *)
+        discharge_using_asm_tac; (* recursively call *)
+        (* The new, concrete event trace. *)
+        main_tac;
+      ] THEN NO_TAC) ORELSE
 
     FAIL_TAC
       ("DISCHARGE_MEMACCESS_INBOUNDS_TAC could not identify the pattern." ^
