@@ -4188,11 +4188,17 @@ let X86_QUICKSIM_TAC execth pats snums =
 (* More convenient wrappings of basic simulation flow.                       *)
 (* ------------------------------------------------------------------------- *)
 
-let X86_SIM_TAC execth snums =
+let X86_SIM_TAC ?(preprocess_tac:tactic option) ?(canonicalize_pc_diff=true)
+    execth snums =
   REWRITE_TAC(!simulation_precanon_thms) THEN
-  ENSURES_INIT_TAC "s0" THEN X86_STEPS_TAC execth snums THEN
+  ENSURES_INIT_TAC "s0" THEN
+  (match preprocess_tac with Some t -> t | None -> ALL_TAC) THEN
+  X86_STEPS_TAC execth snums THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN ASM_REWRITE_TAC[];;
+  REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN
+  (if canonicalize_pc_diff then
+    REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN ASM_REWRITE_TAC[]
+   else ALL_TAC);;
 
 let X86_ACCSIM_TAC execth anums snums =
   REWRITE_TAC(!simulation_precanon_thms) THEN
