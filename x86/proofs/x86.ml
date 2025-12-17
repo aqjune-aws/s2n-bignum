@@ -4838,7 +4838,9 @@ let WINDOWS_X86_WRAP_STACK_TAC =
   and count_args =
     let argy = `WINDOWS_C_ARGUMENTS` in
     let is_nargle t = is_comb t && rator t = argy in
-    length o dest_list o rand o find_term is_nargle in
+    fun t -> try
+        (length o dest_list o rand o find_term is_nargle) t
+      with _ -> failwith "Could not find WINDOWS_C_ARGUMENTS" in
   fun winmc stdmc coreth reglist stdstackoff (asl,w) ->
     let stdregs = dest_list reglist in
     let n =
