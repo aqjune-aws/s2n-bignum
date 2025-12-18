@@ -458,7 +458,8 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
 
       (* e2 can be []! *)
       REWRITE_TAC[pth] THEN
-      X_META_EXISTS_TAC `e2:(uarch_event)list` THEN
+      (X_META_EXISTS_TAC `e2:(uarch_event)list` ORELSE
+       (PRINT_GOAL_TAC THEN FAIL_TAC "Not `exists e2. ...`?")) THEN
       CONJ_TAC THENL [
         AP_THM_TAC THEN AP_TERM_TAC THEN
         REWRITE_TAC[APPEND] THEN UNIFY_REFL_TAC;

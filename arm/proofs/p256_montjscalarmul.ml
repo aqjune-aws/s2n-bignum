@@ -5184,7 +5184,7 @@ let LOCAL_JADD_TAC =
        P256_MONTJADD_SUBROUTINE_CORRECT) in
   ARM_SUBROUTINE_SIM_TAC
    (p256_montjscalarmul_mc,P256_MONTJSCALARMUL_EXEC,
-    0x804,p256_montjadd_opt_mc,th)
+    0x804,p256_montjadd_mc,th)
   [`read X0 s`; `read X1 s`;
    `read(memory :> bytes(read X1 s,8 * 4)) s,
     read(memory :> bytes(word_add (read X1 s) (word 32),8 * 4)) s,
@@ -5202,7 +5202,7 @@ let LOCAL_JDOUBLE_TAC =
        P256_MONTJDOUBLE_SUBROUTINE_CORRECT) in
   ARM_SUBROUTINE_SIM_TAC
    (p256_montjscalarmul_mc,P256_MONTJSCALARMUL_EXEC,
-    0x38bc,p256_montjdouble_opt_mc,th)
+    0x38bc,p256_montjdouble_mc,th)
   [`read X0 s`; `read X1 s`;
    `read(memory :> bytes(read X1 s,8 * 4)) s,
     read(memory :> bytes(word_add (read X1 s) (word 32),8 * 4)) s,
@@ -6069,3 +6069,15 @@ let P256_MONTJSCALARMUL_SUBROUTINE_CORRECT = time prove
                      memory :> bytes(word_sub stackpointer (word 1328),1328)])`,
    ARM_ADD_RETURN_STACK_TAC P256_MONTJSCALARMUL_EXEC
    P256_MONTJSCALARMUL_CORRECT `[X19; X20; X21; X30]` 1328);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory safety proof.                                    *)
+(* ------------------------------------------------------------------------- *)
+
+let full_spec,public_vars = mk_safety_spec
+    ~keep_maychanges:true
+    (assoc "p256_montjdouble" subroutine_signatures)
+    P256_MONTJDOUBLE_CORRECT
+    P256_MONTJDOUBLE_EXEC;;
+

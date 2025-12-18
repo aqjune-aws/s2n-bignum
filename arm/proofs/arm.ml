@@ -1100,6 +1100,30 @@ let swap_forall = MESON[]
 let ARM_ADD_RETURN_STACK_TAC =
   let sp_tm = `SP` and x30_tm = `X30`
   and dqd_thm = WORD_BLAST `(word_zx:int128->int64)(word_zx(x:int64)) = x` in
+  let append_e2_nil =
+    prove(`forall (e:(uarch_event)list) e2.
+        e = APPEND e2 e <=> APPEND [] e = APPEND e2 e`,
+    MESON_TAC[APPEND]) in
+
+  (* A sanity check of vars in the 'forall ....' goal *)
+  let check_forallvars_tac:tactic =
+    let find_and_check (lhs_pat:term) (t:term) (quants:term list) =
+      let read_eq = find_term (fun t ->
+        is_eq t && can (term_match [] lhs_pat) (lhs t)) t
+        in
+      let the_var = rhs read_eq in
+      if is_var the_var && not (mem the_var quants) then
+        failwith ("variable " ^ (string_of_term the_var)
+          ^ " (which is LHS of " ^ (string_of_term lhs_pat)
+          ^ ") does not appear at forall")
+      else
+        ALL_TAC in
+    W(fun (asl,w) ->
+      let quants = fst (strip_forall w) in
+      let _ = Printf.printf "quants: %s\n" (String.concat ", " (map string_of_term quants)) in
+      find_and_check `read X30 s` w quants THEN
+      find_and_check `read SP s` w quants) in
+
   fun ?(pre_post_nsteps:(int*int) option) execth coreth reglist stackoff ->
     let is_coreth_safety = is_exists (concl coreth) in
     let regs = dest_list reglist in
@@ -1117,9 +1141,13 @@ let ARM_ADD_RETURN_STACK_TAC =
          f_events of coreth: returnaddress and stackpointer. This will be
          filled in later. *)
       META_EXISTS_TAC THEN
+      check_forallvars_tac THEN
       FIRST_X_ASSUM (fun th -> MP_TAC (ONCE_REWRITE_RULE[append_lemma]th))
      else
-      (* th is functional correctness *) MP_TAC coreth) THEN
+      (* th is functional correctness *)
+      check_forallvars_tac THEN
+      MP_TAC coreth) THEN
+
     REWRITE_TAC [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
                  MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS;
                  MODIFIABLE_UPPER_SIMD_REGS;
@@ -1174,7 +1202,9 @@ let ARM_ADD_RETURN_STACK_TAC =
     (* ARM_BIGSTEP_TAC may leave an additional subgoal about precondition.
        If the precondition is about event trace, solve here. *)
     (if is_coreth_safety then
-     TRY (CONV_TAC (LAND_CONV CONS_TO_APPEND_CONV) THEN
+      TRY
+        (TRY (GEN_REWRITE_TAC I [append_e2_nil]) THEN
+         TRY (CONV_TAC (LAND_CONV CONS_TO_APPEND_CONV)) THEN
          BINOP_TAC THENL [ UNIFY_REFL_TAC; REFL_TAC ] THEN
          NO_TAC)
      else ALL_TAC) THEN
