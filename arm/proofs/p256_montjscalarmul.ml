@@ -6155,6 +6155,7 @@ let P256_MONTJSCALARMUL_SAFE = time prove
                 [memory :> bytes (res,96);
                  memory :> bytes (stackpointer,1296)])`,
 
+  ASSERT_CONCL_TAC full_spec THEN
   (* Prepare the safety theorem of subroutine to be used! This is necessary to
      keep introduction of metavariable in the right order. *)
   ASSUME_CALLEE_SAFETY_TAILED_TAC P256_MONTJADD_SUBROUTINE_SAFE

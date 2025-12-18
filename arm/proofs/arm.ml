@@ -1117,16 +1117,19 @@ let ARM_ADD_RETURN_STACK_TAC =
   (* A sanity check of vars in the 'forall ....' goal *)
   let check_forallvars_tac:tactic =
     let find_and_check (lhs_pat:term) (t:term) (quants:term list) =
-      let read_eq = find_term (fun t ->
-        is_eq t && can (term_match [] lhs_pat) (lhs t)) t
-        in
-      let the_var = rhs read_eq in
-      if is_var the_var && not (mem the_var quants) then
-        failwith ("variable " ^ (string_of_term the_var)
-          ^ " (which is LHS of " ^ (string_of_term lhs_pat)
-          ^ ") does not appear at forall")
-      else
-        ALL_TAC in
+      let read_eq = try Some (find_term (fun t ->
+        is_eq t && can (term_match [] lhs_pat) (lhs t)) t)
+        with _ -> None in
+      match read_eq with
+      | Some read_eq ->
+        let the_var = rhs read_eq in
+        if is_var the_var && not (mem the_var quants) then
+          failwith ("variable " ^ (string_of_term the_var)
+            ^ " (which is LHS of " ^ (string_of_term lhs_pat)
+            ^ ") does not appear at forall")
+        else
+          ALL_TAC
+      | None -> ALL_TAC in
     W(fun (asl,w) ->
       let quants = fst (strip_forall w) in
       find_and_check `read X30 s` w quants THEN
