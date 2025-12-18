@@ -799,7 +799,7 @@ let PC_PLUS_CONV =
        read PC s = word(pc + m + n)`] THENC
   funpow 3 RAND_CONV NUM_ADD_CONV;;
 
-let ARM_SUBROUTINE_SIM_TAC =
+let ARM_SUBROUTINE_SIM_TAC ?(is_safety_thm=false) =
   let auxth = METIS[] `(a:(A)list) = b /\ LENGTH b = n ==> LENGTH a = n`
   and len_tm = `LENGTH:((8)word)list->num` in
   fun (machinecode,execth,offset,submachinecode,subth) ->
@@ -837,6 +837,12 @@ let ARM_SUBROUTINE_SIM_TAC =
                       MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS;
                       MODIFIABLE_UPPER_SIMD_REGS; fst execth] THEN
       REWRITE_TAC[ALLPAIRS; ALL; PAIRWISE; NONOVERLAPPING_CLAUSES] THEN
+      (if is_safety_thm then
+        (* Turn '(forall e_stack_spill. ..) ==> ...' to
+          'exists e_stack_spill. .. ==> ...' *)
+        MATCH_MP_TAC exists_stack_spill_ev_lemma THEN
+        META_EXISTS_TAC
+       else ALL_TAC) THEN
       TRY(ANTS_TAC THENL
        [CONV_TAC(ONCE_DEPTH_CONV NORMALIZE_RELATIVE_ADDRESS_CONV) THEN
         ALIGNED_WORD_TAC THEN REPEAT CONJ_TAC THEN
@@ -851,10 +857,13 @@ let ARM_SUBROUTINE_SIM_TAC =
       ARM_BIGSTEP_TAC execth sname' THENL
        [(* Precondition of subth *)
         FIRST_X_ASSUM(MATCH_ACCEPT_TAC o MATCH_MP subimpth) ORELSE
+        (CONJ_TAC THENL [
+            FIRST_X_ASSUM(MATCH_ACCEPT_TAC o MATCH_MP subimpth);
+            ALL_TAC]) ORELSE
         (PRINT_GOAL_TAC THEN FAIL_TAC
           "Could not discharge precond (subgoal after ARM_BIGSTEP_TAC)");
-        ALL_TAC] THEN
-      RULE_ASSUM_TAC(CONV_RULE(TRY_CONV PC_PLUS_CONV));;
+
+        RULE_ASSUM_TAC(CONV_RULE(TRY_CONV PC_PLUS_CONV))];;
 
 let ARM_SUBROUTINE_SIM_ABBREV_TAC tupper ilist0 =
   let tac = ARM_SUBROUTINE_SIM_TAC tupper ilist0 in
@@ -1120,8 +1129,8 @@ let ARM_ADD_RETURN_STACK_TAC =
         ALL_TAC in
     W(fun (asl,w) ->
       let quants = fst (strip_forall w) in
-      let _ = Printf.printf "quants: %s\n" (String.concat ", " (map string_of_term quants)) in
       find_and_check `read X30 s` w quants THEN
+      find_and_check `read events s` w quants THEN
       find_and_check `read SP s` w quants) in
 
   fun ?(pre_post_nsteps:(int*int) option) execth coreth reglist stackoff ->
