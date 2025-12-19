@@ -840,7 +840,7 @@ let ARM_SUBROUTINE_SIM_TAC ?(is_safety_thm=false) =
       (if is_safety_thm then
         (* Turn '(forall e_stack_spill. ..) ==> ...' to
           'exists e_stack_spill. .. ==> ...' *)
-        MATCH_MP_TAC exists_stack_spill_ev_lemma THEN
+        ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
         META_EXISTS_TAC
        else ALL_TAC) THEN
       TRY(ANTS_TAC THENL
@@ -1190,7 +1190,7 @@ let ARM_ADD_RETURN_STACK_TAC =
     (if is_coreth_safety then
       (* Finally turn '(forall e_stack_spill. ..) ==> ...' to
          'exists e_stack_spill. .. ==> ...' *)
-      MATCH_MP_TAC exists_stack_spill_ev_lemma THEN
+      ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
       META_EXISTS_TAC
      else
       ALL_TAC) THEN
