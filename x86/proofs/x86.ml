@@ -4222,6 +4222,16 @@ let (X86_BIGSTEP_TAC:(thm*thm option array)->string->tactic) =
     GEN_REWRITE_TAC I [EVENTUALLY_IMP_EVENTUALLY] THEN
     ASM_REWRITE_TAC[]) in
   fun (execth1,_) sname (asl,w) ->
+    (* do sanity-check and print a warning message if it fails *)
+    (if not (is_imp w) ||
+      let the_lhs,the_rhs = dest_imp w in
+      not (is_comb the_lhs &&
+           name_of (fst (strip_comb the_lhs)) = "ensures" &&
+           is_comb the_rhs &&
+           name_of (fst (strip_comb the_rhs)) = "eventually")
+    then
+      Printf.printf "X86_BIGSTEP_TAC: `ensures ... ==> eventually ...` expected, but got `%s`.\n"
+        (string_of_term w));
     let sv = mk_var(sname,type_of(rand(rand w))) in
     (GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
       (!simulation_precanon_thms) THEN
