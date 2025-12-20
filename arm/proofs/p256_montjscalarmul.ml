@@ -6179,7 +6179,7 @@ let P256_MONTJSCALARMUL_SAFE = time prove
   REPEAT GEN_TAC THEN STRIP_TAC THEN
   REWRITE_TAC[C_ARGUMENTS] THEN
 
-  (*** Main loop invariant setup. The bound on y is handy to have included ***)
+  (*** Main loop invariant setup. ***)
 
   ENSURES_EVENTS_WHILE_UP2_TAC `63` `pc + 0x454` `pc + 0x7c4`
    `\i s.

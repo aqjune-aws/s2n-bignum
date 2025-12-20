@@ -4322,7 +4322,8 @@ let RIP_PLUS_CONV =
        read RIP s = word(pc + m + n)`] THENC
   funpow 3 RAND_CONV NUM_ADD_CONV;;
 
-let X86_SUBROUTINE_SIM_TAC (machinecode,execth,offset,submachinecode,subth) =
+let X86_SUBROUTINE_SIM_TAC ?(is_safety_thm=false)
+    (machinecode,execth,offset,submachinecode,subth) =
   let subimpth =
       BYTES_LOADED_SUBPROGRAM_RULE machinecode submachinecode offset in
   fun ilist0 n ->
@@ -4331,13 +4332,30 @@ let X86_SUBROUTINE_SIM_TAC (machinecode,execth,offset,submachinecode,subth) =
     let svar = mk_var(sname,`:x86state`)
     and svar0 = mk_var("s",`:x86state`) in
     let ilist = map (vsubst[svar,svar0]) ilist0 in
-    MP_TAC(TWEAK_PC_OFFSET(SPECL ilist subth)) THEN
+      let subth_specl =
+        try SPECL ilist subth with _ -> begin
+          (if (!x86_print_log) then
+            (Printf.printf "ilist and subth's forall vars do not match\n";
+            Printf.printf "ilist: [%s]\n" (end_itlist
+              (fun s s2 -> s ^ "; " ^ s2) (map string_of_term ilist));
+             Printf.printf "subth's forall vars: [%s]\n"
+                (end_itlist (fun s s2 -> s ^ "; " ^ s2)
+                  (map string_of_term (fst (strip_forall (concl subth)))))));
+          failwith "X86_SUBROUTINE_SIM_TAC: subth vars don't not match ilist0"
+        end in
+    MP_TAC(TWEAK_PC_OFFSET subth_specl) THEN
     REWRITE_TAC[COMPUTE_LENGTH_RULE submachinecode] THEN
     ASM_REWRITE_TAC[C_ARGUMENTS; C_RETURN; SOME_FLAGS;
                     MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
                     WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
     REWRITE_TAC[fst execth] THEN
     REWRITE_TAC[ALLPAIRS; ALL; PAIRWISE; NONOVERLAPPING_CLAUSES] THEN
+    (if is_safety_thm then
+      (* Turn '(forall e_stack_spill. ..) ==> ...' to
+        'exists e_stack_spill. .. ==> ...' *)
+      ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+      META_EXISTS_TAC
+      else ALL_TAC) THEN
     TRY(ANTS_TAC THENL
      [CONV_TAC(ONCE_DEPTH_CONV NORMALIZE_RELATIVE_ADDRESS_CONV) THEN
       REPEAT CONJ_TAC THEN
@@ -4352,6 +4370,9 @@ let X86_SUBROUTINE_SIM_TAC (machinecode,execth,offset,submachinecode,subth) =
     X86_BIGSTEP_TAC execth sname' THENL
      [(* Precondition of subth *)
       FIRST_X_ASSUM(MATCH_ACCEPT_TAC o MATCH_MP subimpth) ORELSE
+      (CONJ_TAC THENL [
+          FIRST_X_ASSUM(MATCH_ACCEPT_TAC o MATCH_MP subimpth);
+          ALL_TAC]) ORELSE
       (PRINT_GOAL_TAC THEN FAIL_TAC
         "Could not discharge precond (subgoal after X86_BIGSTEP_TAC)");
       ALL_TAC] THEN
