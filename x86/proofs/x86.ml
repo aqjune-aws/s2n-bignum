@@ -4760,11 +4760,20 @@ let WINDOWS_X86_WRAP_NOSTACK_TAC =
              (SPEC_ALL (X86_TRIM_EXEC_RULE stdmc)) pcoff
              (rhs(concl winmc))))))
     and winexecth = X86_MK_EXEC_RULE winmc in
-    (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
-    let is_coreth_safety = is_exists (concl coreth) in
     let coreth = REWRITE_RULE
       [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] coreth in
-   (REWRITE_TAC [WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
+    (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
+    let is_coreth_safety = is_exists (concl coreth) in
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    let check_safety_match_tac:tactic =
+      fun (asl,w) ->
+        if is_coreth_safety <> (is_exists w) then
+          failwith "coreth must be `exists ..` iff the conclusion is"
+        else ALL_TAC (asl,w) in
+
+   (check_safety_match_tac THEN
+    REWRITE_TAC [WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
     PURE_REWRITE_TAC[WINDOWS_ABI_STACK_THM] THEN
     (if is_coreth_safety then
       ASSUME_CALLEE_SAFETY_TAC coreth "" THEN
@@ -4862,7 +4871,16 @@ let WINDOWS_X86_WRAP_STACK_TAC =
     and winexecth = X86_MK_EXEC_RULE winmc in
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
     let is_coreth_safety = is_exists (concl coreth) in
-   (REWRITE_TAC [WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    let check_safety_match_tac:tactic =
+      fun (asl,w) ->
+        if is_coreth_safety <> (is_exists w) then
+          failwith "coreth must be `exists ..` iff the conclusion is"
+        else ALL_TAC (asl,w) in
+
+   (check_safety_match_tac THEN
+    REWRITE_TAC [WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
     PURE_REWRITE_TAC[WINDOWS_ABI_STACK_THM] THEN
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
     (if is_coreth_safety then

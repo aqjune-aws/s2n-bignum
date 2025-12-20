@@ -90,18 +90,12 @@ let mk_noibt_subroutine_safe_spec
         | Some so -> snd (dest_comb so) | None -> `0` in
       let new_readlist,new_writelist =
         if already_has_stackptr then
-          let _,sz = dest_pair (last old_readlist) in
-          let _ = Printf.printf "sz: %s\n" (string_of_term sz) in
-          let range1 = mk_pair (stackptr_with_ofs,sz) in
-          let range2_read,range2_write =
-            let ofs_int = dest_small_numeral stackofs_num in
-            let sz_int = dest_small_numeral sz in
-            let ofs_int2 = ofs_int - sz_int in
-            let base = list_mk_icomb "word_sub" [stackptr;mk_word(ofs_int2)] in
-            mk_pair(base,mk_small_numeral(ofs_int2+8)),
-            mk_pair(base,mk_small_numeral(ofs_int2)) in
-          ((butlast old_readlist) @ [range1;range2_read]),
-          ((butlast old_writelist) @ [range1;range2_write])
+          let ofs_int = dest_small_numeral stackofs_num in
+          (* stack+8 is read because it is where returnaddress is stored *)
+          let range_read = mk_pair (stackptr_with_ofs,mk_small_numeral(ofs_int+8)) in
+          let range_write = mk_pair (stackptr_with_ofs,stackofs_num) in
+          ((butlast old_readlist) @ [range_read]),
+          ((butlast old_writelist) @ [range_write])
         else
           let stackofs_num_plus_8 =
             mk_small_numeral((dest_small_numeral stackofs_num) + 8) in
