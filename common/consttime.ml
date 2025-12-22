@@ -32,7 +32,11 @@ find_stack_access_size `MAYCHANGE [memory :> bytes(z,8 * 8);
                     memory :> bytes(word_sub stackpointer (word 224),224)]`;;
 
 (* Create a safety spec. This returns a safety spec using ensures, as well
-   as the unversally quantified variables that are public information. *)
+   as the unversally quantified variables that are public information.
+
+   NOTE: the output may need further edit if the variable for program counter
+   is named other than 'pc' in subroutine_correct_th.
+*)
 let gen_mk_safety_spec
     ?(coda_pc_range:(int*int) option) (* when coda is used: (begin, len) *)
     ~(keep_maychanges:bool)
@@ -407,6 +411,10 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
     ?(tac_before_maychange_simp:tactic option) exec
     (extra_unpack_thms:thm list) single_step_tac
     :tactic =
+
+    REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;SOME_FLAGS;fst exec] THEN
+    REWRITE_TAC extra_unpack_thms THEN
+
     W (fun (asl,w) ->
       let f_events = fst (dest_exists w) in
       let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
@@ -421,8 +429,6 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
         snd (dest_eq read_pc_eq) in
 
       X_META_EXISTS_TAC f_events THEN
-      REWRITE_TAC[C_ARGUMENTS;ALL;ALLPAIRS;SOME_FLAGS;fst exec] THEN
-      REWRITE_TAC extra_unpack_thms THEN
       REPEAT_GEN_AND_OFFSET_STACKPTR_TAC THEN
       TRY DISCH_TAC THEN
       REPEAT SPLIT_FIRST_CONJ_ASSUM_TAC THEN
