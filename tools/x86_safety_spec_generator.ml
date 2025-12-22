@@ -115,6 +115,19 @@ let mk_noibt_subroutine_safe_spec
   mk_exists(new_f_events,
     list_mk_forall(new_uvs,mk_imp(new_assum,new_body)));;
 
+
+(* Usage:
+  generate_four_variants_of_x86_safety_specs
+      "p384_montjadd_alt"
+      P384_MONTJADD_ALT_CORRECT
+      P384_MONTJADD_ALT_EXEC
+      P384_MONTJADD_ALT_NOIBT_SUBROUTINE_CORRECT
+      P384_MONTJADD_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT;;
+
+  Needs these two files already loaded:
+    x86/proofs/consttime.ml
+    x86/proofs/subroutine_signatures.ml
+*)
 let generate_four_variants_of_x86_safety_specs (fnname:string)
     correct_th exec_th
     noibt_subroutine_correct_th noibt_windows_subroutine_correct_th =
@@ -122,6 +135,7 @@ let generate_four_variants_of_x86_safety_specs (fnname:string)
   (* 0. preamble *)
   print_endline ("(* ------------------------------------------------------------------------- *)");
   print_endline ("(* Constant-time and memory safety proof.                                    *)");
+  print_endline ("(* (specs generated with generate_four_variants_of_x86_safety_specs)         *)");
   print_endline ("(* ------------------------------------------------------------------------- *)");
   print_endline ("");
 
