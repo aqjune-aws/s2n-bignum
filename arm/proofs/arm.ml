@@ -1139,6 +1139,14 @@ let ARM_ADD_RETURN_STACK_TAC =
   fun ?(pre_post_nsteps:(int*int) option) execth coreth reglist stackoff ->
     let is_coreth_safety = is_exists (concl coreth) in
     let regs = dest_list reglist in
+
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    (fun (asl,w) ->
+      if is_coreth_safety <> (is_exists w) then
+        failwith "coreth must be `exists ..` iff the conclusion is"
+      else ALL_TAC (asl,w)) THEN
+
     (* The number of steps that ARM_STEPS will take before/after BIGSTEP. *)
     let pre_n,post_n =
       match pre_post_nsteps with
