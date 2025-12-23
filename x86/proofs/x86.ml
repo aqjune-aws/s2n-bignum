@@ -4869,9 +4869,18 @@ let X86_ADD_RETURN_NOSTACK_TAC =
     let coreth =
       REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI]
       coreth in
+    let is_coreth_safety = is_exists (concl coreth) in
+
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    (fun (asl,w) ->
+      if is_coreth_safety <> (is_exists w) then
+        failwith "coreth must be `exists ..` iff the conclusion is"
+      else ALL_TAC (asl,w)) THEN
+
     REWRITE_TAC [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
-    (if is_exists (concl coreth) then
+    (if is_coreth_safety then
       ASSUME_CALLEE_SAFETY_TAC coreth "" THEN
       (* f_events of the current goal will have additional args, compared to
          f_events of coreth: returnaddress and stackpointer. This will be
@@ -4947,15 +4956,47 @@ let GEN_X86_ADD_RETURN_STACK_TAC =
     let regs = dest_list reglist in
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
     let is_coreth_safety = is_exists (concl coreth) in
+
+    (* A sanity check of vars in the 'forall ....' goal *)
+    let check_forallvars_tac:tactic =
+      let find_and_check (lhs_pat:term) (t:term) (quants:term list) =
+        let read_eq = try Some (find_term (fun t ->
+          is_eq t && can (term_match [] lhs_pat) (lhs t)) t)
+          with _ -> None in
+        match read_eq with
+        | Some read_eq ->
+          let the_var = rhs read_eq in
+          if is_var the_var && not (mem the_var quants) then
+            failwith ("variable " ^ (string_of_term the_var)
+              ^ " (which is RHS of " ^ (string_of_term lhs_pat)
+              ^ ") does not appear at forall")
+          else
+            ALL_TAC
+        | None -> ALL_TAC in
+      W(fun (asl,w) ->
+        let quants = fst (strip_forall w) in
+        find_and_check `read RSP s` w quants THEN
+        find_and_check `read (memory :> bytes64 stackpointer) s` w quants) in
+
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    (fun (asl,w) ->
+      if is_coreth_safety <> (is_exists w) then
+        failwith "coreth must be `exists ..` iff the conclusion is"
+      else ALL_TAC (asl,w)) THEN
+
     (if is_coreth_safety then
       ASSUME_CALLEE_SAFETY_TAC coreth "" THEN
       (* f_events of the current goal will have additional args, compared to
          f_events of coreth: returnaddress and stackpointer. This will be
          filled in later. *)
       META_EXISTS_TAC THEN
+      check_forallvars_tac THEN
       FIRST_X_ASSUM (fun th -> MP_TAC (ONCE_REWRITE_RULE[append_lemma]th))
      else
-      (* th is functional correctness *) MP_TAC coreth) THEN
+      (* th is functional correctness *)
+      check_forallvars_tac THEN
+      MP_TAC coreth) THEN
 
     REWRITE_TAC[fst execth] THEN
     REWRITE_TAC [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
@@ -4991,9 +5032,18 @@ let GEN_X86_ADD_RETURN_STACK_TAC =
       META_EXISTS_TAC
      else
       ALL_TAC) THEN
-    TRY(ANTS_TAC THENL
-     [REPEAT CONJ_TAC THEN TRY DISJ2_TAC THEN NONOVERLAPPING_TAC;
-      ALL_TAC]) THEN
+    (* If coreth has remaining assumptions to discharge
+       (usually nonoverlapping conditions), prove them *)
+    W(fun (asl,w) ->
+      let coreth_stmt,_ = dest_imp w in
+      if is_imp coreth_stmt then
+        ANTS_TAC THENL
+         [REPEAT CONJ_TAC THEN TRY DISJ2_TAC THEN NONOVERLAPPING_TAC THEN
+          (* All assumptions must have been discharged at this point *)
+          (PRINT_GOAL_TAC THEN
+          FAIL_TAC "Could not discharge assumptions of coreth");
+          ALL_TAC]
+      else ALL_TAC) THEN
     DISCH_THEN(fun th ->
       MAP_EVERY (fun c -> ENSURES_PRESERVED_TAC ("init_"^fst(dest_const c)) c)
                 regs THEN
@@ -5457,7 +5507,11 @@ let ADD_IBT_TAC =
       REPEAT GEN_TAC THEN
       CONV_TAC(TOP_DEPTH_CONV COMPONENT_READ_OVER_WRITE_CONV) THEN
       REFL_TAC;
-      FIRST_X_ASSUM ACCEPT_TAC];;
+      FIRST_X_ASSUM ACCEPT_TAC ORELSE
+      ((* When the goal contains LENGTH .._mc and LENGTH .._tmc . *)
+       FIRST_X_ASSUM MP_TAC THEN
+       REWRITE_TAC[LENGTH_APPEND] THEN CONV_TAC (ONCE_DEPTH_CONV LENGTH_CONV)
+       THEN ASM_REWRITE_TAC[ADD_ASSOC] THEN NO_TAC)];;
 
 let ADD_IBT_RULE th =
   let the_concl = concl th in

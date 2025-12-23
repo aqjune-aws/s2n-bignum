@@ -25,7 +25,7 @@ let mk_noibt_subroutine_safe_spec
           fst (dest_binary "word_sub" t) = stackptr) new_assum in
       Some (rand ofs)
     with _ ->
-      let _ = Printf.printf "Has no \"word_sub stackpointer (word ..)\"; stackofs is None" in
+      let _ = Printf.printf "(* Has no \"word_sub stackpointer (word ..)\"; stackofs is None *)\n" in
       None in
 
   let _::pre_fn::post_fn::new_frame::[] = snd (strip_comb body) in

@@ -315,10 +315,11 @@ let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
         main_tac;
       ] THEN NO_TAC) ORELSE
 
-    FAIL_TAC
-      ("DISCHARGE_MEMACCESS_INBOUNDS_TAC could not identify the pattern." ^
+    (PRINT_GOAL_TAC THEN
+     FAIL_TAC
+      ("DISCHARGE_MEMACCESS_INBOUNDS_TAC could not identify the pattern. " ^
       "Please check whether the event list in assumption matches the event " ^
-      "list in the conclusion")) (asl,w)
+      "list in the conclusion"))) (asl,w)
   in
   (* Remove all vacuous appends *)
   REWRITE_TAC[CONJUNCT1 APPEND; APPEND_NIL] THEN
@@ -419,6 +420,9 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
       let f_events = fst (dest_exists w) in
       let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
       let stored_abbrevs = ref [] in
+
+      if List.is_empty quantvars || hd quantvars <> `e:(uarch_event)list`
+      then failwith "The goal must be `exists f_events. forall e ...`" else
 
       (* The destination PC *)
       let dest_pc_addr =
