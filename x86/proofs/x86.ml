@@ -4869,9 +4869,18 @@ let X86_ADD_RETURN_NOSTACK_TAC =
     let coreth =
       REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI]
       coreth in
+    let is_coreth_safety = is_exists (concl coreth) in
+
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    (fun (asl,w) ->
+      if is_coreth_safety <> (is_exists w) then
+        failwith "coreth must be `exists ..` iff the conclusion is"
+      else ALL_TAC (asl,w)) THEN
+
     REWRITE_TAC [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
-    (if is_exists (concl coreth) then
+    (if is_coreth_safety then
       ASSUME_CALLEE_SAFETY_TAC coreth "" THEN
       (* f_events of the current goal will have additional args, compared to
          f_events of coreth: returnaddress and stackpointer. This will be
@@ -4947,6 +4956,14 @@ let GEN_X86_ADD_RETURN_STACK_TAC =
     let regs = dest_list reglist in
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
     let is_coreth_safety = is_exists (concl coreth) in
+
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+    (fun (asl,w) ->
+      if is_coreth_safety <> (is_exists w) then
+        failwith "coreth must be `exists ..` iff the conclusion is"
+      else ALL_TAC (asl,w)) THEN
+
     (if is_coreth_safety then
       ASSUME_CALLEE_SAFETY_TAC coreth "" THEN
       (* f_events of the current goal will have additional args, compared to
