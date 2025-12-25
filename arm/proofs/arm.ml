@@ -1125,7 +1125,7 @@ let ARM_ADD_RETURN_STACK_TAC =
         let the_var = rhs read_eq in
         if is_var the_var && not (mem the_var quants) then
           failwith ("variable " ^ (string_of_term the_var)
-            ^ " (which is LHS of " ^ (string_of_term lhs_pat)
+            ^ " (which is RHS of " ^ (string_of_term lhs_pat)
             ^ ") does not appear at forall")
         else
           ALL_TAC

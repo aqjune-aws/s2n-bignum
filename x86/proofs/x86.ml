@@ -4957,6 +4957,27 @@ let GEN_X86_ADD_RETURN_STACK_TAC =
     (* If coreth was a safety property, coreth is `exists f_events. ...`. *)
     let is_coreth_safety = is_exists (concl coreth) in
 
+    (* A sanity check of vars in the 'forall ....' goal *)
+    let check_forallvars_tac:tactic =
+      let find_and_check (lhs_pat:term) (t:term) (quants:term list) =
+        let read_eq = try Some (find_term (fun t ->
+          is_eq t && can (term_match [] lhs_pat) (lhs t)) t)
+          with _ -> None in
+        match read_eq with
+        | Some read_eq ->
+          let the_var = rhs read_eq in
+          if is_var the_var && not (mem the_var quants) then
+            failwith ("variable " ^ (string_of_term the_var)
+              ^ " (which is RHS of " ^ (string_of_term lhs_pat)
+              ^ ") does not appear at forall")
+          else
+            ALL_TAC
+        | None -> ALL_TAC in
+      W(fun (asl,w) ->
+        let quants = fst (strip_forall w) in
+        find_and_check `read RSP s` w quants THEN
+        find_and_check `read (memory :> bytes64 stackpointer) s` w quants) in
+
     (* is_coreth_safety must hold iff the current goalstate is
        `exists ...`. *)
     (fun (asl,w) ->
@@ -4970,9 +4991,12 @@ let GEN_X86_ADD_RETURN_STACK_TAC =
          f_events of coreth: returnaddress and stackpointer. This will be
          filled in later. *)
       META_EXISTS_TAC THEN
+      check_forallvars_tac THEN
       FIRST_X_ASSUM (fun th -> MP_TAC (ONCE_REWRITE_RULE[append_lemma]th))
      else
-      (* th is functional correctness *) MP_TAC coreth) THEN
+      (* th is functional correctness *)
+      check_forallvars_tac THEN
+      MP_TAC coreth) THEN
 
     REWRITE_TAC[fst execth] THEN
     REWRITE_TAC [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
@@ -5008,9 +5032,18 @@ let GEN_X86_ADD_RETURN_STACK_TAC =
       META_EXISTS_TAC
      else
       ALL_TAC) THEN
-    TRY(ANTS_TAC THENL
-     [REPEAT CONJ_TAC THEN TRY DISJ2_TAC THEN NONOVERLAPPING_TAC;
-      ALL_TAC]) THEN
+    (* If coreth has remaining assumptions to discharge
+       (usually nonoverlapping conditions), prove them *)
+    W(fun (asl,w) ->
+      let coreth_stmt,_ = dest_imp w in
+      if is_imp coreth_stmt then
+        ANTS_TAC THENL
+         [REPEAT CONJ_TAC THEN TRY DISJ2_TAC THEN NONOVERLAPPING_TAC THEN
+          (* All assumptions must have been discharged at this point *)
+          (PRINT_GOAL_TAC THEN
+          FAIL_TAC "Could not discharge assumptions of coreth");
+          ALL_TAC]
+      else ALL_TAC) THEN
     DISCH_THEN(fun th ->
       MAP_EVERY (fun c -> ENSURES_PRESERVED_TAC ("init_"^fst(dest_const c)) c)
                 regs THEN
