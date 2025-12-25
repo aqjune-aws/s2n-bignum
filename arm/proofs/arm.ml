@@ -1214,7 +1214,8 @@ let ARM_ADD_RETURN_STACK_TAC =
                              ("init_"^fst(dest_const c)) c)
                  (subtract regs [x30_tm]))
         ORELSE
-        FAIL_TAC "callee-save registers are still in MAYCHANGE") THEN
+        FAIL_TAC ("callee-save registers are still in MAYCHANGE, or " ^
+          "`read X30 s` does not exist in precondition")) THEN
       REWRITE_TAC(!simulation_precanon_thms) THEN ENSURES_INIT_TAC "s0" THEN
       ARM_STEPS_TAC execth (1--pre_n) THEN
       MP_TAC th) THEN
@@ -1246,7 +1247,7 @@ let ARM_ADD_RETURN_STACK_TAC =
         (\s. read PC s = word (pc + (begin_ofs + n) /\
              <postcondition>(s))
         (<maychange>)`,
-  prove it using correct_th which is
+  prove it using core_th which is
     `|- !<vars> pc.
       <assumptions on program_sub_mc, vars and pc>
       ==> ensures arm
@@ -1257,14 +1258,32 @@ let ARM_ADD_RETURN_STACK_TAC =
         (<maychange>)`
   where program_sub_mc is SUB_LIST(begin_ofs,n) program_mc.
   length_ths contains `|- LENGTH program_mc = ...` and that of program_sub_mc. *)
-let ARM_SUB_LIST_OF_MC_TAC (correct_th:thm) (program_sub_mc_def:thm)
+let ARM_SUB_LIST_OF_MC_TAC (core_th:thm) (program_sub_mc_def:thm)
     (length_ths:thm list): tactic =
-  W (fun (asl,g) ->
-    let begin_ofs,n =
-      let rhs = snd (dest_eq (concl program_sub_mc_def)) in
-      dest_pair (rand(rator rhs)) in
-    let correct_th_vars =
-      let xs = fst (strip_forall g) in
+  let is_coreth_safety = is_exists (concl core_th) in
+  let begin_ofs,n =
+    let rhs = snd (dest_eq (concl program_sub_mc_def)) in
+    dest_pair (rand(rator rhs)) in
+  let f_events_callee = ref `T` in
+
+    (* is_coreth_safety must hold iff the current goalstate is
+       `exists ...`. *)
+  (fun (asl,w) ->
+    if is_coreth_safety <> (is_exists w) then
+      failwith "coreth must be `exists ..` iff the conclusion is"
+    else ALL_TAC (asl,w)) THEN
+
+  (if is_coreth_safety then
+    ASSUME_CALLEE_SAFETY_TAC core_th "" THEN
+    META_EXISTS_TAC THEN
+    FIRST_X_ASSUM MP_TAC
+    else
+    (* th is functional correctness *)
+    MP_TAC core_th) THEN
+
+  W (fun (asl,w) ->
+    let core_th_vars =
+      let xs = fst (strip_forall ((snd o dest_imp) w)) in
       if List.exists (fun t -> t = `pc:num`) xs
       then
         List.map
@@ -1272,15 +1291,16 @@ let ARM_SUB_LIST_OF_MC_TAC (correct_th:thm) (program_sub_mc_def:thm)
       else
         let xs,pc = butlast xs, last xs in
         xs @ [mk_binary "+" (pc,begin_ofs)] in
+
     if !arm_print_log then begin
       Printf.printf "ARM_SUB_LIST_OF_MC_TAC: begin_ofs: %s, n: %s\n"
         (string_of_term begin_ofs) (string_of_term n);
       Printf.printf "\tvars: %s\n"
-        (String.concat "," (map string_of_term correct_th_vars))
+        (String.concat "," (map string_of_term core_th_vars))
     end else ();
-    REPEAT STRIP_TAC THEN
-    MP_TAC (ISPECL correct_th_vars correct_th) THEN
-    (* Prove antedecent of correct_th *)
+    DISCH_THEN (fun core_th ->
+      REPEAT STRIP_TAC THEN MP_TAC (ISPECL core_th_vars core_th)) THEN
+    (* Prove antedecent of core_th *)
     ANTS_TAC THENL [
       (REPEAT (POP_ASSUM MP_TAC) THEN
       REWRITE_TAC(length_ths @ [ALL;NONOVERLAPPING_CLAUSES]) THEN
@@ -1298,10 +1318,25 @@ let ARM_SUB_LIST_OF_MC_TAC (correct_th:thm) (program_sub_mc_def:thm)
 
         SUBSUMED_MAYCHANGE_TAC;
 
-        MESON_TAC[ADD_ASSOC;ADD_0] ORELSE
-        FAIL_TAC ("MESON_TAC could not prove the third precondition of " ^
+        (if is_coreth_safety then
+          REPEAT GEN_TAC THEN STRIP_TAC THEN
+          REPEAT CONJ_TAC THEN TRY (ASM_METIS_TAC[ADD_ASSOC;ADD_0]) THEN
+
+          (* exists e2.
+              read events s' = APPEND e2 e /\
+              e2 = f_events x z pc /\
+              memaccess_inbounds e2 [x,72; z,72] [z,72] *)
+          X_META_EXISTS_TAC `e2':(uarch_event)list` THEN
+          REPEAT CONJ_TAC THENL [
+            FIRST_X_ASSUM (UNIFY_ACCEPT_TAC [`e2':(uarch_event)list`]);
+            ASM_REWRITE_TAC[] THEN UNIFY_REFL_TAC;
+            FIRST_X_ASSUM MATCH_ACCEPT_TAC
+          ]
+        else
+          MESON_TAC[ADD_ASSOC;ADD_0] ORELSE
+          FAIL_TAC ("Could not prove the third precondition of " ^
                   "ENSURES_SUBLEMMA_THM " ^
-                  "`(!s s'. P s /\ Q' s' /\ R' s s' ==> Q s')`")
+                  "`(!s s'. P s /\ Q' s' /\ R' s s' ==> Q s')`"))
       ]
     ]);;
 

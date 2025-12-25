@@ -420,6 +420,9 @@ let GEN_PROVE_SAFETY_SPEC_TAC =
       let quantvars,forall_body = strip_forall(snd(dest_exists w)) in
       let stored_abbrevs = ref [] in
 
+      if List.is_empty quantvars || hd quantvars <> `e:(uarch_event)list`
+      then failwith "The goal must be `exists f_events. forall e ...`" else
+
       (* The destination PC *)
       let dest_pc_addr =
         let triple = if is_imp forall_body
