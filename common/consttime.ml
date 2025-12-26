@@ -315,10 +315,11 @@ let DISCHARGE_MEMACCESS_INBOUNDS_TAC =
         main_tac;
       ] THEN NO_TAC) ORELSE
 
-    FAIL_TAC
-      ("DISCHARGE_MEMACCESS_INBOUNDS_TAC could not identify the pattern." ^
+    (PRINT_GOAL_TAC THEN
+     FAIL_TAC
+      ("DISCHARGE_MEMACCESS_INBOUNDS_TAC could not identify the pattern. " ^
       "Please check whether the event list in assumption matches the event " ^
-      "list in the conclusion")) (asl,w)
+      "list in the conclusion"))) (asl,w)
   in
   (* Remove all vacuous appends *)
   REWRITE_TAC[CONJUNCT1 APPEND; APPEND_NIL] THEN
