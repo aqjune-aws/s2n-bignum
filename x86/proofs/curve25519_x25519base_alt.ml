@@ -5150,13 +5150,41 @@ let CURVE25519_X25519BASE_ALT_CORRECT = time prove
   REWRITE_TAC[GSYM INT_OF_NUM_CLAUSES; num_congruent; num_coprime] THEN
   CONV_TAC INTEGER_RULE);;
 
+(* Bridge equation relating the IBT mc to the trimmed mc: mc pc tables =
+   APPEND [endbr64] (tmc (pc+4) tables). Used for ADD_IBT_RULE-style
+   transformations on parametrized mcs. *)
+let CURVE25519_X25519BASE_ALT_MC_BRIDGE = prove
+ (`!pc tables. curve25519_x25519base_alt_mc pc tables =
+     APPEND [word 0xf3:byte; word 0x0f; word 0x1e; word 0xfa]
+            (curve25519_x25519base_alt_tmc (pc + 4) tables)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[curve25519_x25519base_alt_mc;
+              curve25519_x25519base_alt_tmc; APPEND] THEN
+  REWRITE_TAC[GSYM INT_OF_NUM_ADD] THEN
+  AP_TERM_TAC THEN AP_TERM_TAC THEN AP_TERM_TAC THEN
+  REWRITE_TAC[INT_ARITH `&pc + &88 = (&pc + &4) + &84:int`]);;
+
+(* Length of the IBT mc, derived from the bridge and the trimmed mc length. *)
+let LENGTH_CURVE25519_X25519BASE_ALT_MC = prove
+ (`!pc tables. LENGTH (curve25519_x25519base_alt_mc pc tables) = 0x2f4d`,
+  REWRITE_TAC[CURVE25519_X25519BASE_ALT_MC_BRIDGE; LENGTH_APPEND; LENGTH;
+              fst CURVE25519_X25519BASE_ALT_EXEC] THEN ARITH_TAC);;
+
+(* Note: the precondition uses LENGTH of the IBT mc (curve25519_x25519base_alt_mc,
+   which is 4 bytes longer than the trimmed tmc). This is because
+   CURVE25519_X25519BASE_ALT_CORRECT was written with a hardcoded 0x2f4d size
+   (the IBT mc length), so its `nonoverlapping` clause requires that size. The
+   precondition here is therefore 4 bytes stronger than strictly needed for the
+   trimmed mc, but this is sound and matches what CORRECT asks. *)
 let CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_CORRECT = time prove
  (`!tables res scalar n pc stackpointer returnaddress.
     riprel32_within_bounds tables (pc + 84) /\
     ALL (nonoverlapping (word_sub stackpointer (word 536),536))
-        [(word pc,0x2f4d); (word tables,48576); (scalar,32)] /\
+        [(word pc,LENGTH (curve25519_x25519base_alt_mc pc tables));
+         (word tables,48576); (scalar,32)] /\
     ALL (nonoverlapping (res,32))
-        [(word pc,0x2f4d); (word tables,48576);
+        [(word pc,LENGTH (curve25519_x25519base_alt_mc pc tables));
+         (word tables,48576);
          (word_sub stackpointer (word 536),544)]
     ==> ensures x86
          (\s. bytes_loaded s (word pc)
@@ -5174,26 +5202,17 @@ let CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_CORRECT = time prove
          (MAYCHANGE [RSP] ,, MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(res,32);
                      memory :> bytes(word_sub stackpointer (word 536),536)])`,
+  REWRITE_TAC[LENGTH_CURVE25519_X25519BASE_ALT_MC] THEN
   REWRITE_TAC[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC] THEN
   X86_ADD_RETURN_STACK_TAC CURVE25519_X25519BASE_ALT_EXEC
    (REWRITE_RULE[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC]
     CURVE25519_X25519BASE_ALT_CORRECT)
     `[RBX; RBP; R12; R13; R14; R15]` 536);;
 
-(* Bridge equation relating the IBT mc to the trimmed mc: mc pc tables =
-   APPEND [endbr64] (tmc (pc+4) tables). Used for ADD_IBT_RULE-style
-   transformations on parametrized mcs. *)
-let CURVE25519_X25519BASE_ALT_MC_BRIDGE = prove
- (`!pc tables. curve25519_x25519base_alt_mc pc tables =
-     APPEND [word 0xf3:byte; word 0x0f; word 0x1e; word 0xfa]
-            (curve25519_x25519base_alt_tmc (pc + 4) tables)`,
-  REPEAT GEN_TAC THEN
-  REWRITE_TAC[curve25519_x25519base_alt_mc;
-              curve25519_x25519base_alt_tmc; APPEND] THEN
-  REWRITE_TAC[GSYM INT_OF_NUM_ADD] THEN
-  AP_TERM_TAC THEN AP_TERM_TAC THEN AP_TERM_TAC THEN
-  REWRITE_TAC[INT_ARITH `&pc + &88 = (&pc + &4) + &84:int`]);;
-
+(* IBT precondition uses 0x2f51 = LENGTH(curve25519_x25519base_alt_mc) + 4 (the
+   bump comes from ADD_IBT_RULE's adjust). Kept numeric here because there is
+   no clean LENGTH form for "mc length + 4" given alt's pre-existing choice of
+   mc-length (not tmc-length) in the NOIBT spec. *)
 let CURVE25519_X25519BASE_ALT_SUBROUTINE_CORRECT = time prove
  (`!tables res scalar n pc stackpointer returnaddress.
     riprel32_within_bounds tables (pc + 88) /\
@@ -5220,15 +5239,19 @@ let CURVE25519_X25519BASE_ALT_SUBROUTINE_CORRECT = time prove
                      memory :> bytes(word_sub stackpointer (word 536),536)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE
                      ~bridge:(Some CURVE25519_X25519BASE_ALT_MC_BRIDGE)
-                     CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_CORRECT));;
+                     (REWRITE_RULE[fst CURVE25519_X25519BASE_ALT_EXEC;
+                                   LENGTH_CURVE25519_X25519BASE_ALT_MC]
+                                CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_CORRECT)));;
 
 let CURVE25519_X25519BASE_BYTE_ALT_NOIBT_SUBROUTINE_CORRECT = prove
  (`!tables res scalar n pc stackpointer returnaddress.
     riprel32_within_bounds tables (pc + 84) /\
     ALL (nonoverlapping (word_sub stackpointer (word 536),536))
-        [(word pc,0x2f4d); (word tables,48576); (scalar,32)] /\
+        [(word pc,LENGTH (curve25519_x25519base_alt_mc pc tables));
+         (word tables,48576); (scalar,32)] /\
     ALL (nonoverlapping (res,32))
-        [(word pc,0x2f4d); (word tables,48576);
+        [(word pc,LENGTH (curve25519_x25519base_alt_mc pc tables));
+         (word tables,48576);
          (word_sub stackpointer (word 536),544)]
     ==> ensures x86
          (\s. bytes_loaded s (word pc)
@@ -5276,7 +5299,9 @@ let CURVE25519_X25519BASE_BYTE_ALT_SUBROUTINE_CORRECT = prove
                      memory :> bytes(word_sub stackpointer (word 536),536)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE
                      ~bridge:(Some CURVE25519_X25519BASE_ALT_MC_BRIDGE)
-                     CURVE25519_X25519BASE_BYTE_ALT_NOIBT_SUBROUTINE_CORRECT));;
+                     (REWRITE_RULE[fst CURVE25519_X25519BASE_ALT_EXEC;
+                                   LENGTH_CURVE25519_X25519BASE_ALT_MC]
+                                CURVE25519_X25519BASE_BYTE_ALT_NOIBT_SUBROUTINE_CORRECT)));;
 
 (* ------------------------------------------------------------------------- *)
 (* Correctness of Windows ABI version.                                       *)
@@ -5309,6 +5334,9 @@ let curve25519_x25519base_alt_windows_tmc =
   define_trimmed "curve25519_x25519base_alt_windows_tmc"
                  curve25519_x25519base_alt_windows_mc;;
 
+let WINDOWS_CURVE25519_X25519BASE_ALT_EXEC =
+  X86_MK_EXEC_RULE curve25519_x25519base_alt_windows_tmc;;
+
 (* Bridge equation analogous to CURVE25519_X25519BASE_ALT_MC_BRIDGE for the
    Windows mc/tmc pair. *)
 let CURVE25519_X25519BASE_ALT_WINDOWS_MC_BRIDGE = prove
@@ -5322,18 +5350,35 @@ let CURVE25519_X25519BASE_ALT_WINDOWS_MC_BRIDGE = prove
   AP_TERM_TAC THEN AP_TERM_TAC THEN AP_TERM_TAC THEN
   REWRITE_TAC[INT_ARITH `&pc + &104 = (&pc + &4) + &100:int`]);;
 
-(* The Windows trimmed mc has length 0x2f5d = 16 bytes wrapper + 0x2f4d body.
+(* Length of the Windows IBT mc, derived from the bridge and the Windows
+   trimmed mc length. *)
+let LENGTH_CURVE25519_X25519BASE_ALT_WINDOWS_MC = prove
+ (`!pc tables. LENGTH (curve25519_x25519base_alt_windows_mc pc tables) = 0x2f5d`,
+  REWRITE_TAC[CURVE25519_X25519BASE_ALT_WINDOWS_MC_BRIDGE; LENGTH_APPEND; LENGTH;
+              fst WINDOWS_CURVE25519_X25519BASE_ALT_EXEC] THEN ARITH_TAC);;
+
+(* The Windows trimmed mc has length 0x2f59 = 16 bytes wrapper + 0x2f49 body.
    For the LEA at offset 84 inside the body (i.e. (pc + 0x10) + 84 = pc + 100),
    riprel32_within_bounds bound is `tables (pc + 100)` for the trimmed mc and
-   `tables (pc + 104)` for the IBT mc. *)
+   `tables (pc + 104)` for the IBT mc.
 
+   Note on the precondition size: this NOIBT theorem uses LENGTH of the IBT
+   Windows mc (0x2f5d) rather than the trimmed mc (0x2f59). This is 4 bytes
+   stronger than strictly needed, but it is forced by the inner Linux
+   subroutine call below: that inner call requires nonoverlap of
+   `(pc + 0x10, 0x2f4d)` (since the inner Linux NOIBT_SUBROUTINE_CORRECT was
+   stated with that 0x2f4d hardcoded by CURVE25519_X25519BASE_ALT_CORRECT),
+   and 0x10 + 0x2f4d = 0x2f5d, which exactly matches LENGTH of the Windows
+   IBT mc. Using the trimmed length 0x2f59 here would leave a 4-byte gap. *)
 let CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT = time prove
  (`!tables res scalar n pc stackpointer returnaddress.
     riprel32_within_bounds tables (pc + 100) /\
     ALL (nonoverlapping (word_sub stackpointer (word 560),560))
-        [(word pc,0x2f5d); (word tables,48576); (scalar,32)] /\
+        [(word pc,LENGTH (curve25519_x25519base_alt_windows_mc pc tables));
+         (word tables,48576); (scalar,32)] /\
     ALL (nonoverlapping (res,32))
-        [(word pc,0x2f5d); (word tables,48576);
+        [(word pc,LENGTH (curve25519_x25519base_alt_windows_mc pc tables));
+         (word tables,48576);
          (word_sub stackpointer (word 560),568)]
     ==> ensures x86
          (\s. bytes_loaded s (word pc)
@@ -5351,17 +5396,20 @@ let CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT = time prove
          (MAYCHANGE [RSP] ,, WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(res,32);
                      memory :> bytes(word_sub stackpointer (word 560),560)])`,
-  let WINDOWS_CURVE25519_X25519BASE_ALT_EXEC =
-    X86_MK_EXEC_RULE curve25519_x25519base_alt_windows_tmc
-  and subth =
-    REWRITE_RULE[BYTES_LOADED_DATA; BIGNUM_FROM_MEMORY_BYTES; ARITH]
-    (X86_SIMD_SHARPEN_RULE CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_CORRECT
+  let subth =
+    REWRITE_RULE[BYTES_LOADED_DATA; BIGNUM_FROM_MEMORY_BYTES; ARITH;
+                 LENGTH_CURVE25519_X25519BASE_ALT_MC]
+    (X86_SIMD_SHARPEN_RULE
+       (REWRITE_RULE[LENGTH_CURVE25519_X25519BASE_ALT_MC]
+          CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_CORRECT)
      (REWRITE_TAC[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC] THEN
       X86_ADD_RETURN_STACK_TAC CURVE25519_X25519BASE_ALT_EXEC
        (REWRITE_RULE[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC]
         CURVE25519_X25519BASE_ALT_CORRECT)
        `[RBX; RBP; R12; R13; R14; R15]` 536)) in
-  REWRITE_TAC[BYTES_LOADED_DATA] THEN
+  REWRITE_TAC[LENGTH_CURVE25519_X25519BASE_ALT_WINDOWS_MC] THEN
+  REWRITE_TAC[BYTES_LOADED_DATA;
+              fst WINDOWS_CURVE25519_X25519BASE_ALT_EXEC] THEN
   REPLICATE_TAC 5 GEN_TAC THEN WORD_FORALL_OFFSET_TAC 560 THEN
   REWRITE_TAC[ALL; WINDOWS_C_ARGUMENTS; SOME_FLAGS;
               WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
@@ -5385,6 +5433,9 @@ let CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT = time prove
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[ARITH_RULE `8 * 4 = 32`]);;
 
+(* IBT precondition uses 0x2f61 = LENGTH(curve25519_x25519base_alt_windows_mc)
+   + 4 (the bump comes from ADD_IBT_RULE's adjust). Kept numeric here for the
+   same reason as CURVE25519_X25519BASE_ALT_SUBROUTINE_CORRECT. *)
 let CURVE25519_X25519BASE_ALT_WINDOWS_SUBROUTINE_CORRECT = time prove
  (`!tables res scalar n pc stackpointer returnaddress.
     riprel32_within_bounds tables (pc + 104) /\
@@ -5411,15 +5462,19 @@ let CURVE25519_X25519BASE_ALT_WINDOWS_SUBROUTINE_CORRECT = time prove
                      memory :> bytes(word_sub stackpointer (word 560),560)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE
                      ~bridge:(Some CURVE25519_X25519BASE_ALT_WINDOWS_MC_BRIDGE)
-                     CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT));;
+                     (REWRITE_RULE[fst WINDOWS_CURVE25519_X25519BASE_ALT_EXEC;
+                                   LENGTH_CURVE25519_X25519BASE_ALT_WINDOWS_MC]
+                       CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT)));;
 
 let CURVE25519_X25519BASE_BYTE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT = prove
  (`!tables res scalar n pc stackpointer returnaddress.
     riprel32_within_bounds tables (pc + 100) /\
     ALL (nonoverlapping (word_sub stackpointer (word 560),560))
-        [(word pc,0x2f5d); (word tables,48576); (scalar,32)] /\
+        [(word pc,LENGTH (curve25519_x25519base_alt_windows_mc pc tables));
+         (word tables,48576); (scalar,32)] /\
     ALL (nonoverlapping (res,32))
-        [(word pc,0x2f5d); (word tables,48576);
+        [(word pc,LENGTH (curve25519_x25519base_alt_windows_mc pc tables));
+         (word tables,48576);
          (word_sub stackpointer (word 560),568)]
     ==> ensures x86
          (\s. bytes_loaded s (word pc)
@@ -5467,7 +5522,9 @@ let CURVE25519_X25519BASE_BYTE_ALT_WINDOWS_SUBROUTINE_CORRECT = prove
                      memory :> bytes(word_sub stackpointer (word 560),560)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE
                      ~bridge:(Some CURVE25519_X25519BASE_ALT_WINDOWS_MC_BRIDGE)
-                     CURVE25519_X25519BASE_BYTE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT));;
+                     (REWRITE_RULE[fst WINDOWS_CURVE25519_X25519BASE_ALT_EXEC;
+                                   LENGTH_CURVE25519_X25519BASE_ALT_WINDOWS_MC]
+                       CURVE25519_X25519BASE_BYTE_ALT_NOIBT_WINDOWS_SUBROUTINE_CORRECT)));;
 
 
 (* ------------------------------------------------------------------------- *)
@@ -5494,7 +5551,9 @@ let LOCAL_MODINV_SAFETY_TAC (assump_name:string) (n:int) =
          `stackpointer:int64`;`tables:num`;
          (* inside the loop... *)
          `i:num`;
-         `f_ev_loop:int64->int64->int64->num->int64->num->num->(uarch_event)list`]);
+         `f_ev_loop:int64->int64->num->num->int64->num->(uarch_event)list`;
+         `f_ev_prol:int64->int64->num->num->int64->(uarch_event)list`;
+         `f_ev_epil:int64->int64->num->num->int64->(uarch_event)list`]);
 
       LABEL_TAC assump_name safety_th
     ]
@@ -5661,13 +5720,19 @@ let CURVE25519_X25519BASE_ALT_SAFE = time prove
   SUBST_ALL_TAC (ARITH_RULE`2 EXP 6 = 64`) THEN
   DISCHARGE_SAFETY_PROPERTY_TAC);;
 
+(* See note on the corresponding NOIBT_SUBROUTINE_CORRECT theorem: this uses
+   LENGTH of the IBT mc rather than the trimmed mc, because
+   CURVE25519_X25519BASE_ALT_SAFE was stated with the hardcoded 0x2f4d (mc
+   length) in its `nonoverlapping` clause. *)
 let CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE = time prove
  (`exists f_events.
     forall e tables res scalar pc stackpointer returnaddress.
         riprel32_within_bounds tables (pc + 84) /\
         ALL (nonoverlapping (word_sub stackpointer (word 536),536))
-        [word pc,0x2f4d; word tables,48576; scalar,32] /\
-        nonoverlapping (res,32) (word pc,0x2f4d) /\
+        [word pc,LENGTH (curve25519_x25519base_alt_mc pc tables);
+         word tables,48576; scalar,32] /\
+        nonoverlapping (res,32)
+          (word pc,LENGTH (curve25519_x25519base_alt_mc pc tables)) /\
         nonoverlapping (res,32) (word_sub stackpointer (word 536),544)
         ==> ensures x86
             (\s.
@@ -5699,6 +5764,7 @@ let CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE = time prove
              MAYCHANGE
              [memory :> bytes (res,32);
               memory :> bytes (word_sub stackpointer (word 536),536)])`,
+  REWRITE_TAC[LENGTH_CURVE25519_X25519BASE_ALT_MC] THEN
   REWRITE_TAC[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC] THEN
   X86_ADD_RETURN_STACK_TAC CURVE25519_X25519BASE_ALT_EXEC
    (REWRITE_RULE[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC]
@@ -5706,6 +5772,8 @@ let CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE = time prove
     `[RBX; RBP; R12; R13; R14; R15]` 536
   THEN DISCHARGE_SAFETY_PROPERTY_TAC);;
 
+(* IBT precondition uses 0x2f51 (= LENGTH(mc) + 4); see note on
+   CURVE25519_X25519BASE_ALT_SUBROUTINE_CORRECT for why this is numeric. *)
 let CURVE25519_X25519BASE_ALT_SUBROUTINE_SAFE = time prove
  (`exists f_events.
     forall e tables res scalar pc stackpointer returnaddress.
@@ -5746,19 +5814,27 @@ let CURVE25519_X25519BASE_ALT_SUBROUTINE_SAFE = time prove
               memory :> bytes (word_sub stackpointer (word 536),536)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE
                      ~bridge:(Some CURVE25519_X25519BASE_ALT_MC_BRIDGE)
-                     CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE));;
+                     (REWRITE_RULE[fst CURVE25519_X25519BASE_ALT_EXEC;
+                                   LENGTH_CURVE25519_X25519BASE_ALT_MC]
+                       CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE)));;
 
 (* ------------------------------------------------------------------------- *)
 (* Constant-time and memory safety proof of Windows ABI version.             *)
 (* ------------------------------------------------------------------------- *)
 
+(* See note on the corresponding NOIBT_WINDOWS_SUBROUTINE_CORRECT theorem:
+   this uses LENGTH of the IBT Windows mc rather than the trimmed mc, so the
+   inner Linux NOIBT_SUBROUTINE_SAFE call's nonoverlap of
+   `(pc + 0x10, 0x2f4d)` fits exactly inside the outer `(pc, 0x2f5d)`. *)
 let CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_SAFE = time prove
  (`exists f_events.
     forall e tables res scalar pc stackpointer returnaddress.
         riprel32_within_bounds tables (pc + 100) /\
         ALL (nonoverlapping (word_sub stackpointer (word 560),560))
-        [word pc,0x2f5d; word tables,48576; scalar,32] /\
-        nonoverlapping (res,32) (word pc,0x2f5d) /\
+        [word pc,LENGTH (curve25519_x25519base_alt_windows_mc pc tables);
+         word tables,48576; scalar,32] /\
+        nonoverlapping (res,32)
+          (word pc,LENGTH (curve25519_x25519base_alt_windows_mc pc tables)) /\
         nonoverlapping (res,32) (word_sub stackpointer (word 560),568)
         ==> ensures x86
             (\s.
@@ -5790,21 +5866,24 @@ let CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_SAFE = time prove
              MAYCHANGE
              [memory :> bytes (res,32);
               memory :> bytes (word_sub stackpointer (word 560),560)])`,
-  let WINDOWS_CURVE25519_X25519BASE_ALT_EXEC =
-    X86_MK_EXEC_RULE curve25519_x25519base_alt_windows_tmc
-  and subth =
-    REWRITE_RULE[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC]
-    (X86_SIMD_SHARPEN_RULE CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE
+  let subth =
+    REWRITE_RULE[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC;
+                 LENGTH_CURVE25519_X25519BASE_ALT_MC]
+    (X86_SIMD_SHARPEN_RULE
+       (REWRITE_RULE[LENGTH_CURVE25519_X25519BASE_ALT_MC]
+          CURVE25519_X25519BASE_ALT_NOIBT_SUBROUTINE_SAFE)
      (REWRITE_TAC[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC] THEN
       X86_ADD_RETURN_STACK_TAC CURVE25519_X25519BASE_ALT_EXEC
        (REWRITE_RULE[BYTES_LOADED_DATA; fst CURVE25519_X25519BASE_ALT_EXEC]
         CURVE25519_X25519BASE_ALT_SAFE)
        `[RBX; RBP; R12; R13; R14; R15]` 536 THEN
       DISCHARGE_SAFETY_PROPERTY_TAC)) in
+  REWRITE_TAC[LENGTH_CURVE25519_X25519BASE_ALT_WINDOWS_MC] THEN
   ASSUME_CALLEE_SAFETY_TAILED_TAC subth "H_CALLEE" THEN
   META_EXISTS_TAC THEN GEN_TAC THEN
 
-  REWRITE_TAC[BYTES_LOADED_DATA] THEN
+  REWRITE_TAC[BYTES_LOADED_DATA;
+              fst WINDOWS_CURVE25519_X25519BASE_ALT_EXEC] THEN
   REPLICATE_TAC 4 GEN_TAC THEN WORD_FORALL_OFFSET_TAC 560 THEN
   REWRITE_TAC[ALL; WINDOWS_C_ARGUMENTS; SOME_FLAGS;
               WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
@@ -5831,6 +5910,8 @@ let CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_SAFE = time prove
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   DISCHARGE_SAFETY_PROPERTY_TAC);;
 
+(* IBT precondition uses 0x2f61 (= LENGTH(windows_mc) + 4); see note on
+   CURVE25519_X25519BASE_ALT_WINDOWS_SUBROUTINE_CORRECT for why this is numeric. *)
 let CURVE25519_X25519BASE_ALT_WINDOWS_SUBROUTINE_SAFE = time prove
  (`exists f_events.
     forall e tables res scalar pc stackpointer returnaddress.
@@ -5870,4 +5951,6 @@ let CURVE25519_X25519BASE_ALT_WINDOWS_SUBROUTINE_SAFE = time prove
               memory :> bytes (word_sub stackpointer (word 560),560)])`,
   MATCH_ACCEPT_TAC(ADD_IBT_RULE
                      ~bridge:(Some CURVE25519_X25519BASE_ALT_WINDOWS_MC_BRIDGE)
-                     CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_SAFE));;
+                     (REWRITE_RULE[fst WINDOWS_CURVE25519_X25519BASE_ALT_EXEC;
+                                   LENGTH_CURVE25519_X25519BASE_ALT_WINDOWS_MC]
+                       CURVE25519_X25519BASE_ALT_NOIBT_WINDOWS_SUBROUTINE_SAFE)));;
